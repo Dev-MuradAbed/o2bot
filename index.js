@@ -483,7 +483,31 @@ function levenshtein(a, b) {
 
 function normalize(s) { return s.toLowerCase().replace(/[هة]/g, 'ه').trim(); }
 
+// ============================================================
+// ITEM ALIASES — من محادثات الزبائن الحقيقية
+// ============================================================
+const ITEM_ALIASES = {
+  'الصاروخ':'ستيك دجاج مشوي','صاروخ':'ستيك دجاج مشوي',
+  'دوبل لحمة':'فرشوحة دبل لحمة','دبل لحمة':'فرشوحة دبل لحمة',
+  'الكلزوني':'كالزوني دجاج','كلزوني':'كالزوني دجاج',
+  'وقية شيش':'شيش طاووق',
+  'شيبس بطاطس':'بطاطا كبير','علبة بطاطا':'بطاطا كبير',
+  'تشكن بيتزا':'بيتزا مكسيكي دجاج','تشيكن بيتزا':'بيتزا مكسيكي دجاج',
+  'فراشيح عادية':'فرشوحة عادي','فراشيح عادي':'فرشوحة عادي',
+  'فراشيح شاورما':'فرشوحة شاورما',
+  'شاورما عادي':'صحن شاورما','صحن شاورما ب ٣٠':'صحن شاورما',
+  'سلطة مشكلة':'سلطات وسط','صحن سلطه مشكل':'سلطات وسط',
+};
+
 function findItem(query, onlyActive = false) {
+  // فحص ITEM_ALIASES + runtimeAliases أولاً
+  const rawQ = (query||'').trim();
+  const allAliases = {...ITEM_ALIASES,...(STATE.runtimeAliases||{})};
+  for (const [alias,target] of Object.entries(allAliases)) {
+    if (normalize(rawQ).includes(normalize(alias))||normalize(alias).includes(normalize(rawQ))) {
+      query = target; break;
+    }
+  }
   const q = normalize(arabicToEnglishNumbers(query || ''));
   if (!q || q.length < 2) return null;
 
@@ -520,7 +544,7 @@ function findItem(query, onlyActive = false) {
   return best;
 }
 
-function findSimilarItems(query, limit = 3) {
+function findSimilarItems(query, preferCat=null, limit=3) {
   const q = normalize(query);
   const active = STATE.items.filter(i => i.active && STATE.categories.find(c => c.id===i.cat && c.active));
   return active
@@ -532,6 +556,7 @@ function findSimilarItems(query, limit = 3) {
         for (const w of kn.split(' '))
           if (w.length >= 3) score = Math.min(score, levenshtein(q.split(' ')[0]||q, w));
       }
+      if (preferCat && item.cat === preferCat) score -= 5;
       return { item, score };
     })
     .sort((a, b) => a.score - b.score)
@@ -723,6 +748,82 @@ function releaseDriver(orderId) {
 }
 
 // ============================================================
+// LEARNING SYSTEM — نظام التعلم التلقائي
+// ============================================================
+function logUnknown(from, rawMsg, ctx={}) {
+  if (!rawMsg||rawMsg.length<2) return;
+  if (!STATE.unknowns) STATE.unknowns=[];
+  const ex = STATE.unknowns.find(u=>u.raw===rawMsg);
+  if (ex) { ex.count=(ex.count||1)+1; ex.lastSeen=new Date().toLocaleString('ar'); }
+  else STATE.unknowns.push({raw:rawMsg,from:from.slice(-6),count:1,
+    firstSeen:new Date().toLocaleString('ar'),lastSeen:new Date().toLocaleString('ar'),
+    context:{state:ctx.state||null,cartItems:ctx.cartItems||0},suggested:null,status:'new'});
+  if (STATE.unknowns.length>500) STATE.unknowns=STATE.unknowns.slice(-500);
+  analyzeUnknown(rawMsg); saveState();
+}
+
+function analyzeUnknown(rawMsg) {
+  const entry=(STATE.unknowns||[]).find(u=>u.raw===rawMsg);
+  if (!entry||entry.suggested||entry.status!=='new') return;
+  const q=normalize(rawMsg);
+  for (const item of STATE.items) {
+    for (const key of item.keys) {
+      const d=levenshtein(q,normalize(key));
+      if (d<=2&&d>0) {
+        entry.suggested={type:'alias',targetItem:item.name,targetId:item.id,
+          confidence:d===1?'high':'medium',hint:`"${rawMsg}" → قريب من "${key}" في ${item.name}`};
+        return;
+      }
+    }
+  }
+}
+
+// ============================================================
+// CHAT ANALYZER — تحليل تصدير واتساب
+// ============================================================
+function analyzeChatExport(rawText) {
+  const aD={'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+  const toN = s=>s.replace(/[٠-٩]/g,d=>aD[d]||d);
+  const LINE_RX=/^[\d٠-٩‏\u200f\/،,\s:]+[صمءٌٍ]?\s*-\s*(.+?):\s*(.*)$/u;
+  const msgs=[]; let cur=null;
+  for (const ln of rawText.split('\n')) {
+    const line=ln.trim();
+    if (!line||line.includes('<تم استبعاد')) continue;
+    const m=LINE_RX.exec(line);
+    if (m) { if(cur)msgs.push(cur); cur={sender:m[1].trim(),text:m[2].trim()}; }
+    else if (cur) cur.text+='\n'+line;
+  }
+  if(cur)msgs.push(cur);
+  const cnt={}; msgs.forEach(m=>{cnt[m.sender]=(cnt[m.sender]||0)+1;});
+  const sorted=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  const rest=sorted[0]?.[0]?.includes('Rest')||sorted[0]?.[0]?.includes('O2')?sorted[0][0]:sorted[1]?.[0]||null;
+  const custMsgs=msgs.filter(m=>m.sender!==rest);
+  const QTY=/^(\d+)\s*[xX×]?\s*(.+)$/;
+  const aliasMap={}, unknMap={}, statMap={};
+  for (const msg of custMsgs) {
+    for (const line of msg.text.split('\n')) {
+      const l=toN(line.trim()).replace(/\s*(بدون|بس|فقط)\s*.+/gi,'').trim();
+      const m=QTY.exec(l); if(!m)continue;
+      const qty=parseInt(m[1]); const name=m[2].trim();
+      if(qty<1||qty>99||name.length<2)continue;
+      const key=normalize(name);
+      if(!statMap[key])statMap[key]={name,count:0};
+      statMap[key].count+=qty;
+      let found=null;
+      for(const item of STATE.items){for(const k of item.keys){const kn=normalize(k);if(kn===key||kn.includes(key)||key.includes(kn)){found=item;break;}}if(found)break;}
+      if(found){const already=found.keys.some(k=>normalize(k)===key);if(!already){if(!aliasMap[key])aliasMap[key]={alias:name,itemId:found.id,itemName:found.name,type:'contains',count:0};aliasMap[key].count+=qty;}}
+      else{if(!unknMap[key])unknMap[key]={name,count:0};unknMap[key].count+=qty;}
+    }
+  }
+  return {
+    stats:{totalMessages:msgs.length,customerMessages:custMsgs.length,restaurantSender:rest||'—'},
+    aliases:Object.values(aliasMap).sort((a,b)=>b.count-a.count),
+    unknownItems:Object.values(unknMap).sort((a,b)=>b.count-a.count),
+    topItems:Object.values(statMap).sort((a,b)=>b.count-a.count).slice(0,20),
+  };
+}
+
+// ============================================================
 // MENU
 // ============================================================
 function getMenuText(cat) {
@@ -786,7 +887,7 @@ function parseComplexMessage(text) {
   // ============================================================
   // 2. حذف بأشكاله كلها
   // ============================================================
-  const REMOVE_VERBS = /(?:^|\s)(?:شيل(?:و|ي)?|احذف|امسح|حذف|ألغ[ِّي]?|الغ[ِّ]?|لغِّ?|ما بدي|مش بدي|ما عندي|شيلها|شيله|روّح|بدي\s+اشيل|بدي\s+أشيل|اشيل|منها\s+|من\s+السلة)\s*/i;
+  const REMOVE_VERBS = /(?:^|\s)(?:شيل(?:و|ي)?|احذف|امسح|حذف|ألغ[ِّي]?|الغ[ِّ]?|لغِّ?|ما\s*بدي|مش\s*بدي|مو\s*بدي|ما\s*عندي|ما\s*راح\s*اخذ|لا\s*أريد|لا\s*اريد|شيلها|شيله|شيلهم|روّ?ح|بدي\s+[أا]شيل|اشيل|أشيل|منها\s+|من\s+السلة|بلاش(?:ه)?|استبعد|اسحب)\s*/i;
 
   if (REMOVE_VERBS.test(t)) {
     // استخرج اسم الصنف بعد كلمة الحذف
@@ -971,9 +1072,12 @@ function handleComplexOrder(session, text, inOrdering = false) {
 const SKIP_PATTERNS = [
   /^(السلام عليكم|وعليكم السلام|سلام عليكم|صباح الخير|مساء الخير|صباح النور|مساء النور)[\s.،!🌸🌼]*$/i,
   /^(مرحبا|هلا|أهلا|اهلا|هاي|سلام)[\s.،!🌸🌼]*$/i,
-  /^(لو سمحت\s*)?(بدي|ممكن|عايز|اريد|أريد)\s+(اطلب|أطلب|نطلب)[\s.،!]*$/i,
+  /^(لو سمحت\s*)?(بدي|ممكن|عايز|اريد|أريد)\s+(اطلب|أطلب|نطلب|اوصي|أوصي)[\s.،!]*$/i,
   /^(لو سمحت|من فضلك|يعطيك العافيه|يعطيكم العافية|يعطيك العافية)[\s.،!]*$/i,
-  /^(ومعلش|معلش|شكرا|شكراً|الله يخليك|يسلمو|مشكور)[\s.،!]*$/i,
+  /^(ومعلش|معلش|شكرا|شكراً|الله يخليك|يسلمو|مشكور|يسلم|تسلم)[\s.،!]*$/i,
+  /^(O2|يا اكسجين|اكسجين|يا o2)[\s!]*$/i,
+  /^(تمام|اوكي|حلو|ممتاز|زبط|انعم|ولا يهمك|مشي|مزبوط)[\s!]*$/i,
+  /^(طلع الطلب ولا لسه|طلع الطلب|شو صار|قديش بدو وقت|وصل الطلب)[\s؟?]*$/i,
   /^[\s\p{Emoji}\u{1F300}-\u{1FFFF}🫣🤦🏻‍♀️😂❤️🌿👍✅❌]+$/u,
 ];
 
@@ -982,12 +1086,13 @@ const NOTE_INLINE_SPLIT = /\s+(واذا|واذا في|اذا في امكانيه
 
 // ملاحظات تأخذ السطر كله — مبنية على محادثات حقيقية
 const NOTE_STANDALONE_PATTERNS = [
-  /^(تزود الثلج|زود الثلج|زيادة ثلج|ثلج كثير)/i,
-  /^(بدون بصل|بدون طحينة|بدون مخلل|بدون أي نوع خضار|بدون خضار|بدون اي نوع خضار|بدون اي خضار|فقط صوص|بس صوص|بس طحينه|بس طحينة)/i,
+  /^(تزود الثلج|زود الثلج|زيادة ثلج|ثلج كثير|حط تلج|تلج بزيادة)/i,
+  /^(بدون بصل|بدون طحينة|بدون مخلل|بدون أي نوع خضار|بدون خضار|بدون اي خضار|فقط صوص|بس صوص|بس طحينه|بس طحينة|كله بدون خضار)/i,
   /^(اكتب على|يكتب على|لو في امكانيه يكتب|لو ممكن يكتب)/i,
   /^(لو في امكانيه|واذا في امكانيه|لو ممكن|وتوصى|توصى بالمخللات)/i,
   /^(ملاحظة[:\s]|ملاحظه[:\s])/i,
-  /^(مع كل وجبة|مع كل طلب|كياس طحينية|طحينية بشطة|طحينية بالشطة|صوصات|امانة الطحنية|كتر طحنية)/i,
+  /^(مع كل وجبة|مع كل طلب|كياس طحينية|طحينية بشطة|طحينية بالشطة|صوصات|امانة الطحنية|كتر طحنية|كياس طحينية بالشطة|كتر طراشي|صوصات حبطرش)/i,
+  /^(سلطات كاتشب زيادة|كاتشب زيادة|بالنسبة ل|اذا مش متوفر|اذا ما في)/i,
 ];
 
 // ثرثرة لا علاقة لها بالطلب — تُتجاهل صامتاً
@@ -1159,18 +1264,25 @@ ${cartText(session.cart)}
 // ============================================================
 // MISC HELPERS
 // ============================================================
-function buildUnavailableMsg(itemName, query) {
-  const similar = findSimilarItems(query || itemName, 3);
+function buildUnavailableMsg(itemName, query, cat=null) {
+  const orig = STATE.items.find(i => normalize(i.name)===normalize(itemName));
+  const preferCat = cat||orig?.cat||null;
+  const similar = findSimilarItems(query||itemName, preferCat, 3);
   let msg = `عذراً، *${itemName}* غير متوفر حالياً 😔`;
   if (similar.length) {
-    msg += '\n\nبس عندنا:\n';
-    msg += similar.map(i => `• ${i.name} — ${i.price} ₪`).join('\n');
+    const same = similar.filter(i => i.cat===preferCat);
+    msg += '\n\nبس عندنا من نفس الفئة:\n';
+    msg += (same.length?same:similar).map(i=>`• ${i.name} — ${i.price} ₪`).join('\n');
     msg += '\n\nبدك تطلب أحد هالأصناف؟ 😊';
   }
   return msg;
 }
 
-function isQuestion(t) { return /كم|بكام|سعر|سعره|قيمة|غالي|رخيص|price|how much|cost/.test(t); }
+function isQuestion(t) {
+  return /كم|بكام|سعره|قيمة|غالي|رخيص|price|how much|cost/.test(t) ||
+    /[؟?]$/.test(t.trim()) || /\bبكم\b|\bسعر\b/.test(t) ||
+    /^(في|فيه|هل|عندكم|متوفر|في عندكم|بتعملوا)/i.test(t);
+}
 function isOrder(t)    { return /بدي|عايز|اريد|أريد|اطلب|خذلي|حطلي|اضيف|زودني|i want|order|give me|add/.test(t); }
 function isComplex(t) {
   return (
@@ -1306,6 +1418,24 @@ ${pendingOrderSummary(po)}
 3️⃣ إلغاء الطلب القديم`;
   }
 
+  // ====== تتبع الطلب ======
+  const isTrack = /وين طلبي|وين الطلب|حالة الطلب|شو صار|طلع الطلب|تحرك الطلب|وصل طلبي/i.test(text)
+    || /^#?\d{1,6}$/.test(text.trim());
+  if (isTrack) {
+    const tOrd = (STATE.orders||[]).find(o=>o.customerPhone===from&&!['delivered','picked_up','cancelled'].includes(o.status));
+    const stMap = {
+      pending_payment:'⏳ انتظار تأكيد التحويل',
+      payment_confirmed:'✅ تم تأكيد الدفع — قيد التجهيز',
+      added_to_system:'📥 دخل للنظام — قيد التحضير',
+      preparing:'👨‍🍳 قيد التحضير الآن',
+      ready:'🔔 جاهز — ينتظر الديلفري',
+      out_for_delivery:`🚗 في الطريق${tOrd?.driverName?' مع '+tOrd.driverName:''}`,
+      ready_pickup:'🔔 جاهز للاستلام',
+    };
+    if (tOrd) return `📦 طلبك *#${tOrd.id}*\n${stMap[tOrd.status]||tOrd.status}\n💰 المجموع: *${tOrd.grandTotal||tOrd.total} ₪*`;
+    return `ما عندنا طلب نشط لك حالياً 😊\nقولي شو بدك تطلب!`;
+  }
+
   // سؤال عن الحساب
   if (/كم الحساب|كم بيطلع|كم المبلغ|كم احول|كم بدفع|الحساب كم|بكم الطلب/.test(text)) {
     if (session.cart.length) {
@@ -1362,12 +1492,14 @@ ${pendingOrderSummary(po)}
       if (result) return result;
     }
 
-    // سؤال عن سعر
+    // سؤال عن سعر/توفر → pending_item
     if (isQuestion(text)) {
-      const item = findItem(extractItemName(text) || raw);
+      const q = raw.replace(/^(في|فيه|هل|عندكم|متوفر|في عندكم)\s*/i,'').replace(/[؟?]+$/,'').trim();
+      const item = findItem(extractItemName(q||text)||q||raw);
       if (item) {
-        if (!item.active) return buildUnavailableMsg(item.name, raw);
-        return `${item.name} بـ${item.price} ₪ 😊\nبدك تطلبه؟`;
+        if (!item.active) return buildUnavailableMsg(item.name, raw, item.cat);
+        session.state = 'pending_item'; session.pendingItem = item; session.pendingQty = 1;
+        return `${item.name} متوفر ✅ — *${item.price} ₪*\n\nبدك تطلبه؟ (نعم / لا)`;
       }
     }
 
@@ -1411,29 +1543,28 @@ ${pendingOrderSummary(po)}
   // ====== PENDING ITEM ======
   if (session.state === 'pending_item') {
     const item = session.pendingItem;
-    const qty = session.pendingQty || 1;
-
-    if (/^(نعم|آه|اه|اوك|ok|تمام|اضيف|يلا)$/.test(text) || /^بدي/.test(text)) {
-      session.state = 'ordering';
-      addToCart(session, item, qty);
-      session.pendingItem = null;
+    const qty  = session.pendingQty || 1;
+    const isYes = /^(نعم|آه|اه|اوك|ok|تمام|اضيف|يلا|ايوه|أيوه|ماشي|حلو|اطلبه|ضيفه|خذلي|yes|بدي|حاضر|انعم)$/i.test(text);
+    if (isYes) {
+      session.state='ordering'; addToCart(session,item,qty); session.pendingItem=null;
       return `تمام أضفت ${qty}x ${item.name}! 🛒\nشو كمان بدك؟ 😊`;
     }
-    if (/^(لا|لأ|بس)$/.test(text)) {
-      session.state = null; session.pendingItem = null;
-      return `اوكي! 😊 في شي ثاني؟`;
+    const isNo = /^(لا|لأ|لاء|لع|بس|مو|مش|no|بلاش|مش بدي|ما بدي|لا شكرا|بالعكس)$/i.test(text);
+    if (isNo) {
+      session.state='ordering'; session.pendingItem=null;
+      return session.cart.length
+        ? `اوكي! 😊\n🛒 سلتك:\n${cartText(session.cart)}\nالمجموع: *${cartTotal(session.cart)} ₪*\n\nشو بدك تضيف؟`
+        : `اوكي! 😊 شو بدك تطلب؟`;
     }
-    // محاولة إضافة صنف آخر
-    const newItem = findItem(extractItemName(text) || raw);
+    if (/كم سعره|بكام|بكم|سعره كم|السعر/i.test(text))
+      return `${item.name} بـ*${item.price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
+    const newItem = findItem(extractItemName(text)||raw);
     if (newItem && newItem.id !== item.id) {
-      if (!newItem.active) return buildUnavailableMsg(newItem.name, raw);
-      session.state = 'ordering';
-      addToCart(session, item, qty);
-      addToCart(session, newItem, extractQty(text));
-      session.pendingItem = null;
+      if (!newItem.active) return buildUnavailableMsg(newItem.name, raw, newItem.cat);
+      session.state='ordering'; addToCart(session,item,qty); addToCart(session,newItem,extractQty(text)); session.pendingItem=null;
       return `تمام أضفت:\n• ${qty}x ${item.name}\n• ${extractQty(text)}x ${newItem.name}\nشو كمان؟ 😊`;
     }
-    return `بدك تطلبه ولا بس بدك السعر؟ 😊`;
+    return `${item.name} — *${item.price} ₪*\n\nبدك تطلبه؟ اكتب *نعم* أو *لا* 😊`;
   }
 
   // ====== ORDERING ======
@@ -1681,6 +1812,7 @@ ${deliveryInfo}
     return `شكراً ${customerName}! 😊\n\nتم استلام طلبك رقم *#${orderNum}*\nبعد تأكيد التحويل ستصلك رسالة فوراً ✅\n⏱️ وقت التحضير: ~${t} دقيقة`;
   }
 
+  logUnknown(from, rawOriginal, {state:null,cartItems:0});
   return STATE.settings.defaultReply;
 }
 
@@ -2172,6 +2304,103 @@ async function handleAPI(url, method, body, res) {
       `🎉 وصل طلبك *#${order.id}*!\nنتمنى تكون عجبك 😊 شكراً لثقتك بـ${STATE.settings.name} ❤️`
     ).catch(()=>{});
     return json({ ok:true });
+  }
+
+  // ================================================================
+  // DRIVER BOARD APIs — pickup + returned + driver-board
+  // ================================================================
+  const pickupM = url.match(/^\/api\/orders\/(\d+)\/pickup$/);
+  if (pickupM && method==='POST') {
+    const order = STATE.orders.find(o=>o.id===parseInt(pickupM[1]));
+    if (!order) return json({error:'not found'},404);
+    order.pickedUpAt = Date.now(); order.status = 'out_for_delivery';
+    if (!order.timeline) order.timeline = [];
+    order.timeline.push({status:'out_for_delivery',label:`🚗 ${order.driverName} أخذ الطلب`,
+      time:new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+      date:new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),timestamp:Date.now()});
+    saveState(); addLog(`🚗 #${order.id} → ${order.driverName} خرج`);
+    client.sendMessage(order.customerPhone,
+      `🚗 طلبك *#${order.id}* مع السائق *${order.driverName}* في الطريق!\n📍 اكتب *#${order.id}* لمتابعة طلبك`
+    ).catch(()=>{});
+    return json({ok:true,pickedUpAt:order.pickedUpAt});
+  }
+
+  const returnM = url.match(/^\/api\/orders\/(\d+)\/returned$/);
+  if (returnM && method==='POST') {
+    const order = STATE.orders.find(o=>o.id===parseInt(returnM[1]));
+    if (!order) return json({error:'not found'},404);
+    const delivered = body.delivered!==false;
+    order.status = delivered?'delivered':'cancelled'; order.returnedAt = Date.now();
+    if (!order.timeline) order.timeline=[];
+    order.timeline.push({status:order.status,label:delivered?'🎉 تم التوصيل':'❌ لم يُسلَّم',
+      time:new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+      date:new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),
+      timestamp:Date.now(),note:body.note||''});
+    (STATE.drivers||[]).forEach(d=>{if(d.currentOrders)d.currentOrders=d.currentOrders.filter(id=>id!==order.id);});
+    saveState(); addLog(`${delivered?'🎉':'❌'} #${order.id} → ${order.driverName} ${delivered?'سلّم':'لم يسلّم'}`);
+    const elapsed = order.pickedUpAt?Math.round((Date.now()-order.pickedUpAt)/60000):null;
+    if (delivered) client.sendMessage(order.customerPhone,
+      `🎉 وصل طلبك *#${order.id}*!\nنتمنى تكون عجبك 😊 شكراً لثقتك بـ${STATE.settings.name} ❤️`
+    ).catch(()=>{});
+    return json({ok:true,elapsed});
+  }
+
+  const dbBM = url.match(/^\/api\/driver-board\/(\d+)$/);
+  if (dbBM && method==='GET') {
+    const driver = (STATE.drivers||[]).find(d=>d.id===parseInt(dbBM[1]));
+    if (!driver) return json({error:'not found'},404);
+    const today = new Date().toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'});
+    const active = STATE.orders.filter(o=>o.driverId===driver.id&&['ready','out_for_delivery'].includes(o.status));
+    const done   = STATE.orders.filter(o=>o.driverId===driver.id&&o.status==='delivered'&&o.dateKey===today);
+    return json({driver,activeOrders:active,todayDelivered:done.length});
+  }
+
+  // ================================================================
+  // LEARNING + CHAT ANALYZER APIs
+  // ================================================================
+  if (url==='/api/unknowns'&&method==='GET')
+    return json((STATE.unknowns||[]).filter(u=>u.status==='new').sort((a,b)=>(b.count||1)-(a.count||1)).slice(0,50));
+
+  if (url==='/api/unknowns/apply'&&method==='POST') {
+    const item = STATE.items.find(i=>i.id===parseInt(body.targetId));
+    if (item&&body.alias&&!item.keys.includes(body.alias)) item.keys.push(body.alias);
+    const entry = (STATE.unknowns||[]).find(u=>u.raw===body.raw);
+    if (entry) entry.status='added';
+    saveState(); addLog(`📚 تعلّم: "${body.alias||body.raw}" → ${item?.name||'؟'}`);
+    return json({ok:true});
+  }
+
+  if (url==='/api/unknowns/dismiss'&&method==='POST') {
+    const entry=(STATE.unknowns||[]).find(u=>u.raw===body.raw);
+    if(entry)entry.status='dismissed';
+    saveState(); return json({ok:true});
+  }
+
+  if (url==='/api/unknowns/alias'&&method==='POST') {
+    if(!STATE.runtimeAliases)STATE.runtimeAliases={};
+    STATE.runtimeAliases[body.from]=body.to;
+    saveState(); addLog(`🔗 alias: "${body.from}" → "${body.to}"`);
+    return json({ok:true});
+  }
+
+  if (url==='/api/analyze-chat'&&method==='POST') {
+    if(!body.text)return json({error:'no text'},400);
+    return json(analyzeChatExport(body.text));
+  }
+
+  if (url==='/api/analyze-chat/apply'&&method==='POST') {
+    let appliedAliases=0, addedItems=0;
+    for(const a of (body.aliases||[])) {
+      const item=STATE.items.find(i=>i.id===a.itemId);
+      if(item&&a.alias&&!item.keys.includes(a.alias)){item.keys.push(a.alias);appliedAliases++;}
+    }
+    for(const ni of (body.newItems||[])) {
+      if(!ni.name||!ni.cat||!ni.price)continue;
+      STATE.items.push({id:STATE.nextId++,name:ni.name,cat:ni.cat,price:Number(ni.price)||0,active:false,keys:[ni.name]});
+      addedItems++;
+    }
+    saveState(); addLog(`📚 تحليل: ${appliedAliases} alias + ${addedItems} صنف جديد`);
+    return json({ok:true,appliedAliases,addedItems});
   }
 
   // ---- CUSTOMER PROFILES ----
