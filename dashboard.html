@@ -194,6 +194,9 @@ tr:hover td{background:#ffffff04}
     <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span>إعدادات عامة</div>
     <div class="nav-item" onclick="showPage('delivery',this)"><span class="nav-icon">🚚</span>رسوم التوصيل</div>
     <div class="nav-item" onclick="showPage('logs',this)"><span class="nav-icon">📋</span>السجل</div>
+    <div class="nav-item" onclick="showPage('driverboard',this)"><span class="nav-icon">🚚</span>شاشة الديلفري</div>
+    <div class="nav-item" onclick="showPage('learn',this)"><span class="nav-icon">🧠</span>التعلم</div>
+    <div class="nav-item" onclick="showPage('analyzer',this)"><span class="nav-icon">🔬</span>محلل المحادثات</div>
   </div>
 
   <div class="main">
@@ -289,6 +292,97 @@ tr:hover td{background:#ffffff04}
             </div>
             <div class="card-body" id="ops-drivers"><div class="loading"><div class="spinner"></div></div></div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DRIVER BOARD -->
+    <div class="page" id="page-driverboard">
+      <div class="page-head">
+        <div style="display:flex;justify-content:space-between;align-items:center;width:100%">
+          <div><h2>🚚 شاشة الديلفري</h2><p>بطاقات تجميع الطلبات لكل سائق</p></div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="db-last" style="font-size:11px;color:var(--muted)"></span>
+            <button class="btn btn-sm" onclick="loadDriverBoard()">🔄</button>
+          </div>
+        </div>
+      </div>
+      <div class="stats-grid" style="margin-bottom:16px">
+        <div class="stat-card"><div class="stat-icon">🚗</div><div class="stat-val" id="db-s1" style="color:var(--green)">—</div><div class="stat-lbl">في الطريق</div></div>
+        <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-val" id="db-s2" style="color:var(--yellow)">—</div><div class="stat-lbl">ينتظر خروج</div></div>
+        <div class="stat-card"><div class="stat-icon">🎉</div><div class="stat-val" id="db-s3" style="color:var(--muted)">—</div><div class="stat-lbl">أُنجز اليوم</div></div>
+        <div class="stat-card"><div class="stat-icon">💰</div><div class="stat-val" id="db-s4">—</div><div class="stat-lbl">مبالغ اليوم ₪</div></div>
+      </div>
+      <div id="db-container" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">
+        <div class="loading"><div class="spinner"></div>جاري التحميل...</div>
+      </div>
+    </div>
+
+    <!-- LEARN -->
+    <div class="page" id="page-learn">
+      <div class="page-head"><h2>🧠 مركز التعلم</h2><p>رسائل لم يفهمها البوت — راجعها وعلّمه</p></div>
+      <div class="stats-grid" style="margin-bottom:16px">
+        <div class="stat-card"><div class="stat-icon">❓</div><div class="stat-val" id="lrn-new" style="color:var(--yellow)">—</div><div class="stat-lbl">جديدة</div></div>
+        <div class="stat-card"><div class="stat-icon">💡</div><div class="stat-val" id="lrn-sug" style="color:var(--blue)">—</div><div class="stat-lbl">مقترحات</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-val" id="lrn-add" style="color:var(--green)">—</div><div class="stat-lbl">تم تطبيقها</div></div>
+        <div class="stat-card"><div class="stat-icon">🔗</div><div class="stat-val" id="lrn-ali" style="color:var(--muted)">—</div><div class="stat-lbl">Aliases</div></div>
+      </div>
+      <div class="card" style="margin-bottom:16px">
+        <div class="card-head"><h3>➕ إضافة alias يدوي</h3></div>
+        <div class="card-body">
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <input id="ali-from" placeholder='مثال: "الصاروخ"' style="flex:1;min-width:150px;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);outline:none">
+            <span style="color:var(--muted);align-self:center">→</span>
+            <input id="ali-to" placeholder='مثال: "ستيك دجاج مشوي"' style="flex:1;min-width:150px;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);outline:none">
+            <button class="btn btn-green" onclick="addAliasManual()">💾 أضف</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>📋 رسائل لم تُفهَم</h3><button class="btn btn-sm" onclick="loadLearn()">🔄</button></div>
+        <div class="card-body" id="lrn-body"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- ANALYZER -->
+    <div class="page" id="page-analyzer">
+      <div class="page-head"><h2>🔬 محلل المحادثات</h2><p>استورد تصدير واتساب وعلّم البوت منه</p></div>
+      <div class="card" style="margin-bottom:12px;border-right:3px solid var(--blue)">
+        <div class="card-body" style="font-size:12px;color:var(--muted)">
+          <strong style="color:var(--text)">تصدير واتساب:</strong> افتح المحادثة ← ⋮ ← المزيد ← تصدير الدردشة ← بدون وسائط ← الصق هنا
+        </div>
+      </div>
+      <div class="card" style="margin-bottom:12px">
+        <div class="card-head">
+          <h3>📋 نص المحادثة</h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" onclick="clearAnalyzer()">🗑️</button>
+            <button class="btn btn-sm btn-green" onclick="runAnalyzer()" id="ana-btn">🔬 تحليل</button>
+          </div>
+        </div>
+        <div class="card-body">
+          <textarea id="ana-input" rows="7" placeholder="الصق نص المحادثة هنا..." style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text);outline:none;resize:vertical;direction:rtl;line-height:1.6"></textarea>
+        </div>
+      </div>
+      <div id="ana-results" style="display:none">
+        <div class="stats-grid" style="margin-bottom:12px" id="ana-stats"></div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-head">
+            <h3>🔗 كلمات جديدة للقاموس</h3>
+            <div style="display:flex;gap:8px;align-items:center">
+              <label style="font-size:12px;display:flex;gap:4px;cursor:pointer"><input type="checkbox" id="ana-all" onchange="toggleAllAna(this.checked)"> الكل</label>
+              <button class="btn btn-sm btn-green" onclick="applyAliases()">✅ طبّق</button>
+            </div>
+          </div>
+          <div class="card-body" id="ana-aliases"></div>
+        </div>
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-head"><h3>❓ أصناف غير معروفة</h3></div>
+          <div class="card-body" id="ana-unknown"></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h3>📊 أكثر الأصناف ذكراً</h3></div>
+          <div class="card-body" id="ana-top"></div>
         </div>
       </div>
     </div>
@@ -478,7 +572,7 @@ function showPage(id, el) {
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   document.getElementById('page-'+id).classList.add('active');
   if(el)el.classList.add('active');
-  const loaders = {dashboard:loadDashboard, menu:loadMenu, cats:loadCats, replies:loadReplies, transfer:loadTransfer, settings:loadSettings, delivery:loadDelivery, logs:loadLogs, sim:loadSim, orders:loadOrders, operations:loadOperations};
+  const loaders = {dashboard:loadDashboard, menu:loadMenu, cats:loadCats, replies:loadReplies, transfer:loadTransfer, settings:loadSettings, delivery:loadDelivery, logs:loadLogs, sim:loadSim, orders:loadOrders, operations:loadOperations, driverboard:loadDriverBoard, learn:loadLearn, analyzer:()=>{}};
   if(loaders[id]) loaders[id]();
 }
 
@@ -1508,6 +1602,241 @@ setInterval(() => {
   // تحديث الطلبات إذا كانت الصفحة مفتوحة
   if (activePage && activePage.id === 'page-orders' && ordersLoaded) loadOrders();
 }, 30000);
+
+// ================================================================
+// DRIVER BOARD — شاشة بطاقات الديلفري
+// ================================================================
+let _dbO=[], _dbD=[];
+async function loadDriverBoard() {
+  try {
+    [_dbO,_dbD] = await Promise.all([apiGet('/orders'),apiGet('/drivers')]);
+    const today=new Date().toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'});
+    document.getElementById('db-s1').textContent=_dbO.filter(o=>o.status==='out_for_delivery').length;
+    document.getElementById('db-s2').textContent=_dbO.filter(o=>o.status==='ready').length;
+    document.getElementById('db-s3').textContent=_dbO.filter(o=>o.status==='delivered'&&o.dateKey===today).length;
+    document.getElementById('db-s4').textContent=_dbO.filter(o=>o.status==='delivered'&&o.dateKey===today).reduce((s,o)=>s+(o.grandTotal||0),0);
+    document.getElementById('db-last').textContent='آخر تحديث: '+new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'});
+    renderDB();
+  } catch(e){document.getElementById('db-container').innerHTML=`<div class="empty"><div class="ico">⚠️</div>${e.message}</div>`;}
+}
+
+function elpStr(ts){if(!ts)return null;const m=Math.round((Date.now()-ts)/60000);return m<60?m+'د':Math.floor(m/60)+'س '+m%60+'د';}
+
+function renderDB(){
+  const today=new Date().toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'});
+  const ct=document.getElementById('db-container');
+  const active=_dbD.filter(d=>d.active);
+  if(!active.length){ct.innerHTML='<div class="empty"><div class="ico">🚗</div>لا يوجد سائقون نشطون</div>';return;}
+  ct.innerHTML=active.map(d=>{
+    const ords=_dbO.filter(o=>o.driverId===d.id&&['ready','out_for_delivery'].includes(o.status));
+    const done=_dbO.filter(o=>o.driverId===d.id&&o.status==='delivered'&&o.dateKey===today);
+    const onRoad=ords.some(o=>o.status==='out_for_delivery');
+    const waiting=ords.some(o=>o.status==='ready');
+    const sc=onRoad?'var(--green)':waiting?'var(--yellow)':'var(--border)';
+    const sl=onRoad?'🚗 في الطريق':waiting?'⏳ ينتظر':'🟢 متاح';
+    const total=ords.reduce((s,o)=>s+(o.grandTotal||0),0);
+    const rows=ords.map(o=>{
+      const isRoad=o.status==='out_for_delivery';
+      const wt=elpStr(o.assignedAt),tr=isRoad?elpStr(o.pickedUpAt):null;
+      const wc=!o.assignedAt?'var(--muted)':Math.round((Date.now()-o.assignedAt)/60000)>30?'var(--red)':Math.round((Date.now()-o.assignedAt)/60000)>15?'var(--yellow)':'var(--green)';
+      const items=(o.items||[]).slice(0,3).map(i=>`${i.qty}× ${i.name}`).join(' · ')+(o.items?.length>3?` +${o.items.length-3}`:'');
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:12px;background:var(--surface2)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+          <div style="display:flex;gap:8px;align-items:center">
+            <span style="font-size:17px;font-weight:900;color:var(--green)">#${o.id}</span>
+            <span style="font-size:10px;padding:2px 8px;border-radius:6px;background:${isRoad?'rgba(30,180,80,.12)':'rgba(250,165,0,.12)'};color:${isRoad?'var(--green)':'var(--yellow)'}">
+              ${isRoad?'🚗 في الطريق':'⏳ ينتظر'}
+            </span>
+          </div>
+          <span style="font-size:11px;font-weight:700;color:${wc}">⏱ ${wt||'—'}</span>
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:6px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">🍽️ ${items}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div><div style="font-size:13px;font-weight:700">📍 ${o.address||'—'}</div>
+          <div style="font-size:11px;color:var(--muted)">👤 ${o.name||'—'} · 📞 ${o.phone||'—'}</div></div>
+          <span style="font-size:15px;font-weight:900;color:var(--green)">${o.grandTotal} ₪</span>
+        </div>
+        ${o.note?`<div style="font-size:11px;color:var(--yellow);background:rgba(250,165,0,.1);border-radius:6px;padding:4px 8px;margin-bottom:8px">📝 ${o.note}</div>`:''}
+        ${isRoad&&tr?`<div style="font-size:11px;color:var(--muted);margin-bottom:8px">🕐 في الطريق منذ ${tr}</div>`:''}
+        <div style="display:flex;gap:8px;margin-top:8px">
+          ${!isRoad?`<button onclick="dbPickup(${o.id})" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">📦 استلمت الطلب</button>`:''}
+          ${isRoad?`<button onclick="dbReturn(${o.id},true)" style="flex:1;background:var(--green);color:#fff;border:none;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font)">✅ سلّمت الطلب</button>
+          <button onclick="dbReturn(${o.id},false)" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;cursor:pointer;font-family:var(--font)">❌ لم يُسلَّم</button>`:''}
+        </div>
+      </div>`;
+    }).join('');
+    return `<div style="border:2px solid ${sc};border-radius:14px;overflow:hidden;background:var(--surface2)">
+      <div style="padding:14px 16px;background:var(--surface3);display:flex;align-items:center;justify-content:space-between">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:42px;height:42px;border-radius:50%;border:2px solid ${sc};display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:900;color:${sc}">${d.name.charAt(0)}</div>
+          <div><div style="font-size:15px;font-weight:700">${d.name}</div><div style="font-size:11px;color:var(--muted)">${sl}</div></div>
+        </div>
+        <div style="text-align:left">
+          <div style="font-size:12px;color:var(--muted)">اليوم: ${done.length} ✓</div>
+          ${ords.length?`<div style="font-size:12px;font-weight:700;color:var(--green)">${ords.length} نشط · ${total} ₪</div>`:''}
+        </div>
+      </div>
+      <div style="padding:12px;display:flex;flex-direction:column;gap:10px">
+        ${ords.length?rows:`<div style="text-align:center;padding:24px;color:var(--muted);font-size:13px">لا توجد طلبات نشطة</div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function dbPickup(id){
+  try{await fetch(API+'/api/orders/'+id+'/pickup',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  toast('📦 تم تسجيل الاستلام ✅'); await loadDriverBoard();}catch(e){toast('خطأ: '+e.message,true);}
+}
+async function dbReturn(id,ok){
+  if(!confirm(ok?'تأكيد تسليم الطلب؟':'تأكيد عدم التسليم؟'))return;
+  const note=ok?'':(prompt('سبب عدم التسليم:')||'');
+  try{
+    const r=await fetch(API+'/api/orders/'+id+'/returned',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({delivered:ok,note})});
+    const d=await r.json();
+    toast(ok?`🎉 تم التسليم${d.elapsed?' ('+d.elapsed+' د)':''}!`:'تم تسجيل عدم التسليم');
+    await loadDriverBoard();
+  }catch(e){toast('خطأ: '+e.message,true);}
+}
+
+// ================================================================
+// LEARN — مركز التعلم
+// ================================================================
+let _lrnData=[];
+async function loadLearn(){
+  try{
+    const [data,st]=await Promise.all([apiGet('/unknowns'),apiGet('/state')]);
+    _lrnData=data; S=st;
+    document.getElementById('lrn-new').textContent=data.filter(u=>u.status==='new').length;
+    document.getElementById('lrn-sug').textContent=data.filter(u=>u.suggested).length;
+    document.getElementById('lrn-add').textContent=(st.unknowns||[]).filter(u=>u.status==='added').length;
+    document.getElementById('lrn-ali').textContent=Object.keys(st.runtimeAliases||{}).length;
+    const el=document.getElementById('lrn-body');
+    if(!data.length){el.innerHTML='<div class="empty"><div class="ico">🎉</div>لا توجد رسائل جديدة</div>';return;}
+    const cc={'high':'var(--green)','medium':'var(--yellow)'};
+    const cl={'high':'🟢 ثقة عالية','medium':'🟡 ثقة متوسطة'};
+    el.innerHTML=data.map((u,i)=>`
+      <div style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2)">
+        <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+          <span style="font-weight:700">"${u.raw}"</span>
+          <div style="display:flex;gap:6px">
+            <span style="background:var(--surface3);border-radius:6px;padding:2px 8px;font-size:11px">${u.count}x</span>
+            <span style="font-size:11px;color:var(--muted)">${u.lastSeen||''}</span>
+          </div>
+        </div>
+        ${u.suggested?`<div style="background:var(--surface3);border-radius:8px;padding:8px;margin-bottom:8px;border-right:3px solid ${cc[u.suggested.confidence]||'var(--muted)'}">
+          <div style="font-size:10px;color:${cc[u.suggested.confidence]||'var(--muted)'};">${cl[u.suggested.confidence]||'مقترح'}</div>
+          <div style="font-size:12px">${u.suggested.hint}</div>
+        </div>`:''}
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          ${u.suggested?.type==='alias'?`<button class="btn btn-sm btn-green" onclick="applyLrn('${u.raw.replace(/'/g,"\\'")}',${u.suggested.targetId},'${u.raw.replace(/'/g,"\\'")}')">✅ ${u.suggested.targetItem}</button>`:''}
+          <input placeholder="alias..." id="lrn-val-${i}" style="flex:1;min-width:100px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text);outline:none">
+          <button class="btn btn-sm btn-green" onclick="applyLrnManual('${u.raw.replace(/'/g,"\\'")}',${i},${u.suggested?.targetId||0})">💾</button>
+          <button class="btn btn-sm" onclick="dismissLrn('${u.raw.replace(/'/g,"\\'")}')">✕</button>
+        </div>
+      </div>`).join('');
+  }catch(e){document.getElementById('lrn-body').innerHTML=`<div class="empty"><div class="ico">⚠️</div>${e.message}</div>`;}
+}
+
+async function applyLrn(raw,targetId,alias){
+  try{await apiPost('/unknowns/apply',{raw,targetId,alias});toast('✅ تعلّم!');await loadLearn();}
+  catch(e){toast('خطأ: '+e.message,true);}
+}
+async function applyLrnManual(raw,i,targetId){
+  const v=document.getElementById('lrn-val-'+i)?.value?.trim();
+  if(!v){toast('أدخل alias',true);return;}
+  if(targetId){await applyLrn(raw,targetId,v);}
+  else{await apiPost('/unknowns/alias',{from:raw,to:v});toast('✅ alias مضاف');await loadLearn();}
+}
+async function dismissLrn(raw){
+  try{await apiPost('/unknowns/dismiss',{raw});_lrnData=_lrnData.filter(u=>u.raw!==raw);await loadLearn();}
+  catch(e){toast('خطأ',true);}
+}
+async function addAliasManual(){
+  const from=document.getElementById('ali-from').value.trim();
+  const to=document.getElementById('ali-to').value.trim();
+  if(!from||!to){toast('أدخل من وإلى',true);return;}
+  try{await apiPost('/unknowns/alias',{from,to});
+  document.getElementById('ali-from').value='';document.getElementById('ali-to').value='';
+  toast(`✅ "${from}" → "${to}"`);}catch(e){toast('خطأ: '+e.message,true);}
+}
+
+// ================================================================
+// ANALYZER — محلل المحادثات
+// ================================================================
+let _anaResult=null;
+async function runAnalyzer(){
+  const text=document.getElementById('ana-input').value.trim();
+  if(!text){toast('الصق نص المحادثة',true);return;}
+  const btn=document.getElementById('ana-btn');
+  btn.disabled=true;btn.textContent='⏳ جاري...';
+  try{
+    _anaResult=await apiPost('/analyze-chat',{text});
+    renderAnalyzer(_anaResult);
+    document.getElementById('ana-results').style.display='block';
+    toast(`✅ ${_anaResult.stats.customerMessages} رسالة زبون`);
+  }catch(e){toast('خطأ: '+e.message,true);}
+  finally{btn.disabled=false;btn.textContent='🔬 تحليل';}
+}
+function clearAnalyzer(){document.getElementById('ana-input').value='';document.getElementById('ana-results').style.display='none';}
+function renderAnalyzer(r){
+  document.getElementById('ana-stats').innerHTML=`
+    <div class="stat-card"><div class="stat-icon">💬</div><div class="stat-val">${r.stats.totalMessages}</div><div class="stat-lbl">رسالة كاملة</div></div>
+    <div class="stat-card"><div class="stat-icon">👤</div><div class="stat-val" style="color:var(--blue)">${r.stats.customerMessages}</div><div class="stat-lbl">رسالة زبون</div></div>
+    <div class="stat-card"><div class="stat-icon">🔗</div><div class="stat-val" style="color:var(--green)">${r.aliases.length}</div><div class="stat-lbl">alias جديد</div></div>
+    <div class="stat-card"><div class="stat-icon">❓</div><div class="stat-val" style="color:var(--yellow)">${r.unknownItems.length}</div><div class="stat-lbl">غير معروف</div></div>`;
+  const tl={exact:'مطابق',contains:'يحتوي',fuzzy:'قريب'};
+  const tc={exact:'var(--green)',contains:'var(--blue)',fuzzy:'var(--yellow)'};
+  document.getElementById('ana-aliases').innerHTML=!r.aliases.length
+    ?'<div class="empty"><div class="ico">✅</div>كل الكلمات موجودة</div>'
+    :r.aliases.map((a,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <input type="checkbox" id="ana-cb-${i}" checked>
+        <div style="flex:1;min-width:180px">
+          <span style="font-weight:700">"${a.alias}"</span>
+          <span style="color:var(--muted);font-size:12px"> → ${a.itemName}</span>
+          <span style="font-size:10px;color:${tc[a.type]||'var(--muted)'};background:var(--surface3);border-radius:4px;padding:1px 6px;margin-right:4px">${tl[a.type]||a.type}</span>
+        </div>
+        <span style="font-size:11px;color:var(--muted)">${a.count}x</span>
+        <input type="text" value="${a.alias}" id="ana-val-${i}" style="width:130px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text);outline:none">
+      </div>`).join('');
+  document.getElementById('ana-unknown').innerHTML=!r.unknownItems.length
+    ?'<div class="empty"><div class="ico">🎉</div>لا توجد أصناف غير معروفة</div>'
+    :r.unknownItems.map((u,i)=>`
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap">
+        <span style="font-weight:600;color:var(--yellow);flex:1">"${u.name}" (${u.count}x)</span>
+        <select id="ana-cat-${i}" style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:11px;color:var(--text);outline:none">
+          <option value="">قسم...</option>${['شاورما','ايطالي','ساندويش','سلطة','مشروبات','حلويات'].map(x=>`<option value="${x}">${x}</option>`).join('')}
+        </select>
+        <input type="number" placeholder="سعر ₪" id="ana-price-${i}" style="width:70px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text);outline:none">
+        <button class="btn btn-sm btn-green" onclick="addFromAna(${i},'${u.name.replace(/'/g,"\\'")}')">➕ أضف</button>
+      </div>`).join('');
+  const mx=r.topItems[0]?.count||1;
+  document.getElementById('ana-top').innerHTML=r.topItems.map(t=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:5px 0;border-bottom:1px solid var(--border)">
+      <span style="font-size:13px;flex:1">${t.name}</span>
+      <div style="flex:2;background:var(--surface3);border-radius:4px;height:5px"><div style="width:${Math.round(t.count/mx*100)}%;height:100%;background:var(--green);border-radius:4px"></div></div>
+      <span style="font-size:11px;color:var(--muted);min-width:36px">${t.count}x</span>
+    </div>`).join('');
+}
+function toggleAllAna(v){document.querySelectorAll('[id^="ana-cb-"]').forEach(cb=>cb.checked=v);}
+async function applyAliases(){
+  if(!_anaResult?.aliases.length)return;
+  const toApply=_anaResult.aliases.map((a,i)=>{
+    const cb=document.getElementById('ana-cb-'+i);
+    const v=document.getElementById('ana-val-'+i)?.value?.trim();
+    return cb?.checked&&v?{alias:v,itemId:a.itemId}:null;
+  }).filter(Boolean);
+  if(!toApply.length){toast('لا توجد aliases محددة',true);return;}
+  try{const r=await apiPost('/analyze-chat/apply',{aliases:toApply,newItems:[]});
+  toast(`✅ تم تطبيق ${r.appliedAliases} alias`);}catch(e){toast('خطأ: '+e.message,true);}
+}
+async function addFromAna(i,name){
+  const cat=document.getElementById('ana-cat-'+i)?.value;
+  const price=parseInt(document.getElementById('ana-price-'+i)?.value)||0;
+  if(!cat||!price){toast('اختر قسم وأدخل سعر',true);return;}
+  try{await apiPost('/analyze-chat/apply',{aliases:[],newItems:[{name,cat,price}]});
+  toast(`✅ أُضيف "${name}" للمنيو (غير نشط)`);}catch(e){toast('خطأ: '+e.message,true);}
+}
 </script>
   <!-- DRIVER MODAL -->
   <div class="modal" id="modal-driver">
