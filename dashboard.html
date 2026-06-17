@@ -1,0 +1,1555 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O2 Bot Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0e1a;--surface:#111827;--surface2:#1a2235;--surface3:#222d42;
+  --green:#00d97e;--green-dim:#00d97e18;--green-dark:#00a85e;
+  --red:#ff4757;--red-dim:#ff475718;--yellow:#ffd32a;--yellow-dim:#ffd32a18;
+  --blue:#2979ff;--blue-dim:#2979ff18;--text:#e8eaf0;--muted:#6b7a99;
+  --border:#1e2a3a;--radius:12px;--font:'Cairo',sans-serif;
+}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh}
+body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 20%,#00d97e08 0%,transparent 50%),radial-gradient(ellipse at 80% 80%,#2979ff06 0%,transparent 50%);pointer-events:none;z-index:0}
+
+.header{position:sticky;top:0;z-index:100;background:rgba(10,14,26,0.96);backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 24px;height:62px;display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:38px;height:38px;background:linear-gradient(135deg,var(--green),var(--green-dark));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 16px #00d97e30}
+.logo h1{font-size:17px;font-weight:800}
+.logo span{font-size:11px;color:var(--muted)}
+.header-right{display:flex;align-items:center;gap:10px}
+.pill{display:flex;align-items:center;gap:7px;background:var(--surface);border:1px solid var(--border);padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.dot-green{background:var(--green);box-shadow:0 0 6px var(--green);animation:blink 2s infinite}
+.dot-red{background:var(--red)}
+.dot-yellow{background:var(--yellow);animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.4}}
+.btn-primary{background:linear-gradient(135deg,var(--green),var(--green-dark));color:#000;border:none;padding:7px 18px;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.2s}
+.btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 16px #00d97e30}
+
+.layout{display:grid;grid-template-columns:210px 1fr;min-height:calc(100vh - 62px);position:relative;z-index:1}
+.sidebar{background:var(--surface);border-left:1px solid var(--border);padding:16px 10px;position:sticky;top:62px;height:calc(100vh - 62px);overflow-y:auto}
+.nav-sec{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:6px 12px 4px;margin-top:6px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all 0.15s;margin-bottom:2px;border:1px solid transparent;user-select:none}
+.nav-item:hover{color:var(--text);background:var(--surface2)}
+.nav-item.active{color:var(--green);background:var(--green-dim);border-color:#00d97e22}
+.nav-icon{font-size:16px;width:20px;text-align:center}
+.nav-badge{margin-right:auto;background:var(--red);color:white;font-size:10px;padding:1px 7px;border-radius:10px;font-weight:700}
+
+.main{padding:22px;overflow-y:auto}
+.page{display:none}
+.page.active{display:block;animation:fadeUp 0.2s ease}
+@keyframes fadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.page-head{margin-bottom:20px}
+.page-head h2{font-size:20px;font-weight:800}
+.page-head p{font-size:12px;color:var(--muted);margin-top:3px}
+
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;position:relative;overflow:hidden;transition:all 0.2s}
+.stat-card:hover{border-color:#00d97e33;transform:translateY(-2px)}
+.stat-card::after{content:'';position:absolute;top:-20px;right:-20px;width:80px;height:80px;border-radius:50%;background:var(--green-dim)}
+.stat-val{font-size:30px;font-weight:900;line-height:1}
+.stat-lbl{font-size:11px;color:var(--muted);margin-top:5px}
+.stat-icon{position:absolute;top:14px;right:14px;font-size:20px;opacity:0.4}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:18px;overflow:hidden}
+.card-head{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.card-head h3{font-size:14px;font-weight:700}
+.card-body{padding:18px}
+
+table{width:100%;border-collapse:collapse}
+th{text-align:right;padding:9px 13px;font-size:10px;color:var(--muted);font-weight:700;letter-spacing:0.5px;text-transform:uppercase;background:var(--surface2);border-bottom:1px solid var(--border)}
+td{padding:12px 13px;font-size:13px;border-bottom:1px solid var(--border);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#ffffff04}
+
+.toggle{position:relative;width:42px;height:23px;flex-shrink:0;cursor:pointer}
+.toggle input{opacity:0;width:0;height:0;position:absolute}
+.toggle-track{position:absolute;inset:0;background:var(--surface3);border-radius:23px;transition:0.3s;border:1px solid var(--border)}
+.toggle-thumb{position:absolute;width:17px;height:17px;right:3px;top:3px;background:var(--muted);border-radius:50%;transition:0.3s}
+.toggle input:checked~.toggle-track{background:var(--green-dim);border-color:var(--green)88}
+.toggle input:checked~.toggle-thumb{background:var(--green);transform:translateX(-19px);box-shadow:0 0 6px var(--green)}
+
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.badge-green{background:var(--green-dim);color:var(--green);border:1px solid #00d97e22}
+.badge-red{background:var(--red-dim);color:var(--red);border:1px solid #ff475722}
+.badge-blue{background:var(--blue-dim);color:var(--blue);border:1px solid #2979ff22}
+.badge-yellow{background:var(--yellow-dim);color:var(--yellow);border:1px solid #ffd32a22}
+
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 13px;border-radius:7px;border:1px solid var(--border);cursor:pointer;font-family:var(--font);font-size:12px;font-weight:700;transition:all 0.15s;background:var(--surface2);color:var(--text)}
+.btn:hover{background:var(--surface3)}
+.btn-green{background:var(--green-dim);color:var(--green);border-color:#00d97e33}
+.btn-green:hover{background:var(--green);color:#000}
+.btn-red{background:var(--red-dim);color:var(--red);border-color:#ff475733}
+.btn-red:hover{background:var(--red);color:white}
+.btn-sm{padding:4px 9px;font-size:11px}
+.btn-yellow{background:var(--yellow-dim);color:var(--yellow);border-color:#ffd32a33}
+
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.form-group{margin-bottom:14px}
+.form-group label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:0.5px}
+.form-group input,.form-group textarea,.form-group select{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;font-family:var(--font);font-size:13px;color:var(--text);outline:none;transition:border 0.15s}
+.form-group input:focus,.form-group textarea:focus,.form-group select:focus{border-color:var(--green);box-shadow:0 0 0 2px #00d97e15}
+.form-group textarea{min-height:80px;resize:vertical}
+.form-group select option{background:var(--surface)}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);backdrop-filter:blur(6px);z-index:300;align-items:center;justify-content:center}
+.modal-overlay.open{display:flex}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:26px;width:500px;max-width:95vw;max-height:90vh;overflow-y:auto;animation:slideUp 0.2s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.modal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.modal-head h3{font-size:16px;font-weight:800}
+.modal-close{background:var(--surface2);border:1px solid var(--border);width:30px;height:30px;border-radius:7px;cursor:pointer;color:var(--muted);font-size:15px;display:flex;align-items:center;justify-content:center;transition:all 0.15s}
+.modal-close:hover{background:var(--red-dim);color:var(--red)}
+
+.cat-tabs{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:14px}
+.cat-tab{padding:5px 13px;border-radius:20px;border:1px solid var(--border);cursor:pointer;font-size:12px;font-weight:700;color:var(--muted);background:var(--surface2);transition:all 0.15s;font-family:var(--font)}
+.cat-tab:hover,.cat-tab.active{background:var(--green-dim);color:var(--green);border-color:#00d97e33}
+
+.search-box{position:relative;margin-bottom:14px}
+.search-box input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px 9px 36px;font-family:var(--font);font-size:13px;color:var(--text);outline:none;transition:border 0.15s}
+.search-box input:focus{border-color:var(--green)}
+.search-box::before{content:'🔍';position:absolute;left:10px;top:50%;transform:translateY(-50%);font-size:13px}
+
+.chat-wrap{background:#0d1117;border-radius:12px;border:1px solid var(--border);overflow:hidden}
+.chat-hdr{background:var(--surface2);padding:11px 15px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--border)}
+.chat-av{width:34px;height:34px;background:linear-gradient(135deg,var(--green),var(--green-dark));border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px}
+.chat-nm{font-size:13px;font-weight:700}
+.chat-sub{font-size:10px;color:var(--green)}
+.chat-body{padding:14px;min-height:280px;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.bubble{max-width:76%;padding:9px 13px;border-radius:12px;font-size:13px;line-height:1.6;word-break:break-word}
+.bubble.bot{background:var(--surface2);align-self:flex-start;border-bottom-right-radius:2px}
+.bubble.user{background:linear-gradient(135deg,#005c4b,#007a63);align-self:flex-end;border-bottom-left-radius:2px}
+.bubble .time{font-size:10px;color:var(--muted);text-align:left;margin-top:3px}
+.chat-inp{padding:10px;border-top:1px solid var(--border);display:flex;gap:7px;background:var(--surface2)}
+.chat-inp input{flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:18px;padding:7px 13px;font-family:var(--font);font-size:13px;color:var(--text);outline:none}
+.chat-send{width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--green),var(--green-dark));border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:15px;transition:all 0.2s}
+.chat-send:hover{transform:scale(1.1)}
+
+.queue-item{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:13px 15px;margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+.queue-item .nm{font-size:13px;font-weight:700}
+.queue-item .tm{font-size:11px;color:var(--muted);margin-top:2px}
+
+.log-entry{display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--border);font-size:12px}
+.log-entry:last-child{border-bottom:none}
+
+.price{font-weight:700;color:var(--green);font-size:13px}
+.empty{text-align:center;padding:40px;color:var(--muted);font-size:13px}
+.empty .ico{font-size:32px;margin-bottom:10px;opacity:0.4}
+
+.transfer-alert{background:var(--yellow-dim);border:1px solid #ffd32a33;border-radius:10px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.transfer-alert .info{font-size:13px;color:var(--yellow)}
+.transfer-alert .info strong{display:block;font-size:14px;margin-bottom:3px}
+
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--surface);border:1px solid #00d97e33;color:var(--green);padding:11px 22px;border-radius:10px;font-size:13px;font-weight:700;z-index:999;transition:all 0.3s;white-space:nowrap;box-shadow:0 8px 24px #00d97e18}
+.toast.show{transform:translateX(-50%) translateY(0)}
+.toast.err{border-color:#ff475733;color:var(--red);box-shadow:0 8px 24px #ff475718}
+
+.loading{display:flex;align-items:center;justify-content:center;padding:40px;color:var(--muted);gap:10px;font-size:13px}
+.spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.7s linear infinite}
+.tab-btn{background:var(--surface2);border:1px solid var(--border);color:var(--muted);padding:7px 16px;border-radius:8px;font-family:var(--font);font-size:12px;font-weight:600;cursor:pointer;transition:all 0.15s;display:inline-flex;align-items:center;gap:5px}
+.tab-btn:hover{color:var(--text);border-color:var(--green)}
+.tab-btn.active{background:var(--green-dim);border-color:var(--green);color:var(--green)}
+.typing-indicator{display:flex;gap:4px;align-items:center;padding:12px 16px!important}
+.typing-indicator span{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:typingDot 1.2s infinite}
+.typing-indicator span:nth-child(2){animation-delay:.2s}
+.typing-indicator span:nth-child(3){animation-delay:.4s}
+@keyframes typingDot{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">
+    <div class="logo-icon">🍽️</div>
+    <div><h1>مطعم O2</h1><span>لوحة تحكم مباشرة</span></div>
+  </div>
+  <div class="header-right">
+    <div class="pill" id="bot-status"><div class="dot dot-yellow"></div><span>جاري الاتصال...</span></div>
+    <div class="pill" id="transfer-pill" style="display:none"><div class="dot dot-yellow"></div><span>وضع الموظف</span></div>
+    <button class="btn" style="font-size:12px;padding:5px 12px" onclick="restartBot()" title="إعادة تشغيل البوت">🔄 إعادة الاتصال</button>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="sidebar">
+    <div class="nav-sec">الرئيسية</div>
+    <div class="nav-item active" onclick="showPage('dashboard',this)"><span class="nav-icon">📊</span>لوحة التحكم</div>
+    <div class="nav-item" onclick="showPage('transfer',this)"><span class="nav-icon">👨‍💼</span>التحويل للموظف<span class="nav-badge" id="badge" style="display:none">0</span></div>
+    <div class="nav-sec">المنيو</div>
+    <div class="nav-item" onclick="showPage('menu',this)"><span class="nav-icon">🍽️</span>إدارة المنيو</div>
+    <div class="nav-item" onclick="showPage('cats',this)"><span class="nav-icon">📂</span>الأقسام</div>
+    <div class="nav-sec">البوت</div>
+    <div class="nav-item" onclick="showPage('replies',this)"><span class="nav-icon">💬</span>الردود التلقائية</div>
+    <div class="nav-item" onclick="showPage('sim',this)"><span class="nav-icon">🤖</span>اختبار البوت</div>
+    <div class="nav-sec">الإعدادات</div>
+    <div class="nav-item" onclick="showPage('orders',this)"><span class="nav-icon">📦</span>الطلبات</div>
+    <div class="nav-item" onclick="showPage('operations',this)"><span class="nav-icon">🚗</span>العمليات</div>
+    <div class="nav-item" onclick="showPage('settings',this)"><span class="nav-icon">⚙️</span>إعدادات عامة</div>
+    <div class="nav-item" onclick="showPage('delivery',this)"><span class="nav-icon">🚚</span>رسوم التوصيل</div>
+    <div class="nav-item" onclick="showPage('logs',this)"><span class="nav-icon">📋</span>السجل</div>
+  </div>
+
+  <div class="main">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-head"><h2>لوحة التحكم</h2><p>مرحباً! إليك ملخص سريع</p></div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon">🍽️</div><div class="stat-val" id="s-total">—</div><div class="stat-lbl">إجمالي الأصناف</div></div>
+        <div class="stat-card"><div class="stat-icon">✅</div><div class="stat-val" id="s-active" style="color:var(--green)">—</div><div class="stat-lbl">أصناف متوفرة</div></div>
+        <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-val" id="s-orders" style="color:var(--blue)">—</div><div class="stat-lbl">إجمالي الطلبات</div></div>
+        <div class="stat-card"><div class="stat-icon">👨‍💼</div><div class="stat-val" id="s-queue" style="color:var(--yellow)">—</div><div class="stat-lbl">انتظار موظف</div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>📋 آخر الأحداث</h3><button class="btn btn-sm" onclick="loadDashboard()">🔄 تحديث</button></div>
+        <div class="card-body" id="dash-logs"><div class="loading"><div class="spinner"></div>جاري التحميل...</div></div>
+      </div>
+    </div>
+
+    <!-- TRANSFER -->
+    <div class="page" id="page-transfer">
+      <div class="page-head"><h2>التحويل للموظف</h2><p>تحكم في وضع الموظف البشري</p></div>
+      <div class="transfer-alert">
+        <div class="info"><strong>⚠️ وضع الموظف</strong>عند التفعيل، يتوقف البوت ويحيل الزبائن لك مباشرة</div>
+        <label class="toggle" style="margin:0">
+          <input type="checkbox" id="transfer-toggle" onchange="setTransferMode(this.checked)">
+          <div class="toggle-track"></div><div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div class="card">
+        <div class="card-head"><h3>👥 قائمة الانتظار</h3><button class="btn btn-sm btn-red" onclick="clearQueue()">مسح الكل</button></div>
+        <div class="card-body" id="queue-list"><div class="loading"><div class="spinner"></div>جاري التحميل...</div></div>
+      </div>
+    </div>
+
+    <!-- MENU -->
+    <div class="page" id="page-menu">
+      <div class="page-head"><h2>إدارة المنيو</h2><p>التغييرات تطبق فوراً على البوت</p></div>
+      <div class="card">
+        <div class="card-head"><h3>الأصناف</h3><button class="btn btn-green" onclick="openAddItem()">+ إضافة صنف</button></div>
+        <div class="card-body">
+          <div class="cat-tabs" id="menu-cat-tabs"></div>
+          <div class="search-box"><input type="text" id="menu-search" placeholder="ابحث..." oninput="filterMenu()"></div>
+          <div id="menu-table-wrap"><div class="loading"><div class="spinner"></div>جاري التحميل...</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CATEGORIES -->
+    <div class="page" id="page-cats">
+      <div class="page-head"><h2>إدارة الأقسام</h2><p>إيقاف قسم يخفيه من البوت فوراً</p></div>
+      <div class="card"><div class="card-body" id="cats-body"><div class="loading"><div class="spinner"></div></div></div></div>
+    </div>
+
+    <!-- REPLIES -->
+    <div class="page" id="page-replies">
+      <div class="page-head"><h2>الردود التلقائية</h2><p>التعديلات تطبق فوراً</p></div>
+      <div class="card">
+        <div class="card-head"><h3>الردود</h3><button class="btn btn-green" onclick="openAddReply()">+ إضافة رد</button></div>
+        <div class="card-body" id="replies-body"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+    </div>
+
+    <!-- OPERATIONS -->
+    <div class="page" id="page-operations">
+      <div class="page-head"><h2>🚗 العمليات والديلفري</h2><p>اضغط "انتهى" — النظام يختار السائق تلقائياً</p></div>
+      <div class="stats-grid" style="margin-bottom:16px" id="ops-stats">
+        <div class="stat-card"><div class="stat-icon">👨‍🍳</div><div class="stat-val" id="ops-preparing">—</div><div class="stat-lbl">يتحضر</div></div>
+        <div class="stat-card"><div class="stat-icon">⚠️</div><div class="stat-val" id="ops-need-driver" style="color:var(--yellow)">—</div><div class="stat-lbl">ينتظر سائق</div></div>
+        <div class="stat-card"><div class="stat-icon">🚗</div><div class="stat-val" id="ops-on-road" style="color:var(--green)">—</div><div class="stat-lbl">في الطريق</div></div>
+        <div class="stat-card"><div class="stat-icon">🎉</div><div class="stat-val" id="ops-done">—</div><div class="stat-lbl">أنجز اليوم</div></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 340px;gap:16px;align-items:start">
+        <!-- عمود الطلبات -->
+        <div>
+          <div class="card">
+            <div class="card-head">
+              <h3>📋 الطلبات النشطة</h3>
+              <button class="btn btn-sm" onclick="loadOperations()">🔄</button>
+            </div>
+            <div class="card-body" id="ops-orders"><div class="loading"><div class="spinner"></div>جاري التحميل...</div></div>
+          </div>
+        </div>
+        <!-- عمود السائقين -->
+        <div>
+          <div class="card">
+            <div class="card-head">
+              <h3>🚗 السائقون</h3>
+              <div style="display:flex;gap:6px">
+                <button class="btn btn-sm" onclick="resetDrivers()">↺</button>
+                <button class="btn btn-sm btn-green" onclick="openDriver(null)">➕</button>
+              </div>
+            </div>
+            <div class="card-body" id="ops-drivers"><div class="loading"><div class="spinner"></div></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMULATOR -->
+    <div class="page" id="page-sim">
+      <div class="page-head"><h2>اختبار البوت</h2><p>يشغّل المنطق الحقيقي للبوت — تأكد إن السيرفر شغال</p><button class="btn btn-sm btn-red" onclick="simReset()" style="margin-top:8px">🔄 إعادة تعيين المحادثة</button></div>
+      <div style="display:grid;grid-template-columns:1fr 260px;gap:18px">
+        <div class="chat-wrap">
+          <div class="chat-hdr"><div class="chat-av">🍽️</div><div><div class="chat-nm">مطعم O2</div><div class="chat-sub">متصل</div></div></div>
+          <div class="chat-body" id="sim-chat"><div class="bubble bot">أهلاً وسهلاً! 🌿 شو بدك اليوم؟<div class="time">الآن</div></div></div>
+          <div class="chat-inp"><textarea id="sim-inp" placeholder="اكتب رسالة... (Enter = إرسال، Shift+Enter = سطر جديد)" rows="1" style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:12px;padding:7px 13px;font-family:var(--font);font-size:13px;color:var(--text);outline:none;resize:none;max-height:120px;overflow-y:auto;line-height:1.5" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();simSend()}"></textarea><button class="chat-send" onclick="simSend()">➤</button></div>
+        </div>
+        <div>
+          <div class="card"><div class="card-head"><h3>اقتراحات</h3></div><div class="card-body" style="display:flex;flex-wrap:wrap;gap:7px" id="sim-sug"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SETTINGS -->
+    <div class="page" id="page-settings">
+      <div class="page-head"><h2>الإعدادات العامة</h2></div>
+
+      <!-- قروب الإشعارات -->
+      <div class="card">
+        <div class="card-head"><h3>📢 قروب الإشعارات</h3></div>
+        <div class="card-body">
+          <p style="font-size:13px;color:var(--muted);margin-bottom:14px">اختر القروب الذي سيتلقى إشعارات الطلبات الجديدة وتأكيدات الدفع</p>
+          <div style="display:flex;gap:10px;align-items:flex-end;margin-bottom:16px">
+            <div class="form-group" style="flex:1;margin:0">
+              <label>Group ID المحدد</label>
+              <input id="set-groupid" dir="ltr" placeholder="اضغط 'استيراد القروبات' لاختيار القروب">
+            </div>
+            <button class="btn btn-green" onclick="loadGroups()" style="height:38px;white-space:nowrap">📥 استيراد القروبات</button>
+          </div>
+          <div id="groups-list" style="display:none">
+            <div class="form-group">
+              <label>اختر القروب</label>
+              <div id="groups-items" style="display:flex;flex-direction:column;gap:8px;max-height:200px;overflow-y:auto"></div>
+            </div>
+          </div>
+          <button class="btn btn-green" onclick="saveGroupId()">💾 حفظ القروب</button>
+        </div>
+      </div>
+
+      <!-- معلومات المطعم -->
+      <div class="card">
+        <div class="card-head"><h3>معلومات المطعم</h3></div>
+        <div class="card-body">
+          <div class="form-row">
+            <div class="form-group"><label>اسم المطعم</label><input id="set-name"></div>
+            <div class="form-group"><label>رقم التواصل</label><input id="set-phone"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>الموقع</label><input id="set-location"></div>
+            <div class="form-group"><label>ساعات العمل</label><input id="set-hours"></div>
+          </div>
+          <div class="form-group"><label>رسالة الترحيب</label><textarea id="set-welcome"></textarea></div>
+          <div class="form-group"><label>الرد الافتراضي</label><textarea id="set-default"></textarea></div>
+          <div class="form-row">
+            <div class="form-group"><label>وقت التحضير التقديري (دقيقة)</label><input id="set-time" type="number" min="5" max="120" placeholder="30"></div>
+            <div class="form-group"><label>اسم صاحب الحساب</label><input id="set-bname"></div>
+          </div>
+          <div class="form-group"><label>اسم البنك</label><input id="set-bank"></div>
+          <div class="form-row">
+            <div class="form-group"><label>جوال البنك</label><input id="set-bphone"></div>
+            <div class="form-group"><label>IBAN</label><input id="set-iban" dir="ltr"></div>
+          </div>
+          <button class="btn btn-green" onclick="saveSettings()">💾 حفظ الإعدادات</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ORDERS -->
+    <div class="page" id="page-orders">
+      <div class="page-head">
+        <h2>الطلبات 📦</h2>
+        <p>متابعة الطلبات والتحويلات</p>
+      </div>
+      <div class="card">
+        <div class="card-body" style="padding:0">
+          <div id="orders-tab-bar" style="padding:16px 16px 0"></div>
+          <div id="orders-body" style="padding:0 16px 16px"><div class="loading"><div class="spinner"></div>جاري التحميل...</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DELIVERY -->
+    <div class="page" id="page-delivery">
+      <div class="page-head"><h2>رسوم التوصيل</h2></div>
+      <div class="card"><div class="card-body" id="delivery-body"></div></div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="page" id="page-logs">
+      <div class="page-head"><h2>سجل الأحداث</h2></div>
+      <div class="card"><div class="card-body" id="logs-body"><div class="loading"><div class="spinner"></div></div></div></div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Modal: Item -->
+<div class="modal-overlay" id="modal-item">
+  <div class="modal">
+    <div class="modal-head"><h3 id="mi-title">إضافة صنف</h3><button class="modal-close" onclick="closeModal('modal-item')">✕</button></div>
+    <div class="form-row">
+      <div class="form-group"><label>اسم الصنف</label><input id="mi-name" placeholder="شاورما عربي"></div>
+      <div class="form-group"><label>القسم</label><select id="mi-cat"></select></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>السعر (₪)</label><input id="mi-price" type="number" min="0"></div>
+      <div class="form-group"><label>كلمات مفتاحية (بفاصلة)</label><input id="mi-keys" placeholder="شاورما, عربي"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modal-item')">إلغاء</button>
+      <button class="btn btn-green" onclick="saveItem()">💾 حفظ</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Reply -->
+<div class="modal-overlay" id="modal-reply">
+  <div class="modal">
+    <div class="modal-head"><h3 id="mr-title">إضافة رد</h3><button class="modal-close" onclick="closeModal('modal-reply')">✕</button></div>
+    <div class="form-group"><label>كلمات مفتاحية (بفاصلة)</label><input id="mr-keys" placeholder="مرحبا, هلا, أهلا"></div>
+    <div class="form-group"><label>نص الرد</label><textarea id="mr-text"></textarea></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button class="btn" onclick="closeModal('modal-reply')">إلغاء</button>
+      <button class="btn btn-green" onclick="saveReply()">💾 حفظ</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// API
+// ============================================================
+// تحديد عنوان الـ API تلقائياً
+const API = (window.location.protocol === 'file:' || !window.location.origin || window.location.origin === 'null')
+  ? 'http://localhost:3000'
+  : window.location.origin;
+
+async function apiGet(path) {
+  const r = await fetch(API + '/api' + path);
+  return r.json();
+}
+async function apiPost(path, data) {
+  const r = await fetch(API + '/api' + path, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  return r.json();
+}
+async function apiPut(path, data) {
+  const r = await fetch(API + '/api' + path, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
+  return r.json();
+}
+async function apiDelete(path) {
+  const r = await fetch(API + '/api' + path, {method:'DELETE'});
+  return r.json();
+}
+
+// ============================================================
+// STATE (local cache)
+// ============================================================
+let S = null; // سيُحمَّل من الـ API
+let activeCat = 'الكل';
+let editItemId = null;
+let editReplyId = null;
+
+function getTime(){const n=new Date();return n.getHours()+':'+(n.getMinutes()<10?'0':'')+n.getMinutes();}
+
+function toast(msg, err=false) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className='toast'+(err?' err':'');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2500);
+}
+
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+// ============================================================
+// NAV
+// ============================================================
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(el)el.classList.add('active');
+  const loaders = {dashboard:loadDashboard, menu:loadMenu, cats:loadCats, replies:loadReplies, transfer:loadTransfer, settings:loadSettings, delivery:loadDelivery, logs:loadLogs, sim:loadSim, orders:loadOrders, operations:loadOperations};
+  if(loaders[id]) loaders[id]();
+}
+
+// ============================================================
+// STATUS POLLING
+// ============================================================
+let _serverWasDown = false;
+let _qrAvailable = false;
+
+async function pollStatus() {
+  const pill = document.getElementById('bot-status');
+  const tpill = document.getElementById('transfer-pill');
+  try {
+    const st = await apiGet('/status');
+    _serverWasDown = false;
+
+    if (st.botConnected) {
+      // ✅ متصل بواتساب
+      _qrAvailable = false;
+      pill.innerHTML = `<div class="dot dot-green"></div><span>متصل ✅${st.activeSessions ? ` · ${st.activeSessions} جلسة` : ''}</span>`;
+      pill.title = '';
+    } else if (st.qrAvailable) {
+      // 📱 ينتظر مسح QR
+      _qrAvailable = true;
+      pill.innerHTML = `<div class="dot dot-yellow"></div><span>امسح QR 📱 <a href="/qr" target="_blank" style="color:var(--green);text-decoration:none">افتح</a></span>`;
+    } else {
+      // ⏳ السيرفر شغال لكن البوت يتصل
+      pill.innerHTML = `<div class="dot dot-yellow"></div><span>البوت يتصل بواتساب ⏳</span>`;
+      pill.title = 'الاتصال قد يأخذ دقيقة - الصفحة ستتحدث تلقائياً';
+    }
+
+    tpill.style.display = st.transferMode ? 'flex' : 'none';
+    const badge = document.getElementById('badge');
+    badge.textContent = st.queueCount;
+    badge.style.display = st.queueCount > 0 ? 'inline' : 'none';
+    document.getElementById('s-queue').textContent = st.queueCount;
+    document.getElementById('s-orders').textContent = st.ordersCount || '—';
+
+  } catch(e) {
+    // ❌ السيرفر مش شغال أصلاً
+    if (!_serverWasDown) {
+      _serverWasDown = true;
+      pill.innerHTML = '<div class="dot dot-red"></div><span style="color:var(--red)">السيرفر مغلق ❌</span>';
+      pill.title = 'تأكد إن node index.js شغال';
+    }
+  }
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+async function loadDashboard() {
+  try {
+    S = await apiGet('/state');
+    document.getElementById('s-total').textContent = S.items.length;
+    document.getElementById('s-active').textContent = S.items.filter(i=>i.active).length;
+    document.getElementById('s-orders').textContent = S.orders.length;
+    document.getElementById('s-queue').textContent = S.queue.length;
+    const logsEl = document.getElementById('dash-logs');
+    if(!S.logs.length){logsEl.innerHTML='<div class="empty"><div class="ico">📝</div>لا توجد أحداث بعد</div>';return;}
+    logsEl.innerHTML=S.logs.slice(0,12).map(l=>`<div class="log-entry"><span>${l.msg}</span><span style="color:var(--muted);font-size:11px">${l.time}</span></div>`).join('');
+  } catch(e){console.error(e);}
+}
+
+// ============================================================
+// MENU
+// ============================================================
+async function loadMenu() {
+  if(!S) S = await apiGet('/state');
+  renderMenuCatTabs();
+  renderMenuTable();
+}
+
+function renderMenuCatTabs() {
+  const cats = ['الكل', ...(S.categories||[]).filter(c=>c.active).map(c=>c.id)];
+  document.getElementById('menu-cat-tabs').innerHTML = cats.map(c=>`<button class="cat-tab${c===activeCat?' active':''}" onclick="setMenuCat('${c}')">${c}</button>`).join('');
+}
+
+function setMenuCat(cat){activeCat=cat;renderMenuCatTabs();renderMenuTable();}
+
+function filterMenu(){renderMenuTable();}
+
+function renderMenuTable() {
+  const search = (document.getElementById('menu-search')||{value:''}).value.toLowerCase();
+  let items = (S.items||[]).filter(i=>(activeCat==='الكل'||i.cat===activeCat)&&i.name.toLowerCase().includes(search));
+  const wrap = document.getElementById('menu-table-wrap');
+  if(!items.length){wrap.innerHTML='<div class="empty"><div class="ico">🍽️</div>لا توجد أصناف</div>';return;}
+  wrap.innerHTML=`<table><thead><tr><th>الصنف</th><th>القسم</th><th>السعر</th><th>التوفر</th><th>إجراءات</th></tr></thead><tbody>${
+    items.map(i=>`<tr>
+      <td style="font-weight:600">${i.name}</td>
+      <td><span class="badge badge-blue">${i.cat}</span></td>
+      <td><span class="price">${i.price} ₪</span></td>
+      <td><label class="toggle"><input type="checkbox" ${i.active?'checked':''} onchange="toggleItem(${i.id},this.checked)"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></td>
+      <td style="display:flex;gap:5px">
+        <button class="btn btn-sm" onclick="openEditItem(${i.id})">✏️</button>
+        <button class="btn btn-sm btn-red" onclick="deleteItem(${i.id})">🗑️</button>
+      </td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function toggleItem(id, val) {
+  await apiPut('/items/'+id, {active:val});
+  const item = S.items.find(i=>i.id===id);
+  if(item){item.active=val;}
+  toast(val?'✅ الصنف متوفر':'❌ الصنف غير متوفر');
+  loadDashboard();
+}
+
+async function deleteItem(id) {
+  const item = S.items.find(i=>i.id===id);
+  if(!item||!confirm(`حذف "${item.name}"؟`))return;
+  await apiDelete('/items/'+id);
+  S.items = S.items.filter(i=>i.id!==id);
+  renderMenuTable();
+  toast('تم الحذف 🗑️');
+  loadDashboard();
+}
+
+function openAddItem() {
+  editItemId = null;
+  document.getElementById('mi-title').textContent='إضافة صنف جديد';
+  document.getElementById('mi-name').value='';
+  document.getElementById('mi-price').value='';
+  document.getElementById('mi-keys').value='';
+  document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
+  document.getElementById('modal-item').classList.add('open');
+}
+
+function openEditItem(id) {
+  const item = S.items.find(i=>i.id===id); if(!item)return;
+  editItemId = id;
+  document.getElementById('mi-title').textContent='تعديل صنف';
+  document.getElementById('mi-name').value=item.name;
+  document.getElementById('mi-price').value=item.price;
+  document.getElementById('mi-keys').value=(item.keys||[]).join(', ');
+  document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}"${c.id===item.cat?' selected':''}>${c.label}</option>`).join('');
+  document.getElementById('modal-item').classList.add('open');
+}
+
+async function saveItem() {
+  const name=document.getElementById('mi-name').value.trim();
+  const cat=document.getElementById('mi-cat').value;
+  const price=parseInt(document.getElementById('mi-price').value)||0;
+  const keys=document.getElementById('mi-keys').value.split(',').map(k=>k.trim()).filter(Boolean);
+  if(!name){toast('أدخل اسم الصنف',true);return;}
+  if(editItemId) {
+    await apiPut('/items/'+editItemId, {name,cat,price,keys:keys.length?keys:[name]});
+    const idx=S.items.findIndex(i=>i.id===editItemId);
+    if(idx>=0) Object.assign(S.items[idx],{name,cat,price,keys:keys.length?keys:[name]});
+    toast('تم التعديل ✅');
+  } else {
+    const res = await apiPost('/items', {name,cat,price,keys:keys.length?keys:[name]});
+    if(res.item) S.items.push(res.item);
+    toast('تمت الإضافة ✅');
+  }
+  closeModal('modal-item');
+  renderMenuTable();
+  loadDashboard();
+}
+
+// ============================================================
+// CATEGORIES
+// ============================================================
+async function loadCats() {
+  if(!S) S = await apiGet('/state');
+  const el = document.getElementById('cats-body');
+  el.innerHTML = (S.categories||[]).map((c,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="font-size:20px">${c.label.split(' ')[0]}</span>
+        <div>
+          <div style="font-size:13px;font-weight:700">${c.label.substring(2)}</div>
+          <div style="font-size:11px;color:var(--muted)">${(S.items||[]).filter(it=>it.cat===c.id).length} صنف</div>
+        </div>
+      </div>
+      <label class="toggle" style="margin:0">
+        <input type="checkbox" ${c.active?'checked':''} onchange="toggleCat('${c.id}',this.checked)">
+        <div class="toggle-track"></div><div class="toggle-thumb"></div>
+      </label>
+    </div>
+  `).join('');
+}
+
+async function toggleCat(id, val) {
+  await apiPut('/categories/'+id, {active:val});
+  const cat = (S.categories||[]).find(c=>c.id===id);
+  if(cat) cat.active = val;
+  toast(val?`✅ قسم ${id} مفعّل`:`❌ قسم ${id} موقف`);
+}
+
+// ============================================================
+// REPLIES
+// ============================================================
+async function loadReplies() {
+  if(!S) S = await apiGet('/state');
+  const el = document.getElementById('replies-body');
+  el.innerHTML = `<table><thead><tr><th>الكلمات</th><th>الرد</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody>${
+    (S.replies||[]).map(r=>`<tr>
+      <td style="max-width:180px"><div style="display:flex;flex-wrap:wrap;gap:4px">${r.keys.slice(0,3).map(k=>`<span class="badge badge-green">${k}</span>`).join('')}${r.keys.length>3?`<span class="badge badge-green">+${r.keys.length-3}</span>`:''}</div></td>
+      <td style="max-width:260px;font-size:12px;color:var(--muted);white-space:pre-wrap">${r.text.substring(0,60)}${r.text.length>60?'...':''}</td>
+      <td><label class="toggle"><input type="checkbox" ${r.active?'checked':''} onchange="toggleReply(${r.id},this.checked)"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></td>
+      <td style="display:flex;gap:5px">
+        <button class="btn btn-sm" onclick="openEditReply(${r.id})">✏️</button>
+        <button class="btn btn-sm btn-red" onclick="deleteReply(${r.id})">🗑️</button>
+      </td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function toggleReply(id, val) {
+  await apiPut('/replies/'+id, {active:val});
+  const r = (S.replies||[]).find(r=>r.id===id); if(r) r.active=val;
+  toast(val?'✅ الرد مفعّل':'❌ الرد موقف');
+}
+
+async function deleteReply(id) {
+  if(!confirm('حذف هذا الرد؟'))return;
+  await apiDelete('/replies/'+id);
+  S.replies = S.replies.filter(r=>r.id!==id);
+  loadReplies(); toast('تم الحذف 🗑️');
+}
+
+function openAddReply() {
+  editReplyId=null;
+  document.getElementById('mr-title').textContent='إضافة رد جديد';
+  document.getElementById('mr-keys').value='';
+  document.getElementById('mr-text').value='';
+  document.getElementById('modal-reply').classList.add('open');
+}
+
+function openEditReply(id) {
+  const r=(S.replies||[]).find(r=>r.id===id); if(!r)return;
+  editReplyId=id;
+  document.getElementById('mr-title').textContent='تعديل رد';
+  document.getElementById('mr-keys').value=r.keys.join(', ');
+  document.getElementById('mr-text').value=r.text;
+  document.getElementById('modal-reply').classList.add('open');
+}
+
+async function saveReply() {
+  const keys=document.getElementById('mr-keys').value.split(',').map(k=>k.trim()).filter(Boolean);
+  const text=document.getElementById('mr-text').value.trim();
+  if(!keys.length||!text){toast('أكمل البيانات',true);return;}
+  if(editReplyId) {
+    await apiPut('/replies/'+editReplyId, {keys,text});
+    const r=(S.replies||[]).find(r=>r.id===editReplyId); if(r){r.keys=keys;r.text=text;}
+    toast('تم التعديل ✅');
+  } else {
+    const res=await apiPost('/replies',{keys,text});
+    if(res.reply) S.replies.push(res.reply);
+    toast('تمت الإضافة ✅');
+  }
+  closeModal('modal-reply'); loadReplies();
+}
+
+// ============================================================
+// TRANSFER
+// ============================================================
+async function loadTransfer() {
+  if(!S) S = await apiGet('/state');
+  document.getElementById('transfer-toggle').checked = S.settings.transferMode;
+  renderQueue();
+}
+
+function renderQueue() {
+  const el = document.getElementById('queue-list');
+  if(!(S.queue||[]).length){el.innerHTML='<div class="empty"><div class="ico">👨‍💼</div>لا يوجد زبائن في الانتظار</div>';return;}
+  el.innerHTML=S.queue.map((q,i)=>`<div class="queue-item" style="flex-direction:column;align-items:stretch;gap:10px">
+    <div style="display:flex;align-items:center;justify-content:space-between">
+      <div><div class="nm">📱 ${q.phone}</div><div class="tm">⏱️ ${q.time} · ${(q.msgs||[]).length} رسالة</div></div>
+      <div style="display:flex;gap:7px">
+        <button class="btn btn-sm btn-green" onclick="serveCustomer(${i})">✅ تمت الخدمة</button>
+        <button class="btn btn-sm btn-red" onclick="removeCustomer(${i})">❌</button>
+      </div>
+    </div>
+    ${(q.msgs||[]).length ? `<div style="background:var(--surface3);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--muted);max-height:80px;overflow-y:auto">${q.msgs.slice(-3).map(m=>`<div>▸ ${m}</div>`).join('')}</div>` : ''}
+    <div style="display:flex;gap:7px">
+      <input id="qmsg-${i}" placeholder="اكتب رسالة للزبون..." style="flex:1;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-family:var(--font);font-size:12px;color:var(--text);outline:none">
+      <button class="btn btn-sm" onclick="sendToCustomer(${i})">📤 إرسال</button>
+    </div>
+  </div>`).join('');
+}
+
+async function sendToCustomer(i) {
+  const inp = document.getElementById('qmsg-'+i);
+  const text = inp.value.trim();
+  if(!text){toast('اكتب رسالة أولاً',true);return;}
+  const q = S.queue[i];
+  if(!q) return;
+  try {
+    await fetch(API+'/api/queue/'+i+'/message', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({text})});
+    inp.value='';
+    toast('✅ تم إرسال الرسالة');
+  } catch(e) { toast('فشل الإرسال',true); }
+}
+
+async function setTransferMode(val) {
+  await apiPost('/settings', {transferMode:val});
+  S.settings.transferMode=val;
+  toast(val?'👨‍💼 وضع الموظف مفعّل':'🤖 البوت تلقائي');
+}
+
+async function serveCustomer(i) {
+  await apiDelete('/queue/'+i);
+  S.queue.splice(i,1);
+  renderQueue(); toast('✅ تمت خدمة الزبون');
+}
+
+async function removeCustomer(i) {
+  await apiDelete('/queue/'+i);
+  S.queue.splice(i,1);
+  renderQueue();
+}
+
+async function clearQueue() {
+  await apiDelete('/queue');
+  S.queue=[]; renderQueue(); toast('تم مسح القائمة');
+}
+
+// ============================================================
+// SETTINGS
+// ============================================================
+async function loadSettings() {
+  if(!S) S = await apiGet('/state');
+  const st=S.settings||{};
+  document.getElementById('set-name').value=st.name||'';
+  document.getElementById('set-phone').value=st.phone||'';
+  document.getElementById('set-location').value=st.location||'';
+  document.getElementById('set-hours').value=st.hours||'';
+  document.getElementById('set-welcome').value=st.welcome||'';
+  document.getElementById('set-default').value=st.defaultReply||'';
+  document.getElementById('set-time').value=st.estimatedTime||30;
+  document.getElementById('set-bname').value=st.bankName||'';
+  document.getElementById('set-bank').value=st.bank||'';
+  document.getElementById('set-bphone').value=st.bankPhone||'';
+  document.getElementById('set-iban').value=st.iban||'';
+  document.getElementById('set-groupid').value=st.groupId||'';
+}
+
+async function saveSettings() {
+  const settings = {
+    name: document.getElementById('set-name').value,
+    phone: document.getElementById('set-phone').value,
+    location: document.getElementById('set-location').value,
+    hours: document.getElementById('set-hours').value,
+    welcome: document.getElementById('set-welcome').value,
+    defaultReply: document.getElementById('set-default').value,
+    estimatedTime: parseInt(document.getElementById('set-time').value)||30,
+    bankName: document.getElementById('set-bname').value,
+    bank: document.getElementById('set-bank').value,
+    bankPhone: document.getElementById('set-bphone').value,
+    iban: document.getElementById('set-iban').value,
+  };
+  await apiPost('/settings', settings);
+  Object.assign(S.settings, settings);
+  toast('تم الحفظ ✅');
+}
+
+// ============================================================
+// DELIVERY
+// ============================================================
+async function loadDelivery() {
+  if(!S) S = await apiGet('/state');
+  const el=document.getElementById('delivery-body');
+  el.innerHTML=`<table><thead><tr><th>المنطقة</th><th>الرسوم (₪)</th><th>حفظ</th></tr></thead><tbody>${
+    (S.deliveryZones||[]).map((z,i)=>`<tr>
+      <td><input id="dz-lbl-${i}" value="${z.label}" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-family:var(--font);font-size:13px;color:var(--text);width:100%;outline:none"></td>
+      <td><input id="dz-fee-${i}" type="number" value="${z.fee}" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:6px 10px;font-family:var(--font);font-size:13px;color:var(--green);width:80px;outline:none;text-align:center"></td>
+      <td><button class="btn btn-sm btn-green" onclick="saveDeliveryZone(${i})">💾 حفظ</button></td>
+    </tr>`).join('')
+  }</tbody></table>`;
+}
+
+async function saveDeliveryZone(i) {
+  const label=document.getElementById('dz-lbl-'+i).value;
+  const fee=parseInt(document.getElementById('dz-fee-'+i).value)||0;
+  await apiPut('/delivery/'+i, {label,fee});
+  S.deliveryZones[i].label=label; S.deliveryZones[i].fee=fee;
+  toast('تم الحفظ ✅');
+}
+
+// ============================================================
+// LOGS
+// ============================================================
+async function loadLogs() {
+  const logs = await apiGet('/logs');
+  const el=document.getElementById('logs-body');
+  if(!logs.length){el.innerHTML='<div class="empty"><div class="ico">📋</div>لا توجد أحداث</div>';return;}
+  el.innerHTML=logs.map(l=>`<div class="log-entry"><span>${l.msg}</span><span style="color:var(--muted);font-size:11px">${l.time}</span></div>`).join('');
+}
+
+// ============================================================
+// OPERATIONS
+// ============================================================
+let opsDrivers = [];
+let opsOrders  = [];
+
+async function loadOperations() {
+  try {
+    [opsOrders, opsDrivers] = await Promise.all([apiGet('/orders'), apiGet('/drivers')]);
+    renderOpsStats();
+    renderOpsOrders();
+    renderOpsDrivers();
+  } catch(e) {
+    document.getElementById('ops-orders').innerHTML = `<div class="empty"><div class="ico">⚠️</div>${e.message}</div>`;
+  }
+}
+
+function renderOpsStats() {
+  const today = new Date().toLocaleDateString('ar-SA', {year:'numeric',month:'2-digit',day:'2-digit'});
+  document.getElementById('ops-preparing').textContent    = opsOrders.filter(o=>['preparing','added_to_system','payment_confirmed'].includes(o.status)).length;
+  document.getElementById('ops-need-driver').textContent  = opsOrders.filter(o=>o.status==='ready').length;
+  document.getElementById('ops-on-road').textContent      = opsOrders.filter(o=>o.status==='out_for_delivery').length;
+  document.getElementById('ops-done').textContent         = opsOrders.filter(o=>o.dateKey===today&&['delivered','picked_up'].includes(o.status)).length;
+}
+
+function renderOpsOrders() {
+  const el = document.getElementById('ops-orders');
+  const active = opsOrders.filter(o => !['delivered','picked_up','cancelled'].includes(o.status));
+  if (!active.length) { el.innerHTML='<div class="empty"><div class="ico">🎉</div>لا توجد طلبات نشطة</div>'; return; }
+
+  const statusInfo = {
+    pending_payment:   {label:'⏳ انتظار دفع',    color:'yellow'},
+    payment_confirmed: {label:'✅ تحويل مؤكد',    color:'green'},
+    added_to_system:   {label:'📥 قيد المراجعة',  color:'blue'},
+    preparing:         {label:'👨‍🍳 يتحضر',        color:'blue'},
+    ready:             {label:'⚠️ ينتظر سائق',    color:'yellow'},
+    out_for_delivery:  {label:'🚗 في الطريق',     color:'green'},
+    ready_pickup:      {label:'🔔 جاهز للاستلام', color:'yellow'},
+  };
+
+  el.innerHTML = active.map(o => {
+    const si = statusInfo[o.status] || {label:o.status, color:'yellow'};
+    const needsAction = ['preparing','added_to_system','payment_confirmed'].includes(o.status);
+    const needsManual = o.status === 'ready'; // جاهز لكن ينتظر
+    const onRoad      = o.status === 'out_for_delivery';
+    const isPickup    = o.deliveryType !== 'توصيل';
+
+    // خيارات التدخل اليدوي
+    const driverOpts = opsDrivers.filter(d=>d.active)
+      .map(d=>`<option value="${d.id}">${d.name} (${d.currentOrders?.length||0} نشط / ${d.ordersToday||0} اليوم)</option>`)
+      .join('');
+
+    const totalItems = (o.items||[]).reduce((s,i)=>s+i.qty,0);
+    const isBig = (o.grandTotal||0) >= 100;
+
+    return `<div id="ocard-${o.id}" style="border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px;background:var(--surface2);border-right:3px solid ${needsManual?'var(--yellow)':onRoad?'var(--green)':'var(--border)'}">
+
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+        <span style="font-weight:700;color:var(--green);font-size:15px">#${o.id}</span>
+        <div style="display:flex;gap:6px;align-items:center">
+          ${isBig ? '<span class="badge" style="background:var(--surface3);color:var(--yellow)">💰 ضخم</span>' : ''}
+          <span class="badge badge-${si.color}">${si.label}</span>
+        </div>
+      </div>
+
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">
+        ${(o.items||[]).slice(0,3).map(i=>`${i.qty}x ${i.name}`).join(' · ')}${totalItems>3?` · +${totalItems-3}`:''} 
+        <strong style="color:var(--text)">— ${o.grandTotal||0} ₪</strong>
+      </div>
+
+      <div style="font-size:12px;color:var(--text);margin-bottom:8px;display:flex;gap:10px;flex-wrap:wrap">
+        ${isPickup ? '<span>🏪 استلام</span>' : `<span>📍 ${o.address||'—'}</span>`}
+        ${o.driverName ? `<span>🚗 <strong>${o.driverName}</strong></span>` : ''}
+        <span style="color:var(--muted)">${o.time||''}</span>
+      </div>
+
+      <!-- أزرار الإجراءات -->
+      ${needsAction && !isPickup ? `
+        <div style="background:var(--surface3);border-radius:8px;padding:8px 10px;margin-bottom:8px;font-size:12px">
+          <div style="color:var(--muted);margin-bottom:6px">💡 النظام سيختار تلقائياً — أو اختر يدوياً:</div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+            <select id="manual-driver-${o.id}" style="flex:1;min-width:140px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--text);outline:none">
+              <option value="">🤖 تلقائي (مُوصى به)</option>
+              ${driverOpts}
+            </select>
+            <button class="btn btn-green" style="font-size:12px;padding:5px 14px;font-weight:700;white-space:nowrap"
+              onclick="markReady(${o.id})">✅ انتهى التجميع</button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${needsAction && isPickup ? `
+        <button class="btn btn-green" style="width:100%;font-size:12px;padding:6px;font-weight:700"
+          onclick="markReady(${o.id})">✅ جاهز للاستلام</button>
+      ` : ''}
+
+      ${needsManual ? `
+        <div style="background:rgba(250,165,16,0.1);border:1px solid var(--yellow);border-radius:8px;padding:8px 10px;margin-bottom:8px">
+          <div style="color:var(--yellow);font-size:12px;font-weight:700;margin-bottom:6px">⚠️ يحتاج تدخل — لا يوجد سائق متاح</div>
+          <div style="display:flex;gap:6px">
+            <select id="manual-driver-${o.id}" style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:5px 8px;font-size:11px;color:var(--text);outline:none">
+              <option value="">اختر سائق...</option>
+              ${driverOpts}
+            </select>
+            <button class="btn btn-green" style="font-size:12px;padding:5px 12px"
+              onclick="manualAssign(${o.id})">🚗 تعيين</button>
+          </div>
+        </div>
+      ` : ''}
+
+      ${onRoad ? `
+        <button class="btn btn-sm btn-green" style="width:100%;font-size:12px"
+          onclick="confirmDelivered(${o.id})">🎉 تأكيد التوصيل</button>
+      ` : ''}
+
+    </div>`;
+  }).join('');
+}
+
+function renderOpsDrivers() {
+  const el = document.getElementById('ops-drivers');
+  if (!opsDrivers.length) {
+    el.innerHTML = '<div class="empty"><div class="ico">🚗</div>أضف سائق أولاً</div>';
+    return;
+  }
+
+  const shift = getCurrentShiftClient();
+  const shiftLabels = {morning:'صباحي',evening:'مسائي',both:'كلاهما'};
+
+  el.innerHTML = opsDrivers.map(d => {
+    const isCurrentShift = d.shift === shift || d.shift === 'both';
+    const isFull  = (d.currentOrders?.length||0) >= (d.maxActive||3);
+    const statusColor = !d.active ? 'var(--border)' : isFull ? 'var(--yellow)' : isCurrentShift ? 'var(--green)' : 'var(--border)';
+
+    return `<div style="border:1px solid ${statusColor};border-radius:10px;padding:10px 12px;margin-bottom:8px;background:var(--surface2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+        <div>
+          <span style="font-weight:700">${d.name}</span>
+          ${isCurrentShift&&d.active ? '<span style="font-size:10px;color:var(--green);margin-right:4px">● دوامه</span>' : ''}
+          ${isFull&&d.active ? '<span style="font-size:10px;color:var(--yellow)">⚠ ممتلئ</span>' : ''}
+        </div>
+        <label class="toggle" style="margin:0">
+          <input type="checkbox" ${d.active?'checked':''} onchange="toggleDriverActive(${d.id},this.checked)">
+          <div class="toggle-track"></div><div class="toggle-thumb"></div>
+        </label>
+      </div>
+      <div style="font-size:11px;color:var(--muted);display:flex;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <span>📋 ${shiftLabels[d.shift]||d.shift}</span>
+        <span>🚗 نشط: <strong style="color:${(d.currentOrders?.length||0)>0?'var(--text)':'var(--muted)'}">${d.currentOrders?.length||0}/${d.maxActive||3}</strong></span>
+        <span>📅 اليوم: ${d.ordersToday||0}</span>
+      </div>
+      ${(d.currentOrders?.length||0) > 0 ? `
+        <div style="font-size:10px;color:var(--muted);background:var(--surface3);border-radius:4px;padding:3px 6px;margin-bottom:6px">
+          طلبات: ${(d.currentOrders||[]).map(id=>'#'+id).join(', ')}
+        </div>` : ''}
+      ${d.zones?.length ? `
+        <div style="font-size:10px;color:var(--muted);margin-bottom:6px">📍 ${d.zones.join(' · ')}</div>
+      ` : ''}
+      <button class="btn btn-sm" style="font-size:11px" onclick="openDriver(${d.id})">✏️ تعديل</button>
+    </div>`;
+  }).join('');
+}
+
+function getCurrentShiftClient() {
+  const h = new Date().getHours();
+  return (h >= 6 && h < 15) ? 'morning' : 'evening';
+}
+
+async function markReady(orderId) {
+  const sel = document.getElementById('manual-driver-'+orderId);
+  const driverId = sel ? parseInt(sel.value)||0 : 0;
+  const btn = event?.target;
+  if (btn) { btn.disabled=true; btn.textContent='⏳...'; }
+  try {
+    const res = await fetch(API+'/api/orders/'+orderId+'/ready', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(driverId ? {driverId} : {}),
+    });
+    const data = await res.json();
+    if (data.warning === 'no_driver') {
+      toast('⚠️ لا يوجد سائق متاح — يرجى التدخل يدوياً', true);
+    } else if (data.warning === 'overloaded') {
+      toast(`✅ انتهى — ⚠️ ${data.driverName} مشغول (أفضل المتاحين)`);
+    } else if (data.warning === 'wrong_zone') {
+      toast(`✅ انتهى — 📍 ${data.driverName} (منطقة مختلفة)`);
+    } else if (data.type === 'pickup') {
+      toast('🔔 تم إشعار الزبون بجاهزية الاستلام');
+    } else {
+      toast(`✅ مع السائق ${data.driverName}`);
+    }
+    await loadOperations();
+  } catch(e) {
+    toast('خطأ: '+e.message, true);
+    if (btn) { btn.disabled=false; btn.textContent='✅ انتهى التجميع'; }
+  }
+}
+
+async function manualAssign(orderId) {
+  const sel = document.getElementById('manual-driver-'+orderId);
+  const driverId = parseInt(sel?.value)||0;
+  if (!driverId) { toast('اختر سائقاً أولاً', true); return; }
+  try {
+    const res = await apiPost('/orders/'+orderId+'/assign', {driverId});
+    toast(`✅ تم التعيين: ${res.driverName}`);
+    await loadOperations();
+  } catch(e) { toast('خطأ: '+e.message, true); }
+}
+
+async function confirmDelivered(orderId) {
+  try {
+    await fetch(API+'/api/orders/'+orderId+'/delivered',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    toast('🎉 تم التوصيل — السائق محرَّر');
+    await loadOperations();
+  } catch(e) { toast('خطأ: '+e.message, true); }
+}
+
+async function toggleDriverActive(id, val) {
+  try {
+    await apiPut('/drivers/'+id, {active:val});
+    const d = opsDrivers.find(d=>d.id===id);
+    if (d) d.active = val;
+    renderOpsDrivers();
+    toast(val ? '✅ السائق في الدوام' : '❌ موقف');
+  } catch(e) { toast('خطأ: '+e.message, true); }
+}
+
+async function resetDrivers() {
+  if (!confirm('إعادة ضبط عدادات اليوم لكل السائقين؟')) return;
+  try {
+    await fetch(API+'/api/drivers/reset',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+    opsDrivers.forEach(d=>{d.ordersToday=0;d.currentOrders=[];});
+    renderOpsDrivers(); renderOpsStats();
+    toast('✅ تم ضبط العدادات');
+  } catch(e) { toast('خطأ: '+e.message, true); }
+}
+
+let editDriverId = null;
+function openDriver(id) {
+  editDriverId = id;
+  const d = id ? opsDrivers.find(d=>d.id===id) : null;
+  document.getElementById('drv-name').value     = d?.name  || '';
+  document.getElementById('drv-phone').value    = d?.phone || '';
+  document.getElementById('drv-shift').value    = d?.shift || 'both';
+  document.getElementById('drv-max').value      = d?.maxActive || 3;
+  // تعبئة checkboxes المناطق
+  document.querySelectorAll('#drv-zones input').forEach(cb => {
+    cb.checked = d?.zones?.includes(cb.value) || false;
+  });
+  document.getElementById('modal-driver').classList.add('open');
+}
+
+async function saveDriver() {
+  const name  = document.getElementById('drv-name').value.trim();
+  const phone = document.getElementById('drv-phone').value.trim();
+  const shift = document.getElementById('drv-shift').value;
+  const max   = parseInt(document.getElementById('drv-max').value) || 3;
+  const zones = [...document.querySelectorAll('#drv-zones input:checked')].map(cb=>cb.value);
+  if (!name) { toast('أدخل اسم السائق', true); return; }
+  try {
+    if (editDriverId) {
+      await apiPut('/drivers/'+editDriverId, {name,phone,shift,maxActive:max,zones});
+      const d = opsDrivers.find(d=>d.id===editDriverId);
+      if (d) Object.assign(d, {name,phone,shift,maxActive:max,zones});
+      toast('✅ تم التعديل');
+    } else {
+      const res = await apiPost('/drivers', {name,phone,shift,maxActive:max,zones});
+      if (res.driver) opsDrivers.push(res.driver);
+      toast('✅ أُضيف السائق');
+    }
+    closeModal('modal-driver');
+    renderOpsDrivers();
+  } catch(e) { toast('خطأ: '+e.message, true); }
+}
+
+// ============================================================
+// SIMULATOR — يستخدم الـ API الحقيقية
+// ============================================================
+const SIM_SESSION_ID = 'dash_' + Math.random().toString(36).slice(2, 8);
+const SIM_SUGGESTIONS = [
+  'مرحبا','منيو','شاورما','مشروبات','حلويات','توصيل','بدي اطلب','موظف',
+  'زنجر','فرشوحة عادي','#1','وين طلبي',
+  'عندي طلب\n٢ ايس كافي\nبان كيك نوتيلا',
+  'سلة','تأكيد','إلغاء',
+];
+
+async function loadSim() {
+  if(!S) S = await apiGet('/state');
+  const sug = SIM_SUGGESTIONS;
+  document.getElementById('sim-sug').innerHTML = sug.map((s,i) => {
+    const label = s.includes('\n') ? '📋 ' + s.split('\n')[0] + '...' : s;
+    return `<button class="cat-tab" onclick="simSendText(SIM_SUGGESTIONS[${i}])">${label}</button>`;
+  }).join('');
+}
+
+function simAddMsg(text, isUser) {
+  const chat = document.getElementById('sim-chat');
+  const div = document.createElement('div');
+  div.className = `bubble ${isUser ? 'user' : 'bot'}`;
+  div.style.whiteSpace = 'pre-wrap';
+  div.innerHTML = text.replace(/\*(.+?)\*/g,'<strong>$1</strong>') + `<div class="time">${getTime()}</div>`;
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function simShowTyping() {
+  const chat = document.getElementById('sim-chat');
+  const div = document.createElement('div');
+  div.className = 'bubble bot typing-indicator';
+  div.id = 'sim-typing';
+  div.innerHTML = '<span></span><span></span><span></span>';
+  chat.appendChild(div);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function simHideTyping() {
+  document.getElementById('sim-typing')?.remove();
+}
+
+async function simSend() {
+  const inp = document.getElementById('sim-inp');
+  const txt = inp.value.trim();
+  inp.value = '';
+  if (!txt) return;
+  await simSendText(txt);
+}
+
+async function simSendText(txt) {
+  if (!txt) return;
+  simAddMsg(txt, true);
+  simShowTyping();
+  try {
+    const res = await fetch(API + '/api/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: txt, sessionId: SIM_SESSION_ID })
+    });
+    const data = await res.json();
+    simHideTyping();
+    const replies = data.replies || ['...'];
+    for (let i = 0; i < replies.length; i++) {
+      if (i > 0) await new Promise(r => setTimeout(r, 500));
+      simAddMsg(replies[i], false);
+    }
+  } catch(e) {
+    simHideTyping();
+    simAddMsg('❌ تأكد إن البوت شغال (localhost:3000)', false);
+  }
+}
+
+async function simReset() {
+  await fetch(API + '/api/simulate/reset', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sessionId: SIM_SESSION_ID })
+  });
+  const chat = document.getElementById('sim-chat');
+  chat.innerHTML = '<div class="bubble bot">أهلاً وسهلاً! 🌿 شو بدك اليوم؟<div class="time">الآن</div></div>';
+  toast('🔄 تم إعادة تعيين المحادثة');
+}
+
+async function restartBot() {
+  if (!confirm('إعادة الاتصال بواتساب؟')) return;
+  await apiPost('/bot/restart', {});
+  toast('🔄 جاري إعادة الاتصال...');
+  setTimeout(pollStatus, 3000);
+}
+
+// ============================================================
+// GROUPS
+// ============================================================
+async function loadGroups() {
+  const btn = event.target;
+  btn.textContent = '⏳ جاري التحميل...';
+  btn.disabled = true;
+  try {
+    const groups = await apiGet('/groups');
+    const el = document.getElementById('groups-items');
+    if (!groups.length) {
+      el.innerHTML = '<div style="color:var(--muted);font-size:13px">لا توجد قروبات — تأكد إن البوت متصل بواتساب</div>';
+    } else {
+      el.innerHTML = groups.map(g => `
+        <div onclick="selectGroup('${g.id}','${g.name.replace(/'/g,"\\'")}',this)"
+          style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;cursor:pointer;transition:all 0.15s"
+          onmouseover="this.style.borderColor='var(--green)'" onmouseout="if(!this.classList.contains('sel'))this.style.borderColor='var(--border)'">
+          <span style="font-size:20px">👥</span>
+          <div>
+            <div style="font-size:13px;font-weight:700">${g.name}</div>
+            <div style="font-size:11px;color:var(--muted);direction:ltr">${g.id}</div>
+          </div>
+        </div>
+      `).join('');
+    }
+    document.getElementById('groups-list').style.display = 'block';
+  } catch(e) {
+    toast('تأكد إن البوت شغال ومتصل بواتساب', true);
+  }
+  btn.textContent = '📥 استيراد القروبات';
+  btn.disabled = false;
+}
+
+function selectGroup(id, name, el) {
+  document.querySelectorAll('#groups-items > div').forEach(d => {
+    d.classList.remove('sel');
+    d.style.borderColor = 'var(--border)';
+    d.style.background = 'var(--surface2)';
+  });
+  el.classList.add('sel');
+  el.style.borderColor = 'var(--green)';
+  el.style.background = 'var(--green-dim)';
+  document.getElementById('set-groupid').value = id;
+  toast(`✅ تم اختيار: ${name}`);
+}
+
+async function saveGroupId() {
+  const groupId = document.getElementById('set-groupid').value.trim();
+  if (!groupId) { toast('اختر قروب أولاً', true); return; }
+  await apiPost('/settings', { groupId });
+  if (S) S.settings.groupId = groupId;
+  toast('✅ تم حفظ القروب!');
+}
+
+// ============================================================
+// ORDERS
+// ============================================================
+let allOrders = [];
+let ordersLoaded = false;
+let ordersTab = 'pending'; // pending | all
+
+async function loadOrders() {
+  const el = document.getElementById('orders-body');
+  el.innerHTML = '<div class="loading"><div class="spinner"></div>جاري التحميل...</div>';
+  try {
+    const data = await apiGet('/orders');
+    if (!Array.isArray(data)) throw new Error('invalid data');
+    allOrders = data;
+    ordersLoaded = true;
+    renderOrdersTabs();
+    renderOrders();
+  } catch(e) {
+    el.innerHTML = '<div class="empty"><div class="ico">⚠️</div>تعذر تحميل الطلبات<br><button class="btn btn-sm btn-green" onclick="loadOrders()" style="margin-top:10px">إعادة المحاولة</button></div>';
+  }
+}
+
+function renderOrdersTabs() {
+  const pending = allOrders.filter(o => o.status === 'pending_payment').length;
+  const today = allOrders.filter(o => o.dateKey === todayKey()).length;
+  document.getElementById('orders-tab-bar').innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap">
+      <button class="tab-btn ${ordersTab==='pending'?'active':''}" onclick="setOrdersTab('pending')">
+        ⏳ انتظار تحويل
+        ${pending > 0 ? `<span style="background:var(--red);color:#fff;border-radius:10px;padding:1px 7px;font-size:11px;margin-right:5px">${pending}</span>` : ''}
+      </button>
+      <button class="tab-btn ${ordersTab==='today'?'active':''}" onclick="setOrdersTab('today')">
+        📅 اليوم (${today})
+      </button>
+      <button class="tab-btn ${ordersTab==='all'?'active':''}" onclick="setOrdersTab('all')">📋 الكل</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap">
+      <input id="orders-search" placeholder="🔍 ابحث باسم أو رقم..." oninput="renderOrders()"
+        style="flex:1;min-width:160px;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:7px 12px;font-family:var(--font);font-size:12px;color:var(--text);outline:none">
+      <button class="btn btn-sm btn-green" onclick="loadOrders()">🔄 تحديث</button>
+    </div>
+  `;
+}
+
+function todayKey() {
+  return new Date().toLocaleDateString('ar-SA', {year:'numeric',month:'2-digit',day:'2-digit'});
+}
+
+function setOrdersTab(tab) {
+  ordersTab = tab;
+  renderOrdersTabs();
+  renderOrders();
+}
+
+function renderOrders() {
+  const search = document.getElementById('orders-search')?.value?.toLowerCase() || '';
+  let items = [...allOrders];
+
+  if (ordersTab === 'pending') items = items.filter(o => o.status === 'pending_payment');
+  else if (ordersTab === 'today') items = items.filter(o => o.dateKey === todayKey());
+
+  if (search) items = items.filter(o =>
+    String(o.id).includes(search) ||
+    (o.name||'').toLowerCase().includes(search) ||
+    (o.phone||'').includes(search) ||
+    (o.transferName||'').toLowerCase().includes(search)
+  );
+
+  const el = document.getElementById('orders-body');
+  if (!items.length) {
+    el.innerHTML = `<div class="empty"><div class="ico">${ordersTab==='pending'?'🎉':'📦'}</div>${ordersTab==='pending'?'لا توجد طلبات معلقة — ممتاز!':'لا توجد طلبات'}</div>`;
+    return;
+  }
+
+  const statusLabel = {
+    pending_payment:  ['⏳ انتظار تحويل', 'yellow'],
+    payment_confirmed:['✅ تم التحويل',   'green'],
+    added_to_system:  ['📥 تمت الإضافة',  'blue'],
+    preparing:        ['👨‍🍳 قيد التحضير', 'blue'],
+    delivered:        ['🚀 تم التوصيل',   'green'],
+    cancelled:        ['❌ ملغي',          'red'],
+  };
+
+  el.innerHTML = items.map(o => {
+    const [label, color] = statusLabel[o.status] || ['❓ غير معروف', 'yellow'];
+    const isPending = o.status === 'pending_payment';
+    const isConfirmed = o.status === 'payment_confirmed';
+    const itemsTotal = (o.items||[]).reduce((s,i) => s + i.qty*i.price, 0);
+
+    return `
+    <div style="background:var(--surface2);border:1px solid ${isPending?'var(--yellow)':isConfirmed?'var(--green)':'var(--border)'};border-radius:12px;padding:0;margin-bottom:12px;overflow:hidden;transition:box-shadow 0.2s" id="order-card-${o.id}">
+
+      <!-- Header -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:10px">
+          <span style="font-size:18px;font-weight:900;color:var(--green);min-width:40px">#${o.id}</span>
+          <span class="badge badge-${color}">${label}</span>
+          ${o.paymentType==='تحويل' ? `<span class="badge badge-blue">💳 ${o.transferName||'تحويل'}</span>` : ''}
+          ${o.deliveryType==='توصيل' ? `<span class="badge" style="background:var(--surface3);color:var(--muted)">🚚 توصيل</span>` : `<span class="badge" style="background:var(--surface3);color:var(--muted)">🏪 استلام</span>`}
+        </div>
+        <span style="font-size:11px;color:var(--muted)">${o.time||''}</span>
+      </div>
+
+      <!-- Items -->
+      <div style="padding:10px 16px;font-size:13px;color:var(--muted)">
+        ${(o.items||[]).map(i => `<div style="display:flex;justify-content:space-between;padding:2px 0">
+          <span>${i.qty}x ${i.name}</span>
+          <span style="color:var(--text)">${i.qty*i.price} ₪</span>
+        </div>`).join('')}
+        ${o.deliveryFee > 0 ? `<div style="display:flex;justify-content:space-between;padding:2px 0;border-top:1px dashed var(--border);margin-top:4px"><span>🚚 توصيل</span><span>${o.deliveryFee} ₪</span></div>` : ''}
+        <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:1px solid var(--border);margin-top:4px;font-weight:700;font-size:14px">
+          <span style="color:var(--text)">المجموع</span>
+          <span style="color:var(--green)">${o.grandTotal||itemsTotal} ₪</span>
+        </div>
+      </div>
+
+      <!-- Customer Info -->
+      <div style="padding:8px 16px 4px;font-size:12px;color:var(--muted);border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:8px">
+        <span>👤 <strong style="color:var(--text)">${o.name||'—'}</strong></span>
+        <span>📞 ${o.phone||'—'}</span>
+        ${o.deliveryType==='توصيل' ? `<span>📍 ${o.address||'—'}</span>` : ''}
+        ${o.note ? `<span style="color:var(--yellow)">📝 ${o.note}</span>` : ''}
+        ${o.addedAt ? `<span style="color:var(--green);font-size:11px">📥 أُضيف: ${o.addedAt}</span>` : ''}
+      </div>
+
+      <!-- Actions -->
+      <div style="padding:10px 16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid var(--border)">
+        ${isConfirmed ? `
+          <button class="btn btn-green" style="font-size:13px;font-weight:700;padding:8px 18px;flex:1;min-width:160px"
+            onclick="markAdded(${o.id})">
+            ✅ تم الإضافة للنظام
+          </button>
+        ` : ''}
+        ${isPending ? `
+          <button class="btn btn-sm btn-green" onclick="confirmPaymentManual(${o.id})">✅ تأكيد التحويل يدوياً</button>
+        ` : ''}
+        <button class="btn btn-sm" onclick="sendOrderMsg(${o.id},'${o.customerPhone||''}')">📤 رسالة</button>
+        <select onchange="updateOrderStatus(${o.id},this.value)"
+          style="background:var(--surface3);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-family:var(--font);font-size:12px;color:var(--text);outline:none;cursor:pointer">
+          <option value="">تغيير الحالة</option>
+          <option value="preparing">👨‍🍳 قيد التحضير</option>
+          <option value="delivered">🚀 تم التوصيل</option>
+          <option value="cancelled">❌ إلغاء</option>
+        </select>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// تم الإضافة للنظام
+async function markAdded(id) {
+  try {
+    await fetch(API + '/api/orders/' + id + '/added', { method:'POST', headers:{'Content-Type':'application/json'}, body:'{}' });
+    const o = allOrders.find(o => o.id === id);
+    if (o) { o.status = 'added_to_system'; o.addedAt = new Date().toLocaleString('ar'); }
+    renderOrders();
+    toast('📥 تم تأكيد الإضافة للنظام');
+  } catch(e) { toast('خطأ في الاتصال', true); }
+}
+
+// تأكيد التحويل يدوياً (بدون reaction)
+async function confirmPaymentManual(id) {
+  if (!confirm('تأكيد استلام التحويل لطلب #' + id + '؟')) return;
+  await apiPut('/orders/' + id + '/status', { status: 'payment_confirmed' });
+  const o = allOrders.find(o => o.id === id);
+  if (o) o.status = 'payment_confirmed';
+  // إرسال رسالة للزبون
+  try {
+    await fetch(API+'/api/orders/'+id+'/message', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({text:`✅ تم تأكيد تحويلك!\nطلبك #${id} قيد التحضير الآن 👨‍🍳`})
+    });
+  } catch(e) {}
+  renderOrders();
+  toast('✅ تم تأكيد التحويل');
+}
+
+async function updateOrderStatus(id, status) {
+  if (!status) return;
+  await apiPut('/orders/' + id + '/status', { status });
+  const order = allOrders.find(o => o.id === id);
+  if (order) order.status = status;
+  renderOrders();
+  toast('✅ تم تحديث الحالة');
+  const msgs = {
+    preparing: `👨‍🍳 طلبك رقم *#${id}* قيد التحضير الآن! وقت التحضير حوالي ${S?.settings?.estimatedTime||30} دقيقة ⏱️`,
+    delivered: `🚀 طلبك رقم *#${id}* في الطريق إليك! شكراً لثقتك بـ${S?.settings?.name||'المطعم'} ❤️`,
+    cancelled: `❌ نأسف، طلبك رقم *#${id}* تم إلغاؤه.`,
+  };
+  if (msgs[status] && order?.customerPhone) {
+    try { await fetch(API+'/api/orders/'+id+'/message', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:msgs[status]})}); } catch(e) {}
+  }
+}
+
+async function sendOrderMsg(id, phone) {
+  const text = prompt('أرسل رسالة للزبون:');
+  if(!text?.trim()) return;
+  try {
+    await fetch(API+'/api/orders/'+id+'/message',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:text.trim()})});
+    toast('✅ تم إرسال الرسالة');
+  } catch(e) { toast('فشل الإرسال', true); }
+}
+
+// ============================================================
+// INIT
+// ============================================================
+loadDashboard();
+pollStatus();
+setInterval(pollStatus, 5000);
+setInterval(() => {
+  // تحديث تلقائي فقط لصفحة الداشبورد — لا يؤثر على باقي الصفحات
+  const activePage = document.querySelector('.page.active');
+  if (activePage && activePage.id === 'page-dashboard') loadDashboard();
+  // تحديث الطلبات إذا كانت الصفحة مفتوحة
+  if (activePage && activePage.id === 'page-orders' && ordersLoaded) loadOrders();
+}, 30000);
+</script>
+  <!-- DRIVER MODAL -->
+  <div class="modal" id="modal-driver">
+    <div class="modal-content" style="max-width:460px">
+      <div class="modal-head">
+        <h3>بيانات السائق</h3>
+        <button class="modal-close" onclick="closeModal('modal-driver')">✕</button>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="form-group"><label>الاسم *</label><input id="drv-name" placeholder="اسم السائق"></div>
+        <div class="form-group"><label>الهاتف</label><input id="drv-phone" placeholder="05xxxxxxxx" dir="ltr"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div class="form-group">
+          <label>فترة الدوام</label>
+          <select id="drv-shift" style="width:100%;background:var(--surface3);border:1px solid var(--border);border-radius:8px;padding:7px 10px;font-family:var(--font);font-size:13px;color:var(--text);outline:none">
+            <option value="morning">صباحي (6ص-3م)</option>
+            <option value="evening">مسائي (3م-12م)</option>
+            <option value="both" selected>كلا الفترتين</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>أقصى طلبات نشطة</label>
+          <input id="drv-max" type="number" min="1" max="10" value="3">
+        </div>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label>المناطق التي يغطيها <span style="color:var(--muted);font-size:11px">(فارغ = يغطي الكل)</span></label>
+        <div id="drv-zones" style="display:flex;flex-direction:column;gap:6px;padding:8px;background:var(--surface3);border-radius:8px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" value="النصيرات (مستشفى العودة)"><span>النصيرات (مستشفى العودة)</span></label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" value="النصيرات عام"><span>النصيرات عام</span></label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" value="السوارحة والبريج"><span>السوارحة والبريج</span></label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" value="الزوايدة والمغازي"><span>الزوايدة والمغازي</span></label>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer"><input type="checkbox" value="دير البلح"><span>دير البلح</span></label>
+        </div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn" onclick="closeModal('modal-driver')">إلغاء</button>
+        <button class="btn btn-green" onclick="saveDriver()">💾 حفظ</button>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>
