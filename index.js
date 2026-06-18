@@ -832,13 +832,14 @@ async function askGroq(systemPrompt, userMsg) {
   try {
     const res = await new Promise((resolve, reject) => {
       const body = JSON.stringify({
-        model: 'llama-3.1-8b-instant',
+        // llama-3.3-70b أقوى بالعربية وأفهم للسياق — مجاني على Groq
+        model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user',   content: userMsg },
         ],
-        max_tokens: 200,
-        temperature: 0.1,
+        max_tokens: 120,
+        temperature: 0.0, // 0 = أكثر دقة وثبات
       });
       const req = https.request({
         hostname: 'api.groq.com',
@@ -880,36 +881,34 @@ async function tryAIUnderstand(from, rawMsg, session) {
     ? `السلة الحالية: ${session.cart.map(i=>`${i.qty}x ${i.name}`).join(', ')}`
     : 'السلة فارغة';
 
-  const systemPrompt = `أنت مساعد ذكي لمطعم "${STATE.settings.name}" في غزة.
-مهمتك: فهم رسائل الزبائن باللهجة الفلسطينية/العامية وتحويلها لأوامر واضحة.
+  // قائمة مختصرة
+  const itemsShort = STATE.items.filter(i=>i.active).map(i=>i.name).join('، ');
 
-قائمة الأصناف المتاحة:
-${itemsList}
+  const systemPrompt = `أنت مساعد طلبات مطعم ${STATE.settings.name} في غزة.
+الزبائن يكتبون بلهجة فلسطينية وعامية.
+
+الأصناف المتاحة: ${itemsShort}
 
 ${cartInfo}
 
-قواعد مهمة:
-- إذا الزبون طلب صنف موجود في القائمة (بأي طريقة كتابة أو لهجة) → أجب بـ: ORDER:اسم_الصنف_بالضبط:الكمية
-- إذا يسأل عن سعر → أجب بـ: PRICE:اسم_الصنف
-- إذا يريد حذف صنف من السلة → أجب بـ: REMOVE:اسم_الصنف
-- إذا يريد تأكيد الطلب → أجب بـ: CONFIRM
-- إذا يريد إلغاء → أجب بـ: CANCEL
-- إذا الزبون يسأل عن قسم كامل مش صنف محدد (مثل "شاورما" وحدها أو "بيتزا" أو "حلويات") → أجب بـ: MENU_CAT:اسم_القسم
-  الأقسام المتاحة: شاورما، ايطالي، ساندويش، سلطة، مشروبات، حلويات
-- إذا ثرثرة أو تحية → أجب بـ: SKIP
-- إذا ما فهمت → أجب بـ: UNKNOWN
+أجب بأمر واحد فقط:
+ORDER:اسم_الصنف:الكمية  ← طلب صنف من القائمة بالاسم الدقيق
+PRICE:اسم_الصنف          ← سؤال عن سعر
+REMOVE:اسم_الصنف         ← حذف من السلة
+CONFIRM                  ← تأكيد (تمام/يلا/ماشي/مزبوط/خلص/حاضر)
+CANCEL                   ← إلغاء
+MENU_CAT:اسم_القسم       ← عرض منيو قسم (شاورما/ايطالي/ساندويش/سلطة/مشروبات/حلويات)
+ADD_NOTE:النص            ← ملاحظة (بدون بصل/بس طحينه/زيادة ثلج)
+GREETING                 ← تحية أو كلام اجتماعي فقط
+SKIP                     ← لا علاقة بالطلب
+UNKNOWN                  ← ما فهمت
 
-أمثلة:
-"بدي صاروخ" → ORDER:ستيك دجاج مشوي:1
-"كلزوني" → ORDER:كالزوني دجاج:1
-"دوبل لحمة" → ORDER:فرشوحة دبل لحمة:1
-"وقية شيش" → ORDER:شيش طاووق:1
-"بكم الزنجر" → PRICE:زنجر
-"شيل الزنجر" → REMOVE:زنجر
-"تمام" → CONFIRM
-"مرحبا" → SKIP
-
-أجب بسطر واحد فقط بدون شرح.`;
+قواعد:
+• الصنف غير موجود في القائمة → UNKNOWN لا ORDER
+• تحيات + طلب معاً → ORDER (تجاهل التحية)
+• أسماء شعبية: صاروخ=ستيك دجاج مشوي، كلزوني=كالزوني دجاج، دبل لحمة=فرشوحة دبل لحمة، وقية شيش=شيش طاووق
+• كميات: واحد/وحدة=1، اثنين/2=2، ثلاثة/3=3
+• سطر واحد فقط بدون شرح`;
 
   const aiResponse = await askGroq(systemPrompt, rawMsg);
   if (!aiResponse) return null;
@@ -993,9 +992,25 @@ ${cartInfo}
     }
   }
 
-  if (aiResponse === 'SKIP') return null; // تجاهل بدون رد
+  if (aiResponse === 'SKIP') return null;
 
-  // UNKNOWN — AI ما فهم
+  if (aiResponse === 'GREETING') {
+    // تحية بدون طلب → رد لطيف
+    return `أهلاً وسهلاً! 😊 شو بدك تطلب اليوم من ${STATE.settings.name}؟ 🌿`;
+  }
+
+  if (aiResponse.startsWith('ADD_NOTE:')) {
+    const note = aiResponse.slice(9).trim();
+    if (note && session) {
+      if (!session.notes) session.notes = [];
+      session.notes.push(note);
+      saveState();
+      return `تمام، لاحظت: "${note}" ✅
+شو كمان بدك؟`;
+    }
+  }
+
+  // UNKNOWN
   return null;
 }
 
@@ -2019,16 +2034,16 @@ ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
     if (/منيو|قائمة|اسعار/.test(text))
       return `1️⃣ الشاورما  2️⃣ الإيطالي  3️⃣ الساندويشات\n4️⃣ السلطات  5️⃣ المشروبات  6️⃣ الحلويات`;
 
-    // سجّل للتعلم + اسأل AI
+    // سجّل + AI فوراً
     logUnknown(from, rawOriginal, {state:'ordering', cartItems:session.cart.length});
-    // حاول AI فوراً
-    tryAIUnderstand(from, rawOriginal, session).then(aiReply => {
-      if (aiReply) {
-        // AI فهم — أرسل الرد
-        client.sendMessage(from, aiReply).catch(()=>{});
-      }
-    }).catch(()=>{});
-    return `هممم... 🤔 بحاول أفهم "${rawOriginal}"\nثانية واحدة...`;
+    if (GROQ_KEY) {
+      tryAIUnderstand(from, rawOriginal, session).then(aiReply => {
+        if (aiReply) client.sendMessage(from, aiReply).catch(()=>{});
+        else client.sendMessage(from, `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`).catch(()=>{});
+      }).catch(()=>{});
+      return `لحظة... 🤔`;
+    }
+    return `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`;
   }
 
   // ====== DELIVERY TYPE ======
@@ -2220,12 +2235,15 @@ ${deliveryInfo}
   }
 
   logUnknown(from, rawOriginal, {state:null,cartItems:0});
-  // حاول AI إذا الرسالة تبدو طلباً
-  if (GROQ_KEY && rawOriginal.length > 1) {
-    tryAIUnderstand(from, rawOriginal, sessions[from] || {cart:[]}).then(aiReply => {
+  // AI fallback — لكل رسالة غير مفهومة
+  if (GROQ_KEY) {
+    tryAIUnderstand(from, rawOriginal, sessions[from] || {cart:[], state:null}).then(aiReply => {
       if (aiReply) client.sendMessage(from, aiReply).catch(()=>{});
-    }).catch(()=>{});
-    return `ثانية... 🤔`;
+      else client.sendMessage(from, STATE.settings.defaultReply || 'هههه مش فاهم قصدك 😄 بدك تطلب ولا شوف الأسعار؟').catch(()=>{});
+    }).catch(()=>{
+      client.sendMessage(from, STATE.settings.defaultReply || 'هههه مش فاهم قصدك 😄').catch(()=>{});
+    });
+    return `لحظة... 🤔`;
   }
   return STATE.settings.defaultReply;
 }
