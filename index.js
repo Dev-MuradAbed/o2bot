@@ -1710,6 +1710,33 @@ async function sendToGroup(text) {
 // ============================================================
 // MAIN MESSAGE HANDLER
 // ============================================================
+// رد ذكي لما البوت ما يفهم (بدون AI)
+function buildSmartUnknownReply(from, rawMsg, session) {
+  const t = normalize(rawMsg);
+
+  // سجّل دائماً في unknowns للمراجعة من الداشبورد
+  logUnknown(from, rawMsg, {
+    state: session?.state || null,
+    cartItems: session?.cart?.length || 0,
+  });
+
+  // 1. يبدو طلب صنف غير موجود
+  const looksLikeOrder = /^(بدي|اريد|أريد|خذلي|حطلي|اعطيني|اطلب|طلب)\s+/i.test(rawMsg)
+    || /\d+\s*x?\s*\w+/i.test(rawMsg)
+    || (rawMsg.split(' ').length <= 4 && rawMsg.length > 2);
+
+  if (looksLikeOrder) {
+    const similar = findSimilarItems(t, null, 3);
+    if (similar.length) {
+      const simList = similar.map(i => '• ' + i.name + ' — ' + i.price + ' ₪').join('\n');
+      return 'مش عندنا "' + rawMsg + '" في المنيو 😅\nبس عندنا:\n' + simList + '\n\nبدك تطلب أحد هالأصناف؟';
+    }
+    return '"' + rawMsg + '" مش في منيونا حالياً 😅\nاكتب *منيو* لتشوف كل أصنافنا 🌿';
+  }
+
+  return null;
+}
+
 async function handleMessage(msg) {
   const from = msg.from;
   const rawOriginal = msg.body?.trim() || '';
@@ -2245,7 +2272,13 @@ ${deliveryInfo}
     });
     return `لحظة... 🤔`;
   }
-  return STATE.settings.defaultReply;
+  // بدون AI — رد أذكى + تسجيل في unknowns
+  const unknownReply = buildSmartUnknownReply(from, rawOriginal, session);
+  if (!unknownReply) {
+    // إذا ما بنى رد → سجّل كـ unknown
+    logUnknown(from, rawOriginal, {state: session?.state||null, cartItems: session?.cart?.length||0});
+  }
+  return unknownReply || STATE.settings.defaultReply;
 }
 
 // ============================================================
@@ -2325,6 +2358,7 @@ async function handleAPI(url, method, body, res) {
     botConnected: STATE.botConnected,
     transferMode: STATE.settings.transferMode,
     botActive: STATE.settings.botActive,
+    unknownsCount: (STATE.unknowns||[]).filter(u=>u.status==='new').length,
     queueCount: STATE.queue.length,
     ordersCount: STATE.orders.length,
     itemsCount: STATE.items.filter(i => i.active).length,
