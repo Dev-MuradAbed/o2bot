@@ -11,6 +11,7 @@ const http   = require('http');
 const fs     = require('fs');
 const path   = require('path');
 const pino   = require('pino');
+const https  = require('https');
 
 // ============================================================
 // STATE
@@ -515,29 +516,69 @@ function findItem(query, onlyActive = false) {
     ? STATE.items.filter(i => i.active && STATE.categories.find(c => c.id===i.cat && c.active))
     : STATE.items;
 
-  // 1. مطابقة تامة أو احتواء
+  // 1. مطابقة تامة أولاً
+  for (const item of pool) {
+    for (const k of item.keys) {
+      if (q === normalize(k)) return item;
+    }
+  }
+  // 2. الـ query يحتوي الـ key (الصنف داخل الرسالة)
   for (const item of pool) {
     for (const k of item.keys) {
       const kn = normalize(k);
-      if (q === kn || q.includes(kn) || kn.includes(q)) return item;
+      if (kn.length >= 3 && q.includes(kn)) return item;
     }
   }
+  // 3. الـ key يحتوي الـ query — نفضّل الأقصر (الأدق)
+  let containsBest = null, containsLen = Infinity;
+  for (const item of pool) {
+    for (const k of item.keys) {
+      const kn = normalize(k);
+      if (kn.includes(q) && kn.length < containsLen) {
+        containsLen = kn.length; containsBest = item;
+      }
+    }
+  }
+  if (containsBest) return containsBest;
 
-  // 2. levenshtein — شرط صارم
+  // 2. levenshtein — شروط صارمة تمنع التطابق الخاطئ
   let best = null, bestScore = Infinity;
   for (const item of pool) {
     for (const k of item.keys) {
       const kn = normalize(k);
-      if (Math.abs(q.length - kn.length) > 4) continue;
+
+      // ✅ شرط الفرق في الطول — مهم جداً
+      // "كولا" (4) vs "كالزوني" (7) = فرق 3 → لا يُقارَن
+      const lenDiff = Math.abs(q.length - kn.length);
+      if (lenDiff > Math.min(q.length, kn.length) * 0.5) continue;
+
+      // ✅ شرط الحد الأدنى للطول — كلمات أقل من 3 حروف لا تُطابَق بـ levenshtein
+      if (q.length < 3 || kn.length < 3) continue;
+
+      // ✅ threshold صارم: أقصر الكلمة تحدد الـ threshold
+      const minLen = Math.min(q.length, kn.length);
+      const threshold = minLen <= 3 ? 0   // كلمات قصيرة: مطابقة تامة فقط
+                      : minLen <= 5 ? 1   // كلمات متوسطة: خطأ واحد فقط
+                      : minLen <= 8 ? 2   // كلمات طويلة: خطآن
+                      : 3;               // كلمات طويلة جداً
+
       const dist = levenshtein(q, kn);
-      const threshold = q.length <= 4 ? 1 : q.length <= 7 ? 2 : 3;
+
+      // ✅ شرط إضافي: يجب أن يبدأا بنفس الحرف أو الحرفين (يمنع تطابق الكلمات غير المترابطة)
+      if (dist > 0 && q[0] !== kn[0]) continue;
+
       if (dist <= threshold && dist < bestScore) { bestScore = dist; best = item; }
-      // كلمة واحدة
+
+      // مطابقة كلمة واحدة من عدة كلمات (مثل "ستيك" من "ستيك دجاج مشوي")
+      const qWords = q.split(' ');
       for (const w of kn.split(' ')) {
-        if (w.length < 3) continue;
-        const wd = levenshtein(q.split(' ')[0] || q, w);
-        const wt = q.length <= 4 ? 1 : 2;
-        if (wd <= wt && wd < bestScore) { bestScore = wd; best = item; }
+        if (w.length < 4) continue; // تجاهل الكلمات القصيرة جداً
+        const wd = levenshtein(qWords[0] || q, w);
+        // نفس الحرف الأول + طول متقارب
+        if (wd > 0 && (qWords[0]||q)[0] !== w[0]) continue;
+        const wLen = Math.min((qWords[0]||q).length, w.length);
+        const wThreshold = wLen <= 4 ? 0 : wLen <= 6 ? 1 : 2;
+        if (wd <= wThreshold && wd < bestScore) { bestScore = wd; best = item; }
       }
     }
   }
@@ -750,6 +791,174 @@ function releaseDriver(orderId) {
 // ============================================================
 // LEARNING SYSTEM — نظام التعلم التلقائي
 // ============================================================
+// ============================================================
+// GROQ AI — فهم الرسائل الصعبة مجاناً
+// ============================================================
+// groq.com → مجاني → Create API Key → انسخه في Render Environment
+const GROQ_KEY = process.env.GROQ_API_KEY || '';
+
+async function askGroq(systemPrompt, userMsg) {
+  if (!GROQ_KEY) return null;
+  try {
+    const res = await new Promise((resolve, reject) => {
+      const body = JSON.stringify({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user',   content: userMsg },
+        ],
+        max_tokens: 200,
+        temperature: 0.1,
+      });
+      const req = https.request({
+        hostname: 'api.groq.com',
+        path:     '/openai/v1/chat/completions',
+        method:   'POST',
+        headers:  {
+          'Content-Type':  'application/json',
+          'Authorization': `Bearer ${GROQ_KEY}`,
+          'Content-Length': Buffer.byteLength(body),
+        },
+      }, r => {
+        let data = '';
+        r.on('data', d => data += d);
+        r.on('end', () => resolve(JSON.parse(data)));
+      });
+      req.on('error', reject);
+      req.write(body);
+      req.end();
+    });
+    return res.choices?.[0]?.message?.content?.trim() || null;
+  } catch(e) {
+    console.log('⚠️ Groq:', e.message);
+    return null;
+  }
+}
+
+// يبني قائمة الأصناف للـ AI
+function buildItemsList() {
+  return STATE.items
+    .filter(i => i.active)
+    .map(i => `${i.name} (${i.price}₪) — قسم: ${i.cat}`)
+    .join('\n');
+}
+
+// يحاول يفهم الرسالة بـ AI
+async function tryAIUnderstand(from, rawMsg, session) {
+  const itemsList = buildItemsList();
+  const cartInfo  = session?.cart?.length
+    ? `السلة الحالية: ${session.cart.map(i=>`${i.qty}x ${i.name}`).join(', ')}`
+    : 'السلة فارغة';
+
+  const systemPrompt = `أنت مساعد ذكي لمطعم "${STATE.settings.name}" في غزة.
+مهمتك: فهم رسائل الزبائن باللهجة الفلسطينية/العامية وتحويلها لأوامر واضحة.
+
+قائمة الأصناف المتاحة:
+${itemsList}
+
+${cartInfo}
+
+قواعد مهمة:
+- إذا الزبون طلب صنف موجود في القائمة (بأي طريقة كتابة أو لهجة) → أجب بـ: ORDER:اسم_الصنف_بالضبط:الكمية
+- إذا يسأل عن سعر → أجب بـ: PRICE:اسم_الصنف
+- إذا يريد حذف صنف من السلة → أجب بـ: REMOVE:اسم_الصنف
+- إذا يريد تأكيد الطلب → أجب بـ: CONFIRM
+- إذا يريد إلغاء → أجب بـ: CANCEL
+- إذا الزبون يسأل عن قسم كامل مش صنف محدد (مثل "شاورما" وحدها أو "بيتزا" أو "حلويات") → أجب بـ: MENU_CAT:اسم_القسم
+  الأقسام المتاحة: شاورما، ايطالي، ساندويش، سلطة، مشروبات، حلويات
+- إذا ثرثرة أو تحية → أجب بـ: SKIP
+- إذا ما فهمت → أجب بـ: UNKNOWN
+
+أمثلة:
+"بدي صاروخ" → ORDER:ستيك دجاج مشوي:1
+"كلزوني" → ORDER:كالزوني دجاج:1
+"دوبل لحمة" → ORDER:فرشوحة دبل لحمة:1
+"وقية شيش" → ORDER:شيش طاووق:1
+"بكم الزنجر" → PRICE:زنجر
+"شيل الزنجر" → REMOVE:زنجر
+"تمام" → CONFIRM
+"مرحبا" → SKIP
+
+أجب بسطر واحد فقط بدون شرح.`;
+
+  const aiResponse = await askGroq(systemPrompt, rawMsg);
+  if (!aiResponse) return null;
+
+  console.log(`🤖 Groq: "${rawMsg}" → "${aiResponse}"`);
+
+  // تعلّم تلقائياً من إجابة AI
+  if (aiResponse.startsWith('ORDER:')) {
+    const parts    = aiResponse.split(':');
+    const itemName = parts[1]?.trim();
+    const qty      = parseInt(parts[2]) || 1;
+    const item     = STATE.items.find(i => normalize(i.name) === normalize(itemName || ''));
+
+    if (item && item.active) {
+      // ✅ AI فهم — أضف للسلة
+      if (!session.cart) session.cart = [];
+      addToCart(session, item, qty);
+
+      // تعلّم: أضف alias تلقائياً
+      const rawNorm = normalize(rawMsg);
+      if (!item.keys.some(k => normalize(k) === rawNorm) && rawMsg.length > 1) {
+        item.keys.push(rawMsg);
+        addLog(`🤖 AI تعلّم: "${rawMsg}" → ${item.name}`);
+        // علّم entry في unknowns
+        const entry = (STATE.unknowns||[]).find(u => u.raw === rawMsg);
+        if (entry) { entry.status = 'added'; entry.aiLearned = true; }
+        saveState();
+      }
+
+      return `${rand(WAIT_MSGS)} أضفت ${qty}x ${item.name} ✅\n${cartText(session.cart)}\nالمجموع: ${cartTotal(session.cart)} ₪\n\n${rand(CONFIRM_MSGS)}`;
+    }
+  }
+
+  if (aiResponse.startsWith('PRICE:')) {
+    const itemName = aiResponse.split(':')[1]?.trim();
+    const item = STATE.items.find(i => normalize(i.name) === normalize(itemName || ''));
+    if (item) {
+      session.state       = 'pending_item';
+      session.pendingItem = item;
+      session.pendingQty  = 1;
+      return `${item.name} — *${item.price} ₪*\n\nبدك تطلبه؟ (نعم / لا)`;
+    }
+  }
+
+  if (aiResponse === 'CONFIRM') {
+    // معالجة التأكيد
+    if (session.cart?.length) {
+      session.state = 'delivery_type';
+      return `ممتاز! 😊\nكيف بدك تستلم طلبك؟\n1️⃣ توصيل للمنزل 🚚\n2️⃣ استلام من المطعم 🏪`;
+    }
+  }
+
+  if (aiResponse === 'REMOVE:' || aiResponse.startsWith('REMOVE:')) {
+    const itemName = aiResponse.split(':')[1]?.trim();
+    if (itemName && session.cart?.length) {
+      const idx = session.cart.findIndex(i => normalize(i.name) === normalize(itemName));
+      if (idx !== -1) {
+        const removed = session.cart.splice(idx, 1)[0];
+        return `تمام، حذفت ${removed.name} ✅\n${session.cart.length ? cartText(session.cart) + '\nالمجموع: ' + cartTotal(session.cart) + ' ₪' : 'السلة فاضية'}`;
+      }
+    }
+  }
+
+  if (aiResponse.startsWith('MENU_CAT:')) {
+    const catName = aiResponse.split(':')[1]?.trim();
+    if (catName && STATE.categories.find(c => c.id === catName && c.active)) {
+      return getMenuText(catName) + '\n\nقولي شو بدك تطلب 😊';
+    }
+  }
+
+  if (aiResponse === 'SKIP') return null; // تجاهل بدون رد
+
+  // UNKNOWN — AI ما فهم
+  return null;
+}
+
+// ============================================================
+// LEARNING SYSTEM
+// ============================================================
 function logUnknown(from, rawMsg, ctx={}) {
   if (!rawMsg||rawMsg.length<2) return;
   if (!STATE.unknowns) STATE.unknowns=[];
@@ -766,12 +975,47 @@ function analyzeUnknown(rawMsg) {
   const entry=(STATE.unknowns||[]).find(u=>u.raw===rawMsg);
   if (!entry||entry.suggested||entry.status!=='new') return;
   const q=normalize(rawMsg);
+
+  // 1. هل يشبه اسم قسم؟
+  const catResult = detectCategoryQuery(rawMsg);
+  if (catResult) {
+    entry.suggested = {
+      type: 'category',
+      catId: catResult,
+      confidence: 'high',
+      hint: `"${rawMsg}" → يعني قسم "${catResult}" — سيُعرض المنيو تلقائياً`,
+    };
+    // أضف للـ CAT_KEYWORDS تلقائياً
+    if (!CAT_KEYWORDS[catResult].includes(rawMsg)) {
+      CAT_KEYWORDS[catResult].push(rawMsg);
+      // وأضف للـ runtimeAliases
+      if (!STATE.runtimeAliases) STATE.runtimeAliases = {};
+      STATE.runtimeAliases['__cat__' + rawMsg] = catResult;
+      addLog(`📚 تعلّم قسم: "${rawMsg}" → ${catResult}`);
+      saveState();
+    }
+    return;
+  }
+
+  // 2. هل يشبه اسم صنف؟ (levenshtein)
   for (const item of STATE.items) {
     for (const key of item.keys) {
       const d=levenshtein(q,normalize(key));
       if (d<=2&&d>0) {
         entry.suggested={type:'alias',targetItem:item.name,targetId:item.id,
           confidence:d===1?'high':'medium',hint:`"${rawMsg}" → قريب من "${key}" في ${item.name}`};
+        return;
+      }
+    }
+  }
+
+  // 3. هل يحتوي اسم صنف؟ (contains)
+  for (const item of STATE.items) {
+    for (const key of item.keys) {
+      const kn = normalize(key);
+      if (q.includes(kn) || kn.includes(q)) {
+        entry.suggested={type:'alias',targetItem:item.name,targetId:item.id,
+          confidence:'medium',hint:`"${rawMsg}" يحتوي "${item.name}"`};
         return;
       }
     }
@@ -831,6 +1075,88 @@ function getMenuText(cat) {
   if (!items.length) return 'هاد القسم مش متوفر الحين 😅';
   const icons = { شاورما:'🥙', ايطالي:'🍕', ساندويش:'🍔', سلطة:'🥗', مشروبات:'☕', حلويات:'🍰' };
   return `${icons[cat]||'🍽️'} *${cat}*\n─────────────\n${items.map(i => `${i.name} ... ${i.price} ₪`).join('\n')}`;
+}
+
+// ── كلمات كل قسم ──────────────────────────────────────────
+const CAT_KEYWORDS = {
+  'شاورما':  [
+    'شاورما','الشاورما','شاورمه','الشاورمه','شورما',
+    'فرشوحة','فرشوحه','فراشيح','فراشيح','صفيحة','صفيحه','صفايح',
+    'صحن شاورما','بيتا شاورما','باشكا','ميجا',
+  ],
+  'ايطالي':  [
+    'بيتزا','بيتزه','البيتزا','بيتزات','بيتزة',
+    'ايطالي','إيطالي','الايطالي','إيطالية','ايطالية',
+    'كالزوني','كالزوني','كلزوني','الكلزوني','كاليزوني',
+    'نابولي','مارغريتا','مرغريتا',
+  ],
+  'ساندويش': [
+    'ساندويش','ساندويشات','ساندوتش','ساندوتشات','ساندويشه',
+    'برجر','برغر','البرجر','برجرات',
+    'شيش','شيش طاووق','ستيك',
+    'باربكيو','بانسية','باريه','بانيه',
+    'فطيرة','فطيره',
+  ],
+  'سلطة':    [
+    'سلطة','سلطه','سلطات','سلطات',
+    'بطاطا','شيبس',
+    'كول سلو','كولسلو',
+    'بيكانتي','ذرة','ذره',
+  ],
+  'مشروبات': [
+    'مشروبات','مشروب','مشروبه',
+    'قهوة','قهوه','قهوه',
+    'كافي','كوفي','ايس كافي','آيس كافي','ايس كوفي',
+    'كابتشينو','اسبريسو','اسبريسو','نسكافيه',
+    'عصير','عصائر','ليمون','موهيتو','ميلك شيك',
+    'كولا','كوكاكولا','بيبسي','سبرايت','ميرندا',
+    'شاي',
+  ],
+  'حلويات':  [
+    'حلويات','حلو','حلوه','حلوى','حلاوة','حلاوه',
+    'كيك','تشيز كيك','مولتن كيك',
+    'كنافة','كنافه','كنافة دبي','كنافة نوتيلا',
+    'وافل','وافله','وافلة',
+    'بان كيك','بانكيك','بانكيك نوتيلا',
+    'لقيمات','لقيمه',
+    'جيلاتو','لوتس',
+    'كريب دبي','كريبة',
+    'بقلاوة','بقلاوه',
+  ],
+};
+
+// هل الرسالة تسأل عن قسم كامل؟
+function detectCategoryQuery(text) {
+  // أزل البادئات
+  const PREFIX = /^(?:بدي|شو\s+عندكم|شو\s+في|عندكم|ابعتلي|شوفلي|اعطيني|منيو\s+ال?|قائمة\s+ال?|اسعار\s+ال?)\s*/iu;
+  let t = normalize(text).replace(PREFIX, '').replace(/^ال/, '').trim();
+
+  if (!t || t.length < 2) return null;
+
+  // 0. فحص runtimeAliases: هل تعلّمنا سابقاً إنها قسم؟
+  const rta = STATE.runtimeAliases || {};
+  const catKey = '__cat__' + t;
+  if (rta[catKey]) return rta[catKey];
+  // أيضاً: فحص بدون prefix
+  for (const [k,v] of Object.entries(rta)) {
+    if (k.startsWith('__cat__') && k.slice(7) === t) return v;
+  }
+
+  // 1. صنف محدد؟ → مش قسم
+  const exactItem = STATE.items.find(i => i.active && i.keys.some(k => normalize(k) === t));
+  if (exactItem) return null;
+
+  // 2. فحص CAT_KEYWORDS
+  for (const [cat, keywords] of Object.entries(CAT_KEYWORDS)) {
+    if (normalize(cat) === t) return cat;
+    for (const k of keywords) {
+      const kn = normalize(k);
+      if (kn === t) return cat;
+      // مسامحة إملائية (حلوى ↔ حلويات، مشروبه ↔ مشروبات)
+      if (t.length >= 4 && Math.abs(t.length - kn.length) <= 2 && levenshtein(t, kn) <= 1) return cat;
+    }
+  }
+  return null;
 }
 
 function getDeliveryFee(address) {
@@ -1461,6 +1787,13 @@ ${pendingOrderSummary(po)}
     if (qr) return qr;
   }
 
+  // ====== PRIORITY 1.5: اسم قسم ← عرض المنيو ======
+  // لما يكتب "شاورما" أو "بيتزا" أو "مشروبات" — يعرض منيو القسم
+  const catQuery = detectCategoryQuery(text);
+  if (catQuery) {
+    return getMenuText(catQuery) + '\n\nقولي شو بدك تطلب من قائمتنا 😊';
+  }
+
   // ====== PRIORITY 2: الردود الثابتة ======
   // بس إذا ما في جلسة نشطة وما في سلة وما في نية طلب واضحة
   const hasOrderIntent = /بدي|عايز|اريد|أريد|اطلب/.test(text);
@@ -1618,10 +1951,25 @@ ${pendingOrderSummary(po)}
 
     if (/^[1-6]$/.test(text))
       return getMenuText(['شاورما','ايطالي','ساندويش','سلطة','مشروبات','حلويات'][parseInt(text)-1]) + '\n\nأرسل *تأكيد* لما تخلص 😊';
+
+    // كتب اسم قسم وهو في الطلب ← يعرض المنيو بدل "مش فاهم"
+    const catQ2 = detectCategoryQuery(text);
+    if (catQ2) {
+      return getMenuText(catQ2) + '\n\nقولي شو بدك تطلب أضيفه على سلتك 😊';
+    }
     if (/منيو|قائمة|اسعار/.test(text))
       return `1️⃣ الشاورما  2️⃣ الإيطالي  3️⃣ الساندويشات\n4️⃣ السلطات  5️⃣ المشروبات  6️⃣ الحلويات`;
 
-    return `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`;
+    // سجّل للتعلم + اسأل AI
+    logUnknown(from, rawOriginal, {state:'ordering', cartItems:session.cart.length});
+    // حاول AI فوراً
+    tryAIUnderstand(from, rawOriginal, session).then(aiReply => {
+      if (aiReply) {
+        // AI فهم — أرسل الرد
+        client.sendMessage(from, aiReply).catch(()=>{});
+      }
+    }).catch(()=>{});
+    return `هممم... 🤔 بحاول أفهم "${rawOriginal}"\nثانية واحدة...`;
   }
 
   // ====== DELIVERY TYPE ======
@@ -1813,6 +2161,13 @@ ${deliveryInfo}
   }
 
   logUnknown(from, rawOriginal, {state:null,cartItems:0});
+  // حاول AI إذا الرسالة تبدو طلباً
+  if (GROQ_KEY && rawOriginal.length > 1) {
+    tryAIUnderstand(from, rawOriginal, sessions[from] || {cart:[]}).then(aiReply => {
+      if (aiReply) client.sendMessage(from, aiReply).catch(()=>{});
+    }).catch(()=>{});
+    return `ثانية... 🤔`;
+  }
   return STATE.settings.defaultReply;
 }
 
@@ -1920,6 +2275,15 @@ async function handleAPI(url, method, body, res) {
   }
 
   // ---- SETTINGS ----
+  // ── إيقاف/تشغيل البوت بدون قطع الاتصال ──
+  if (url === '/api/bot/toggle' && method === 'POST') {
+    const wasActive = STATE.settings.botActive;
+    STATE.settings.botActive = body.active !== undefined ? !!body.active : !wasActive;
+    saveState();
+    addLog(STATE.settings.botActive ? '▶️ البوت شغّال' : '⏸️ البوت موقوف');
+    return json({ ok: true, botActive: STATE.settings.botActive });
+  }
+
   if (url === '/api/settings' && method === 'POST') {
     Object.assign(STATE.settings, body);
     saveState();
@@ -2392,14 +2756,21 @@ async function handleAPI(url, method, body, res) {
     let appliedAliases=0, addedItems=0;
     for(const a of (body.aliases||[])) {
       const item=STATE.items.find(i=>i.id===a.itemId);
-      if(item&&a.alias&&!item.keys.includes(a.alias)){item.keys.push(a.alias);appliedAliases++;}
+      if(item&&a.alias&&!item.keys.some(k=>normalize(k)===normalize(a.alias))){
+        item.keys.push(a.alias);
+        // أضف للـ runtimeAliases كمان
+        if(!STATE.runtimeAliases)STATE.runtimeAliases={};
+        STATE.runtimeAliases[normalize(a.alias)]=item.name;
+        appliedAliases++;
+      }
     }
     for(const ni of (body.newItems||[])) {
       if(!ni.name||!ni.cat||!ni.price)continue;
-      STATE.items.push({id:STATE.nextId++,name:ni.name,cat:ni.cat,price:Number(ni.price)||0,active:false,keys:[ni.name]});
+      const keys=[ni.name,...(ni.aliases||[])];
+      STATE.items.push({id:STATE.nextId++,name:ni.name,cat:ni.cat,price:Number(ni.price)||0,active:false,keys});
       addedItems++;
     }
-    saveState(); addLog(`📚 تحليل: ${appliedAliases} alias + ${addedItems} صنف جديد`);
+    saveState(); addLog(`📚 تحليل محادثات: ${appliedAliases} alias + ${addedItems} صنف جديد`);
     return json({ok:true,appliedAliases,addedItems});
   }
 
