@@ -981,9 +981,28 @@ const GROQ_KEY = process.env.GROQ_API_KEY || '';
 const CONFIRM_THRESHOLD = 3; // عدد مرات الاستخدام قبل يصير alias دائم
 
 // سجّل استخدام alias مؤقت وارفعه للدائم إذا وصل العتبة
+// كلمات لا تُتعلّم أبداً كـ alias
+const LEARN_BLACKLIST = new Set([
+  'نعم','آه','اه','ايوه','أيوه','yes','يلا','ماشي','حاضر','تمام','اوكي','ok','صح','صحيح',
+  'مزبوط','زبط','انعم','حلو','موافق','اضيف','ضيفه','اطلبه','خذلي','بدي',
+  'لا','لأ','لاء','no','بلاش','مش','مو','ما','مش بدي','ما بدي',
+  'تأكيد','تاكيد','خلص','كفاية','ارسل','ابعت','send','يلا ارسل',
+  'الغاء','إلغاء','كنسل','بطل','وقف',
+  'شكرا','شكراً','يسلمو','مشكور','تسلم',
+  'مرحبا','هلا','سلام','صباح','مساء','كيف','اهلا',
+]);
+
 function learnAlias(rawMsg, itemName) {
   const rawNorm = normalize(rawMsg);
   if (!rawMsg || rawMsg.length < 2 || rawMsg.length > 50) return;
+
+  // لا تتعلم كلمات التأكيد والتحيات والردود العامة
+  if (LEARN_BLACKLIST.has(rawNorm)) return;
+  // لا تتعلم كلمة أقل من 3 أحرف (تا، لا، آه...)
+  if (rawNorm.length < 3) return;
+  // لا تتعلم إذا الكلمة هي isYes/isNo/isConfirm
+  const isGenericResponse = /^(نعم|آه|اه|اوك|ok|تمام|يلا|ايوه|ماشي|حاضر|لا|لأ|no|بلاش|مزبوط|صح|صحيح|تأكيد|خلص)$/i.test(rawMsg);
+  if (isGenericResponse) return;
 
   // إذا موجود بالفعل في القاموس الثابت → تجاهل
   const item = STATE.items.find(i => normalize(i.name) === normalize(itemName));
@@ -2280,14 +2299,13 @@ ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
     if (/منيو|قائمة|اسعار/.test(text))
       return `1️⃣ الشاورما  2️⃣ الإيطالي  3️⃣ الساندويشات\n4️⃣ السلطات  5️⃣ المشروبات  6️⃣ الحلويات`;
 
-    // سجّل + AI فوراً
+    // سجّل + AI
     logUnknown(from, rawOriginal, {state:'ordering', cartItems:session.cart.length});
     if (GROQ_KEY) {
-      tryAIUnderstand(from, rawOriginal, session).then(aiReply => {
-        if (aiReply) client.sendMessage(from, aiReply).catch(()=>{});
-        else client.sendMessage(from, `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`).catch(()=>{});
-      }).catch(()=>{});
-      return `لحظة... 🤔`;
+      try {
+        const aiReply = await tryAIUnderstand(from, rawOriginal, session);
+        if (aiReply) return aiReply;
+      } catch(e) { console.log('⚠️ AI error:', e.message); }
     }
     return `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`;
   }
@@ -2480,16 +2498,13 @@ ${deliveryInfo}
     return `شكراً ${customerName}! 😊\n\nتم استلام طلبك رقم *#${orderNum}*\nبعد تأكيد التحويل ستصلك رسالة فوراً ✅\n⏱️ وقت التحضير: ~${t} دقيقة`;
   }
 
-  logUnknown(from, rawOriginal, {state:null,cartItems:0});
-  // AI fallback — لكل رسالة غير مفهومة
+  logUnknown(from, rawOriginal, {state:null, cartItems:0});
+  // AI fallback
   if (GROQ_KEY) {
-    tryAIUnderstand(from, rawOriginal, sessions[from] || {cart:[], state:null}).then(aiReply => {
-      if (aiReply) client.sendMessage(from, aiReply).catch(()=>{});
-      else client.sendMessage(from, STATE.settings.defaultReply || 'هههه مش فاهم قصدك 😄 بدك تطلب ولا شوف الأسعار؟').catch(()=>{});
-    }).catch(()=>{
-      client.sendMessage(from, STATE.settings.defaultReply || 'هههه مش فاهم قصدك 😄').catch(()=>{});
-    });
-    return `لحظة... 🤔`;
+    try {
+      const aiReply = await tryAIUnderstand(from, rawOriginal, session);
+      if (aiReply) return aiReply;
+    } catch(e) { console.log('⚠️ AI error:', e.message); }
   }
   // بدون AI — رد أذكى + تسجيل في unknowns
   const unknownReply = buildSmartUnknownReply(from, rawOriginal, session);
@@ -2687,6 +2702,13 @@ async function handleAPI(url, method, body, res) {
     saveState();
     return json({ok: true, reply});
   }
+  if (url === '/api/replies' && method === 'POST') {
+    const reply = { id: STATE.nextId++, keys: body.keys||[], text: body.text||'', active: body.active !== false };
+    STATE.replies.push(reply);
+    saveState(); addLog('💬 رد جديد: ' + (body.keys||[]).join('، '));
+    return json({ ok: true, reply });
+  }
+
   const replyMatch = url.match(/^\/api\/replies\/(\d+)$/);
   if (replyMatch && method === 'PUT') {
     const idx = STATE.replies.findIndex(r => r.id === parseInt(replyMatch[1]));
@@ -3081,6 +3103,46 @@ async function handleAPI(url, method, body, res) {
     const entry=(STATE.unknowns||[]).find(u=>u.raw===body.raw);
     if(entry)entry.status='dismissed';
     saveState(); return json({ok:true});
+  }
+
+  // ── حذف alias مُتعلَّم ──────────────────────────────────
+  if (url==='/api/learn/remove'&&method==='POST') {
+    const { raw, itemName, type } = body;
+    const rawNorm = normalize(raw||'');
+
+    if (type === 'alias' && itemName) {
+      // أزل من item.keys
+      const item = STATE.items.find(i => normalize(i.name) === normalize(itemName));
+      if (item) {
+        item.keys = item.keys.filter(k => normalize(k) !== rawNorm);
+      }
+      // أزل من runtimeAliases
+      if (STATE.runtimeAliases?.[rawNorm]) delete STATE.runtimeAliases[rawNorm];
+      // أزل من learnedAliases
+      const lKey = rawNorm + '→' + normalize(itemName||'');
+      if (STATE.learnedAliases?.[lKey]) delete STATE.learnedAliases[lKey];
+    }
+
+    if (type === 'runtime') {
+      // أزل من runtimeAliases فقط
+      if (STATE.runtimeAliases?.[rawNorm]) delete STATE.runtimeAliases[rawNorm];
+    }
+
+    if (type === 'cat') {
+      // أزل alias قسم
+      const catKey = '__cat__' + rawNorm;
+      if (STATE.runtimeAliases?.[catKey]) delete STATE.runtimeAliases[catKey];
+    }
+
+    if (type === 'reply') {
+      // أزل رد ثابت
+      const replyId = parseInt(body.id);
+      STATE.replies = STATE.replies.filter(r => r.id !== replyId);
+    }
+
+    saveState();
+    addLog('🗑️ أُزيل تعلّم: "' + raw + '"');
+    return json({ ok: true });
   }
 
   if (url==='/api/unknowns/alias'&&method==='POST') {
