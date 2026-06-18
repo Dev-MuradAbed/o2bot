@@ -173,6 +173,9 @@ tr:hover td{background:#ffffff04}
   <div class="header-right">
     <div class="pill" id="bot-status"><div class="dot dot-yellow"></div><span>جاري الاتصال...</span></div>
     <div class="pill" id="transfer-pill" style="display:none"><div class="dot dot-yellow"></div><span>وضع الموظف</span></div>
+    <button id="bot-toggle-btn" class="btn" style="font-size:12px;padding:5px 14px;font-weight:700;transition:all .2s" onclick="toggleBot()" title="إيقاف/تشغيل البوت">
+      <span id="bot-toggle-icon">⏸️</span> <span id="bot-toggle-label">إيقاف البوت</span>
+    </button>
     <button class="btn" style="font-size:12px;padding:5px 12px" onclick="restartBot()" title="إعادة تشغيل البوت">🔄 إعادة الاتصال</button>
   </div>
 </div>
@@ -627,6 +630,8 @@ async function pollStatus() {
 async function loadDashboard() {
   try {
     S = await apiGet('/state');
+    _botActive = S.settings?.botActive !== false;
+    updateToggleBtn();
     document.getElementById('s-total').textContent = S.items.length;
     document.getElementById('s-active').textContent = S.items.filter(i=>i.active).length;
     document.getElementById('s-orders').textContent = S.orders.length;
@@ -1602,6 +1607,46 @@ setInterval(() => {
   // تحديث الطلبات إذا كانت الصفحة مفتوحة
   if (activePage && activePage.id === 'page-orders' && ordersLoaded) loadOrders();
 }, 30000);
+
+// ================================================================
+// BOT TOGGLE — إيقاف/تشغيل البوت
+// ================================================================
+let _botActive = true;
+
+async function toggleBot() {
+  try {
+    const newState = !_botActive;
+    const res = await fetch(API + '/api/bot/toggle', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ active: newState }),
+    });
+    const data = await res.json();
+    _botActive = data.botActive;
+    updateToggleBtn();
+    toast(_botActive ? '▶️ البوت شغّال الآن' : '⏸️ البوت موقوف — الاتصال بواتساب مستمر');
+  } catch(e) { toast('خطأ: ' + e.message, true); }
+}
+
+function updateToggleBtn() {
+  const btn   = document.getElementById('bot-toggle-btn');
+  const icon  = document.getElementById('bot-toggle-icon');
+  const label = document.getElementById('bot-toggle-label');
+  if (!btn) return;
+  if (_botActive) {
+    icon.textContent  = '⏸️';
+    label.textContent = 'إيقاف البوت';
+    btn.style.background    = '';
+    btn.style.color         = '';
+    btn.style.borderColor   = '';
+  } else {
+    icon.textContent  = '▶️';
+    label.textContent = 'تشغيل البوت';
+    btn.style.background  = 'var(--green)';
+    btn.style.color       = '#fff';
+    btn.style.borderColor = 'var(--green)';
+  }
+}
 
 // ================================================================
 // DRIVER BOARD — شاشة بطاقات الديلفري
