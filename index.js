@@ -541,6 +541,33 @@ function findItem(query, onlyActive = false) {
   }
   if (containsBest) return containsBest;
 
+  // 3.5. مطابقة متعددة الكلمات — يجب أن تتشارك أغلب الكلمات
+  // "تشكن فرايز" vs "تشكن بيتزا" → كلمة مشتركة من 2 = 50% فقط → ❌
+  // "بيتزا مكسيكي" vs "بيتزا مكسيكي دجاج" → كلمتان من 2 = 100% → ✅
+  const qWords = q.split(' ').filter(w => w.length >= 3);
+  if (qWords.length >= 2) {
+    let multiMatch = null, multiScore = 0;
+    for (const item of pool) {
+      for (const k of item.keys) {
+        const knWords = normalize(k).split(' ').filter(w => w.length >= 3);
+        if (!knWords.length) continue;
+        // عدد الكلمات المشتركة
+        let shared = 0;
+        for (const qw of qWords) {
+          if (knWords.some(kw => kw === qw || levenshtein(qw, kw) <= 1)) shared++;
+        }
+        // نسبة التطابق = مشترك / إجمالي كلمات الـ query
+        const ratio = shared / qWords.length;
+        // يجب أن تتطابق على الأقل 60% من كلمات الـ query
+        if (ratio >= 0.6 && ratio > multiScore) {
+          multiScore = ratio;
+          multiMatch = item;
+        }
+      }
+    }
+    if (multiMatch) return multiMatch;
+  }
+
   // 2. levenshtein — شروط صارمة تمنع التطابق الخاطئ
   let best = null, bestScore = Infinity;
   for (const item of pool) {
@@ -569,16 +596,19 @@ function findItem(query, onlyActive = false) {
 
       if (dist <= threshold && dist < bestScore) { bestScore = dist; best = item; }
 
-      // مطابقة كلمة واحدة من عدة كلمات (مثل "ستيك" من "ستيك دجاج مشوي")
+      // مطابقة كلمة واحدة — فقط إذا الـ query كلمة واحدة
+      // "ستيك" (كلمة واحدة) → ستيك دجاج مشوي ✅
+      // "تشكن فرايز" (كلمتان) → لا يطابق بكلمة واحدة من الـ key ❌
       const qWords = q.split(' ');
-      for (const w of kn.split(' ')) {
-        if (w.length < 4) continue; // تجاهل الكلمات القصيرة جداً
-        const wd = levenshtein(qWords[0] || q, w);
-        // نفس الحرف الأول + طول متقارب
-        if (wd > 0 && (qWords[0]||q)[0] !== w[0]) continue;
-        const wLen = Math.min((qWords[0]||q).length, w.length);
-        const wThreshold = wLen <= 4 ? 0 : wLen <= 6 ? 1 : 2;
-        if (wd <= wThreshold && wd < bestScore) { bestScore = wd; best = item; }
+      if (qWords.length === 1) { // فقط لما الـ query كلمة واحدة
+        for (const w of kn.split(' ')) {
+          if (w.length < 4) continue;
+          const wd = levenshtein(qWords[0], w);
+          if (wd > 0 && qWords[0][0] !== w[0]) continue;
+          const wLen = Math.min(qWords[0].length, w.length);
+          const wThreshold = wLen <= 4 ? 0 : wLen <= 6 ? 1 : 2;
+          if (wd <= wThreshold && wd < bestScore) { bestScore = wd; best = item; }
+        }
       }
     }
   }
@@ -894,21 +924,34 @@ ${cartInfo}
     const item     = STATE.items.find(i => normalize(i.name) === normalize(itemName || ''));
 
     if (item && item.active) {
-      // ✅ AI فهم — أضف للسلة
-      if (!session.cart) session.cart = [];
-      addToCart(session, item, qty);
-
       // تعلّم: أضف alias تلقائياً
       const rawNorm = normalize(rawMsg);
-      if (!item.keys.some(k => normalize(k) === rawNorm) && rawMsg.length > 1) {
+      const alreadyKnown = item.keys.some(k => normalize(k) === rawNorm);
+      if (!alreadyKnown && rawMsg.length > 1 && rawMsg.length < 40) {
         item.keys.push(rawMsg);
         addLog(`🤖 AI تعلّم: "${rawMsg}" → ${item.name}`);
-        // علّم entry في unknowns
         const entry = (STATE.unknowns||[]).find(u => u.raw === rawMsg);
         if (entry) { entry.status = 'added'; entry.aiLearned = true; }
-        saveState();
       }
 
+      // إذا الـ query مختلف جداً عن اسم الصنف → اسأل الزبون للتأكيد
+      const similarity = levenshtein(normalize(rawMsg), normalize(item.name));
+      const needsConfirm = !alreadyKnown && similarity > 4 && rawMsg.split(' ').length >= 2;
+
+      if (needsConfirm) {
+        // pending_item بدل إضافة مباشرة
+        if (!session) return null;
+        session.state       = 'pending_item';
+        session.pendingItem = item;
+        session.pendingQty  = qty;
+        saveState();
+        return `${item.name} — *${item.price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
+      }
+
+      // تطابق واضح → أضف مباشرة
+      if (!session.cart) session.cart = [];
+      addToCart(session, item, qty);
+      saveState();
       return `${rand(WAIT_MSGS)} أضفت ${qty}x ${item.name} ✅\n${cartText(session.cart)}\nالمجموع: ${cartTotal(session.cart)} ₪\n\n${rand(CONFIRM_MSGS)}`;
     }
   }
