@@ -137,6 +137,7 @@ let STATE = {
   nextOrderNum: 10001,
   botConnected: false,
   customerProfiles: {}, // بيانات الزبائن المتكررين
+  learnedAliases: {},   // تعلّم تراكمي
   pendingOrders: {},    // طلبات معلقة لم يُكمل التحويل
   dailyCounter: { date: '', seq: 0 }, // ترقيم يومي
 
@@ -204,6 +205,7 @@ async function loadState() {
     if (saved.dailyCounter)     STATE.dailyCounter     = saved.dailyCounter;
     if (saved.unknowns)         STATE.unknowns         = saved.unknowns;
     if (saved.runtimeAliases)   STATE.runtimeAliases   = saved.runtimeAliases;
+    if (saved.learnedAliases)   STATE.learnedAliases   = saved.learnedAliases;
     if (saved.categories    && saved.categories.length)    STATE.categories    = saved.categories;
     if (saved.replies       && saved.replies.length)       STATE.replies       = saved.replies;
     if (saved.deliveryZones && saved.deliveryZones.length) STATE.deliveryZones = saved.deliveryZones;
@@ -969,10 +971,49 @@ function releaseDriver(orderId) {
 // LEARNING SYSTEM — نظام التعلم التلقائي
 // ============================================================
 // ============================================================
-// GROQ AI — فهم الرسائل الصعبة مجاناً
+// GROQ AI — فهم الرسائل الصعبة (مجاني على groq.com)
 // ============================================================
-// groq.com → مجاني → Create API Key → انسخه في Render Environment
+// الإعداد: Render → Environment → GROQ_API_KEY = gsk_xxxx
 const GROQ_KEY = process.env.GROQ_API_KEY || '';
+
+// نظام التعلم التراكمي
+// كل alias مؤقت يحتاج N تأكيد قبل يصير دائم
+const CONFIRM_THRESHOLD = 3; // عدد مرات الاستخدام قبل يصير alias دائم
+
+// سجّل استخدام alias مؤقت وارفعه للدائم إذا وصل العتبة
+function learnAlias(rawMsg, itemName) {
+  const rawNorm = normalize(rawMsg);
+  if (!rawMsg || rawMsg.length < 2 || rawMsg.length > 50) return;
+
+  // إذا موجود بالفعل في القاموس الثابت → تجاهل
+  const item = STATE.items.find(i => normalize(i.name) === normalize(itemName));
+  if (!item) return;
+  const alreadyPermanent = item.keys.some(k => normalize(k) === rawNorm);
+  if (alreadyPermanent) return;
+
+  // سجّل في learnedAliases (عداد الاستخدام)
+  if (!STATE.learnedAliases) STATE.learnedAliases = {};
+  const key = rawNorm + '→' + normalize(itemName);
+  const entry = STATE.learnedAliases[key] || { raw:rawMsg, itemId:item.id, itemName, count:0, permanent:false };
+  entry.count++;
+  entry.lastSeen = new Date().toLocaleString('ar');
+  STATE.learnedAliases[key] = entry;
+
+  // وصل العتبة → أضف للقاموس الدائم
+  if (entry.count >= CONFIRM_THRESHOLD && !entry.permanent) {
+    item.keys.push(rawMsg);
+    if (!STATE.runtimeAliases) STATE.runtimeAliases = {};
+    STATE.runtimeAliases[rawNorm] = itemName;
+    entry.permanent = true;
+    addLog('📚 تعلّم دائم (' + entry.count + 'x): "' + rawMsg + '" → ' + itemName);
+  } else if (entry.count === 1) {
+    // أضف كـ runtimeAlias مؤقت فوراً (يشتغل لكن مش في item.keys)
+    if (!STATE.runtimeAliases) STATE.runtimeAliases = {};
+    STATE.runtimeAliases[rawNorm] = itemName;
+    addLog('🤖 AI تعلّم مؤقت: "' + rawMsg + '" → ' + itemName);
+  }
+  saveState();
+}
 
 async function askGroq(systemPrompt, userMsg) {
   if (!GROQ_KEY) return null;
@@ -1070,34 +1111,27 @@ UNKNOWN                  ← ما فهمت
     const item     = STATE.items.find(i => normalize(i.name) === normalize(itemName || ''));
 
     if (item && item.active) {
-      // تعلّم: أضف alias تلقائياً
       const rawNorm = normalize(rawMsg);
       const alreadyKnown = item.keys.some(k => normalize(k) === rawNorm);
-      if (!alreadyKnown && rawMsg.length > 1 && rawMsg.length < 40) {
-        item.keys.push(rawMsg);
-        addLog(`🤖 AI تعلّم: "${rawMsg}" → ${item.name}`);
-        const entry = (STATE.unknowns||[]).find(u => u.raw === rawMsg);
-        if (entry) { entry.status = 'added'; entry.aiLearned = true; }
-      }
 
-      // إذا الـ query مختلف جداً عن اسم الصنف → اسأل الزبون للتأكيد
-      const similarity = levenshtein(normalize(rawMsg), normalize(item.name));
-      const needsConfirm = !alreadyKnown && similarity > 4 && rawMsg.split(' ').length >= 2;
+      // تعلّم تراكمي
+      learnAlias(rawMsg, item.name);
+      const unkEntry = (STATE.unknowns||[]).find(u => u.raw === rawMsg);
+      if (unkEntry) { unkEntry.status = 'added'; unkEntry.aiLearned = true; }
+
+      // اسأل للتأكيد فقط إذا جديد كلياً ومختلف كثيراً
+      const hasTemp = !!(STATE.runtimeAliases?.[rawNorm]);
+      const similarity = levenshtein(rawNorm, normalize(item.name));
+      const needsConfirm = !alreadyKnown && !hasTemp && similarity > 5;
 
       if (needsConfirm) {
-        // pending_item بدل إضافة مباشرة
         if (!session) return null;
-        session.state       = 'pending_item';
-        session.pendingItem = item;
-        session.pendingQty  = qty;
-        saveState();
+        session.state = 'pending_item'; session.pendingItem = item; session.pendingQty = qty;
         return `${item.name} — *${item.price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
       }
 
-      // تطابق واضح → أضف مباشرة
       if (!session.cart) session.cart = [];
-      addToCart(session, item, qty);
-      saveState();
+      addToCart(session, item, qty); saveState();
       return `${rand(WAIT_MSGS)} أضفت ${qty}x ${item.name} ✅\n${cartText(session.cart)}\nالمجموع: ${cartTotal(session.cart)} ₪\n\n${rand(CONFIRM_MSGS)}`;
     }
   }
@@ -3018,6 +3052,19 @@ async function handleAPI(url, method, body, res) {
   // ================================================================
   // LEARNING + CHAT ANALYZER APIs
   // ================================================================
+  // إحصائيات التعلم
+  if (url==='/api/learning-stats'&&method==='GET') {
+    const aliases = STATE.learnedAliases || {};
+    const total     = Object.keys(aliases).length;
+    const permanent = Object.values(aliases).filter(a=>a.permanent).length;
+    const pending   = total - permanent;
+    const recent    = Object.values(aliases)
+      .sort((a,b) => (b.count||0)-(a.count||0))
+      .slice(0,20)
+      .map(a => ({raw:a.raw, itemName:a.itemName, count:a.count, permanent:a.permanent}));
+    return json({ total, permanent, pending, recent, threshold: CONFIRM_THRESHOLD });
+  }
+
   if (url==='/api/unknowns'&&method==='GET')
     return json((STATE.unknowns||[]).filter(u=>u.status==='new').sort((a,b)=>(b.count||1)-(a.count||1)).slice(0,50));
 
