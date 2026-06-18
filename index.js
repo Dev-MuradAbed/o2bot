@@ -961,6 +961,10 @@ ${cartInfo}
 // ============================================================
 function logUnknown(from, rawMsg, ctx={}) {
   if (!rawMsg||rawMsg.length<2) return;
+  // لا تسجّل التحيات والثرثرة الاجتماعية
+  const t = normalize(rawMsg);
+  const isSocial = /^(مرحبا|هلا|سلام|كيف حالك|كيف الحال|شو اخبارك|كيفك|صباح|مساء|يسلمو|شكرا|تمام|اوكي|مزبوط)/.test(t);
+  if (isSocial && rawMsg.length < 25) return;
   if (!STATE.unknowns) STATE.unknowns=[];
   const ex = STATE.unknowns.find(u=>u.raw===rawMsg);
   if (ex) { ex.count=(ex.count||1)+1; ex.lastSeen=new Date().toLocaleString('ar'); }
@@ -1402,7 +1406,7 @@ const SKIP_PATTERNS = [
   /^(لو سمحت|من فضلك|يعطيك العافيه|يعطيكم العافية|يعطيك العافية)[\s.،!]*$/i,
   /^(ومعلش|معلش|شكرا|شكراً|الله يخليك|يسلمو|مشكور|يسلم|تسلم)[\s.،!]*$/i,
   /^(O2|يا اكسجين|اكسجين|يا o2)[\s!]*$/i,
-  /^(تمام|اوكي|حلو|ممتاز|زبط|انعم|ولا يهمك|مشي|مزبوط)[\s!]*$/i,
+  /^(اوكي ok|ولا يهمك|مشي)[\s!]*$/i,  // أزلنا تمام/مزبوط — تُعالَج كـ isConfirm
   /^(طلع الطلب ولا لسه|طلع الطلب|شو صار|قديش بدو وقت|وصل الطلب)[\s؟?]*$/i,
   /^[\s\p{Emoji}\u{1F300}-\u{1FFFF}🫣🤦🏻‍♀️😂❤️🌿👍✅❌]+$/u,
 ];
@@ -1794,8 +1798,20 @@ ${pendingOrderSummary(po)}
     return getMenuText(catQuery) + '\n\nقولي شو بدك تطلب من قائمتنا 😊';
   }
 
+  // ====== PRIORITY 1.8: تحيات واجتماعيات → رد لطيف ======
+  // "كيف حالك" / "شو اخبارك" / "كيف الاحوال" → يرد ويسأل عن الطلب
+  if (/^(كيف حالك|كيف الحال|كيف اخبارك|شو اخبارك|كيف الاحوال|عامل كيف|كيف عامل|ايش اخبارك|شو اخبارك|كيفك|كيفكم|كيف حالكم)[\s؟?!]*$/i.test(text)) {
+    return `الحمد لله بخير! 😊
+${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
+  }
+  if (/^(صباح|مساء)/.test(text) && text.length < 20) {
+    const isM = /صباح/.test(text);
+    return `${isM ? 'صباح النور' : 'مساء النور'} 🌿
+أهلاً بك في ${STATE.settings.name}!
+شو بدك تطلب اليوم؟ 😊`;
+  }
+
   // ====== PRIORITY 2: الردود الثابتة ======
-  // بس إذا ما في جلسة نشطة وما في سلة وما في نية طلب واضحة
   const hasOrderIntent = /بدي|عايز|اريد|أريد|اطلب/.test(text);
   if (!session.state && !session.cart.length && !hasOrderIntent) {
     for (const r of STATE.replies) {
@@ -2741,10 +2757,34 @@ async function handleAPI(url, method, body, res) {
   }
 
   if (url==='/api/unknowns/alias'&&method==='POST') {
-    if(!STATE.runtimeAliases)STATE.runtimeAliases={};
-    STATE.runtimeAliases[body.from]=body.to;
-    saveState(); addLog(`🔗 alias: "${body.from}" → "${body.to}"`);
-    return json({ok:true});
+    const aliasFrom = (body.from||'').trim();
+    const aliasTo   = (body.to||'').trim();
+    if (!aliasFrom || !aliasTo) return json({error:'missing params'},400);
+
+    // تحقق: الـ "to" يجب أن يكون اسم صنف موجود في القائمة
+    const targetItem = STATE.items.find(i =>
+      normalize(i.name) === normalize(aliasTo) ||
+      i.keys.some(k => normalize(k) === normalize(aliasTo))
+    );
+
+    if (targetItem) {
+      // أضف كـ key في الصنف مباشرة (الأفضل)
+      if (!targetItem.keys.some(k => normalize(k) === normalize(aliasFrom))) {
+        targetItem.keys.push(aliasFrom);
+      }
+      if (!STATE.runtimeAliases) STATE.runtimeAliases = {};
+      STATE.runtimeAliases[normalize(aliasFrom)] = targetItem.name;
+      saveState();
+      addLog(`🔗 alias: "${aliasFrom}" → ${targetItem.name}`);
+      return json({ ok: true, linkedTo: targetItem.name });
+    }
+
+    // إذا الـ "to" مش صنف — ممكن يكون alias لـ alias (مثلاً لقسم)
+    if (!STATE.runtimeAliases) STATE.runtimeAliases = {};
+    STATE.runtimeAliases[normalize(aliasFrom)] = aliasTo;
+    saveState();
+    addLog(`🔗 alias: "${aliasFrom}" → "${aliasTo}"`);
+    return json({ ok: true });
   }
 
   if (url==='/api/analyze-chat'&&method==='POST') {
