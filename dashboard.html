@@ -198,7 +198,7 @@ tr:hover td{background:#ffffff04}
     <div class="nav-item" onclick="showPage('delivery',this)"><span class="nav-icon">🚚</span>رسوم التوصيل</div>
     <div class="nav-item" onclick="showPage('logs',this)"><span class="nav-icon">📋</span>السجل</div>
     <div class="nav-item" onclick="showPage('driverboard',this)"><span class="nav-icon">🚚</span>شاشة الديلفري</div>
-    <div class="nav-item" onclick="showPage('learn',this)"><span class="nav-icon">🧠</span>التعلم</div>
+    <div class="nav-item" onclick="showPage('learn',this)"><span class="nav-icon">🧠</span>التعلم<span class="nav-badge" id="learn-badge" style="display:none;background:var(--red,#ef4444)">0</span></div>
     <div class="nav-item" onclick="showPage('analyzer',this)"><span class="nav-icon">🔬</span>محلل المحادثات</div>
   </div>
 
@@ -632,6 +632,13 @@ async function loadDashboard() {
     S = await apiGet('/state');
     _botActive = S.settings?.botActive !== false;
     updateToggleBtn();
+    // badge على التعلم
+    const unk = S.unknownsCount || 0;
+    const learnBadge = document.getElementById('learn-badge');
+    if (learnBadge) {
+      if (unk > 0) { learnBadge.textContent = unk; learnBadge.style.display = ''; }
+      else learnBadge.style.display = 'none';
+    }
     document.getElementById('s-total').textContent = S.items.length;
     document.getElementById('s-active').textContent = S.items.filter(i=>i.active).length;
     document.getElementById('s-orders').textContent = S.orders.length;
