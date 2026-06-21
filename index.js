@@ -1785,6 +1785,7 @@ const SKIP_PATTERNS = [
   /^(ومعلش|معلش|شكرا|شكراً|الله يخليك|يسلمو|مشكور|يسلم|تسلم)[\s.،!]*$/i,
   /^(O2|يا اكسجين|اكسجين|يا o2)[\s!]*$/i,
   /^(اوكي ok|ولا يهمك|مشي)[\s!]*$/i,  // أزلنا تمام/مزبوط — تُعالَج كـ isConfirm
+  /^(بدي|ممكن|عايز|أريد|اريد|يعطيك العافية|اعطيني|لو سمحت)[\s.،!]*$/i,  // بدي وحدها
   /^(طلع الطلب ولا لسه|طلع الطلب|شو صار|قديش بدو وقت|وصل الطلب)[\s؟?]*$/i,
   /^[\s\p{Emoji}\u{1F300}-\u{1FFFF}🫣🤦🏻‍♀️😂❤️🌿👍✅❌]+$/u,
 ];
@@ -1877,23 +1878,29 @@ function hashMsg(raw) {
 function tryQuickOrder(session, raw, inOrdering = false) {
   // ── فصل أصناف متعددة في سطر واحد ────────────────────────
   // "3 دبل 2 كاليزوني" → ["3 دبل", "2 كاليزوني"]
-  // "فرشوحة و كولا" → ["فرشوحة", "كولا"]
+  // "بدي 2 دبل 3 كاليزوني" → ["2 دبل", "3 كاليزوني"]
   function splitMultiItems(text) {
-    // نمط: رقم + صنف + رقم + صنف (بدون فاصل واضح)
-    // "3 دبل 2 كاليزوني 1 كولا" → split بالأرقام
-    const parts = text.split(/\s+(?=\d+\s+(?!\d))/);
+    // أزل بادئات الطلب أولاً
+    let t = text.replace(/^(?:بدي|ممكن|عايز|اريد|أريد|لو سمحت|اعطيني|خذلي|حطلي|ابعتلي)\s+/i, '').trim();
+
+    // نمط: رقم + صنف + رقم + صنف
+    const parts = t.split(/\s+(?=\d+\s+(?!\d))/);
     if (parts.length > 1) return parts.map(p => p.trim()).filter(p => p.length > 1);
 
-    // أرقام عربية أيضاً
-    const parts2 = text.split(/\s+(?=[٠-٩]+\s+)/);
+    // أرقام عربية
+    const parts2 = t.split(/\s+(?=[٠-٩]+\s+)/);
     if (parts2.length > 1) return parts2.map(p => p.trim()).filter(p => p.length > 1);
 
-    // "فرشوحة و كولا" أو "فرشوحة + كولا"
-    if (/\s+(?:و|وكمان|مع|\+)\s+/.test(text)) {
-      return text.split(/\s+(?:و|وكمان|مع|\+)\s+/).map(p => p.trim()).filter(p => p.length > 1);
+    // "فرشوحة و كولا"
+    if (/\s+(?:و|وكمان|مع|\+)\s+/.test(t)) {
+      return t.split(/\s+(?:و|وكمان|مع|\+)\s+/).map(p => p.trim()).filter(p => p.length > 1);
     }
 
-    return [text];
+    // صنف واحد بدون رقم بعد صنف آخر (مثل "3 دبل كاليزوني")
+    // ابحث عن نمط: "text1 text2" حيث text2 هو اسم صنف مختلف
+    if (!t.match(/^\d/)) return [t]; // بدون رقم = صنف واحد
+
+    return [t];
   }
 
   let lines = raw.split(/\n/).map(l => l.trim()).filter(l => l.length > 1);
@@ -1942,6 +1949,24 @@ ${cartText(session.cart)}
       if (!item.active) { unavail.push(item.name); continue; }
       pendingCart.push({ item, qty: result.qty });
       found.push(`${result.qty}x ${item.name} — ${result.qty * item.price} ₪`);
+
+      // ── leftover: بعد إيجاد الصنف، هل في بقية نص تحتوي صنف ثاني؟ ──
+      // "3 دبل كاليزوني" → item="دبل", leftover="كاليزوني"
+      const itemKeys = item.keys.map(k => normalize(k));
+      let leftover = normalize(result.name);
+      // أزل اسم الصنف المطابق من النص الأصلي
+      for (const k of itemKeys) {
+        if (leftover.includes(k)) { leftover = leftover.replace(k, '').trim(); break; }
+      }
+      // أزل الأرقام من البداية
+      leftover = leftover.replace(/^\d+\s*/, '').trim();
+      if (leftover.length >= 2) {
+        const leftItem = findItem(leftover);
+        if (leftItem && leftItem.id !== item.id && leftItem.active) {
+          pendingCart.push({ item: leftItem, qty: 1 });
+          found.push(`1x ${leftItem.name} — ${leftItem.price} ₪`);
+        }
+      }
     }
   }
 
