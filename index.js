@@ -304,6 +304,10 @@ function makeSession(from) {
     deliveryType: '', deliveryFee: 0, pendingItem: null, pendingQty: 1,
     orderNum: null, paymentType: null, transferName: null, from,
     note: '', lastActivity: Date.now(),
+    // سياق المحادثة — يساعد البوت يفهم الرسائل القصيرة
+    lastCategory: null,  // آخر قسم ذُكر (شاورما/حلويات/مشروبات)
+    lastItem: null,      // آخر صنف ذُكر (كنافة/جيلاتو/بيتزا)
+    history: [],         // آخر 5 رسائل للسياق
   };
 }
 
@@ -489,6 +493,56 @@ function normalize(s) { return s.toLowerCase().replace(/[هة]/g, 'ه').trim(); 
 // ============================================================
 // ITEM ALIASES — من محادثات الزبائن الحقيقية
 // ============================================================
+// ============================================================
+// INGREDIENTS MAP — مكونات/نكهات يبحث عنها الزبون
+// ============================================================
+const INGREDIENT_MAP = {
+  // فواكه ونكهات
+  'بلوبري':   ['ميلك شيك سبيشل','لقيمات نوتيلا','آيس كافي كراميل'],
+  'فراولة':   ['ميلك شيك سبيشل','وافل سنيك'],
+  'مانجو':    ['ميلك شيك سبيشل','عصير الموسم'],
+  'نوتيلا':   ['كنافة نوتيلا','بان كيك نوتيلا','آيس كافي نوتيلا','لقيمات نوتيلا'],
+  'لوتس':     ['جيلاتو لوتس','بان كيك لوتس','لقيمات لوتس'],
+  'كراميل':   ['آيس كافي كراميل','ميلك شيك سبيشل'],
+  'شوكولا':   ['مولتن كيك','تشيز كيك','ميلك شيك سبيشل'],
+  'شوكولاتة': ['مولتن كيك','تشيز كيك'],
+  // مكونات الشاورما
+  'لحمة':     ['فرشوحة دبل لحمة','فرشوحة دبل دبل','سوري'],
+  'دجاج':     ['فرشوحة عادي','فرشوحة دبل','صفيحة','شاورما عربي','بيتزا مكسيكي دجاج','تشيكن برجر','شيش طاووق','ستيك دجاج مشوي','بانسية'],
+  'جبن':      ['بيتزا مكسيكي دجاج','مارغريتا','نابولي','بيتزا ماما روزا'],
+  'خضار':     ['بيتزا خضار وذرة','كالزوني خضار'],
+  // مشروبات
+  'قهوة':     ['كابتشينو','نسكافيه','إسبريسو سنجل','إسبريسو دبل','قهوة تركي سنجل','آيس كافي كراميل'],
+  'حليب':     ['كابتشينو','ميلك شيك سبيشل','آيس كافي كراميل'],
+  'ليمون':    ['عصير ليمون ونعناع','موهيتو'],
+  'نعناع':    ['عصير ليمون ونعناع','موهيتو'],
+  'أفوكادو':  ['عصير أفوكاتو'],
+  'افوكادو':  ['عصير أفوكاتو'],
+};
+
+// البحث عن ingredient في الأصناف
+function findByIngredient(query) {
+  const q = normalize(query);
+  // 1. فحص INGREDIENT_MAP
+  for (const [ing, itemNames] of Object.entries(INGREDIENT_MAP)) {
+    if (normalize(ing) === q || q.includes(normalize(ing)) || normalize(ing).includes(q)) {
+      const items = itemNames
+        .map(name => STATE.items.find(i => normalize(i.name) === normalize(name) && i.active))
+        .filter(Boolean);
+      if (items.length) return { ingredient: ing, items };
+    }
+  }
+  // 2. بحث في أسماء الأصناف نفسها
+  const matchedItems = STATE.items.filter(i =>
+    i.active && (
+      normalize(i.name).includes(q) ||
+      i.keys.some(k => normalize(k).includes(q))
+    )
+  );
+  if (matchedItems.length) return { ingredient: query, items: matchedItems };
+  return null;
+}
+
 // ============================================================
 // ITEM_ALIASES — قاموس شامل من محادثات حقيقية
 // كل صنف مع كل طرق كتابته باللهجة الفلسطينية
@@ -794,6 +848,9 @@ function addToCart(session, item, qty) {
   const ex = session.cart.find(c => c.name === item.name);
   if (ex) ex.qty += qty;
   else session.cart.push({ id: item.id, name: item.name, price: item.price, qty });
+  // تتبع السياق
+  session.lastItem = item.name;
+  if (item.cat) session.lastCategory = item.cat;
 }
 
 function removeFromCart(session, itemName) {
@@ -1088,6 +1145,15 @@ async function tryAIUnderstand(from, rawMsg, session) {
     ? `السلة الحالية: ${session.cart.map(i=>`${i.qty}x ${i.name}`).join(', ')}`
     : 'السلة فارغة';
 
+  // سياق المحادثة — آخر 5 رسائل
+  const historyText = (session?.history || [])
+    .slice(-5)
+    .map(h => h.text)
+    .join(' → ');
+  const contextInfo = session?.lastItem
+    ? `آخر صنف ذُكر: ${session.lastItem}` + (session?.lastCategory ? ` (قسم: ${session.lastCategory})` : '')
+    : '';
+
   // قائمة مختصرة
   const itemsShort = STATE.items.filter(i=>i.active).map(i=>i.name).join('، ');
 
@@ -1115,9 +1181,15 @@ UNKNOWN                  ← ما فهمت
 • تحيات + طلب معاً → ORDER (تجاهل التحية)
 • أسماء شعبية: صاروخ=ستيك دجاج مشوي، كلزوني=كالزوني دجاج، دبل لحمة=فرشوحة دبل لحمة، وقية شيش=شيش طاووق
 • كميات: واحد/وحدة=1، اثنين/2=2، ثلاثة/3=3
+• إذا الرسالة نكهة/مكون فقط (مثل "بلوبري" أو "لوتس") وآخر صنف ذُكر واضح → ادمجهم: ORDER:اسم_الصنف_الكامل:1
 • سطر واحد فقط بدون شرح`;
 
-  const aiResponse = await askGroq(systemPrompt, rawMsg);
+  // أضف السياق للرسالة
+  const fullMsg = (contextInfo ? contextInfo + '\n' : '')
+    + (historyText ? 'المحادثة: ' + historyText + '\n' : '')
+    + 'الرسالة الأخيرة: ' + rawMsg;
+
+  const aiResponse = await askGroq(systemPrompt, fullMsg);
   if (!aiResponse) return null;
 
   console.log(`🤖 Groq: "${rawMsg}" → "${aiResponse}"`);
@@ -1599,10 +1671,20 @@ function handleComplexOrder(session, text, inOrdering = false) {
     } else if (action.type === 'remove') {
       const item = findItem(cleanItemQuery(action.name));
       if (!item) { notFound.push(action.name); continue; }
-      const inCart = session.cart.find(c => c.name === item.name);
+      const inCart = session.cart.find(c => normalize(c.name) === normalize(item.name));
       if (!inCart) { notFound.push(action.name); continue; }
-      removeFromCart(session, item.name);
-      removed.push(item.name);
+
+      const removeQty = action.qty || null; // null = شيل كل الكمية
+
+      if (removeQty && removeQty < inCart.qty) {
+        // شيل عدد محدد فقط
+        inCart.qty -= removeQty;
+        removed.push(`${removeQty}x ${item.name} (باقي ${inCart.qty})`);
+      } else {
+        // شيل كل الصنف
+        removeFromCart(session, item.name);
+        removed.push(item.name);
+      }
     } else if (action.type === 'replace') {
       const toItem = findItem(cleanItemQuery(action.to));
       if (!toItem) { notFound.push(action.to); continue; }
@@ -1963,6 +2045,13 @@ function buildSmartUnknownReply(from, rawMsg, session) {
     || /\d+\s*x?\s*\w+/i.test(rawMsg)
     || (rawMsg.split(' ').length <= 4 && rawMsg.length > 2);
 
+  // فحص ingredient أولاً
+  const ingRes = findByIngredient(t);
+  if (ingRes && ingRes.items.length) {
+    const list = ingRes.items.map(i => '• ' + i.name + ' — ' + i.price + ' ₪').join('\n');
+    return 'عندنا هالأصناف فيها ' + ingRes.ingredient + ':\n' + list + '\n\nبدك تطلب أحدها؟ 😊';
+  }
+
   if (looksLikeOrder) {
     const similar = findSimilarItems(t, null, 3);
     if (similar.length) {
@@ -1984,10 +2073,51 @@ async function handleMessage(msg) {
   session.from = from;
   session.lastActivity = Date.now();
 
+  // حفظ تاريخ المحادثة للسياق
+  if (!session.history) session.history = [];
+  session.history.push({ text: rawOriginal, time: Date.now() });
+  if (session.history.length > 8) session.history = session.history.slice(-8);
+
   if (!STATE.settings.botActive) return null;
 
   const raw = fixSpelling(translateEN(rawOriginal));
   const text = raw.toLowerCase();
+
+  // ── سياق ذكي: رسالة قصيرة بعد ذكر صنف/قسم ──────────────
+  // مثال: "جيلاتو" → "بلوبري" = جيلاتو بلوبري
+  const isShortMsg = rawOriginal.split(' ').length <= 2 && rawOriginal.length <= 20;
+  if (isShortMsg && session.lastItem && !findItem(rawOriginal)) {
+    // جرب دمج مع آخر صنف ذُكر
+    const combined = session.lastItem + ' ' + rawOriginal;
+    const combinedItem = findItem(combined);
+    if (combinedItem && combinedItem.active) {
+      session.state = 'pending_item';
+      session.pendingItem = combinedItem;
+      session.pendingQty = 1;
+      session.lastItem = combinedItem.name;
+      return `${combinedItem.name} — *${combinedItem.price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
+    }
+    // جرب كـ نكهة
+    const ingRes = findByIngredient(rawOriginal);
+    if (ingRes) {
+      // فلتر حسب آخر صنف/قسم
+      const contextItems = ingRes.items.filter(i =>
+        normalize(i.name).includes(normalize(session.lastItem || '')) ||
+        i.cat === session.lastCategory
+      );
+      if (contextItems.length === 1) {
+        // نكهة واحدة تطابق السياق → اقترحها مباشرة
+        session.state = 'pending_item';
+        session.pendingItem = contextItems[0];
+        session.pendingQty = 1;
+        return `${contextItems[0].name} — *${contextItems[0].price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
+      }
+      if (contextItems.length > 1) {
+        const list = contextItems.map(i => `• ${i.name} — ${i.price} ₪`).join('\n');
+        return `عندنا هالنكهات:\n${list}\n\nأي واحد بدك؟`;
+      }
+    }
+  }
 
   // وضع الموظف البشري
   if (STATE.settings.transferMode) {
@@ -2118,6 +2248,7 @@ ${pendingOrderSummary(po)}
   // لما يكتب "شاورما" أو "بيتزا" أو "مشروبات" — يعرض منيو القسم
   const catQuery = detectCategoryQuery(text);
   if (catQuery) {
+    session.lastCategory = catQuery;
     return getMenuText(catQuery) + '\n\nقولي شو بدك تطلب من قائمتنا 😊';
   }
 
@@ -2171,7 +2302,14 @@ ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
       if (item) {
         if (!item.active) return buildUnavailableMsg(item.name, raw, item.cat);
         session.state = 'pending_item'; session.pendingItem = item; session.pendingQty = 1;
+        session.lastItem = item.name; session.lastCategory = item.cat;
         return `${item.name} متوفر ✅ — *${item.price} ₪*\n\nبدك تطلبه؟ (نعم / لا)`;
+      }
+      // ما لقى صنف بالاسم → جرب ingredient/نكهة
+      const ingResult = findByIngredient(q || raw);
+      if (ingResult) {
+        const list = ingResult.items.map(i => `• ${i.name} — ${i.price} ₪`).join('\n');
+        return `عندنا هالأصناف فيها ${ingResult.ingredient}:\n${list}\n\nبدك تطلب أحدها؟ 😊`;
       }
     }
 
@@ -3350,6 +3488,74 @@ async function startBaileys() {
     setTimeout(startBaileys, 10000);
   }
 }
+
+// ============================================================
+// AUTO-LEARNING CRON — كل ساعة يحلل unknowns بـ Groq
+// ============================================================
+async function autoLearnCron() {
+  if (!GROQ_KEY) return;
+  const unknowns = (STATE.unknowns || []).filter(u => u.status === 'new' && u.count >= 2);
+  if (!unknowns.length) { console.log('🤖 AutoLearn: لا شيء جديد'); return; }
+
+  console.log('🤖 AutoLearn: ' + unknowns.length + ' unknown بانتظار...');
+  const itemsList = STATE.items.filter(i => i.active).map(i => i.name).join('، ');
+
+  // حلّل أول 10 فقط (حد Groq المجاني)
+  const batch = unknowns.slice(0, 10);
+  const batchText = batch.map((u, i) => (i + 1) + '. "' + u.raw + '" (' + u.count + 'x)').join('\n');
+
+  const prompt = `أنت خبير بمنيو مطعم في غزة. الأصناف المتاحة: ${itemsList}
+
+هذه رسائل زبائن لم يفهمها البوت. لكل رسالة حدد:
+- إذا تعني صنف من القائمة → ALIAS:رقم:اسم_الصنف
+- إذا تحية أو ثرثرة → SKIP:رقم
+- إذا غير واضحة → UNKNOWN:رقم
+
+الرسائل:
+${batchText}
+
+أجب بأسطر فقط بدون شرح.`;
+
+  try {
+    const result = await askGroq(prompt, '');
+    if (!result) return;
+
+    let learned = 0;
+    for (const line of result.split('\n')) {
+      const aliasM = line.match(/^ALIAS:(\d+):(.+)$/);
+      if (aliasM) {
+        const idx = parseInt(aliasM[1]) - 1;
+        const itemName = aliasM[2].trim();
+        if (idx < batch.length) {
+          const item = STATE.items.find(i => normalize(i.name) === normalize(itemName));
+          if (item) {
+            learnAlias(batch[idx].raw, item.name);
+            batch[idx].status = 'added';
+            batch[idx].aiLearned = true;
+            learned++;
+          }
+        }
+      }
+      const skipM = line.match(/^SKIP:(\d+)$/);
+      if (skipM) {
+        const idx = parseInt(skipM[1]) - 1;
+        if (idx < batch.length) batch[idx].status = 'dismissed';
+      }
+    }
+
+    if (learned > 0) {
+      addLog('🤖 AutoLearn: تعلّم ' + learned + ' alias جديد');
+      saveState();
+    }
+    console.log('🤖 AutoLearn: ' + learned + ' learned, ' + batch.filter(b => b.status === 'dismissed').length + ' dismissed');
+  } catch(e) {
+    console.log('⚠️ AutoLearn error:', e.message);
+  }
+}
+
+// تشغيل AutoLearn كل ساعة + عند البدء بعد 5 دقائق
+setTimeout(autoLearnCron, 5 * 60 * 1000);
+setInterval(autoLearnCron, 60 * 60 * 1000);
 
 // ============================================================
 // KEEP-ALIVE — يمنع Render من النوم كل 14 دقيقة
