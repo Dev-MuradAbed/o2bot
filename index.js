@@ -1566,7 +1566,7 @@ function parseComplexMessage(text) {
   // 3. تبديل: "بدل X بـ Y" / "بدله ببيج زنجر" / "خليها X" / "عوّض X بـ Y"
   // ============================================================
   // بدل X بـ Y (بـ ملصوقة أو مفصولة)
-  const REPLACE_FULL = /^(?:بدل(?:ها|ه|و)?|غير(?:ها|ه)?|حول(?:ها|ه)?|عوّ?ض(?:ها|ه)?)\s+(.+?)\s+(?:بـ?|بـ|ب|لـ?|على|بدالها?|بدالو?|ببدل(?:ها|ه)?)\s*(.+)$/i;
+  const REPLACE_FULL = /^(?:بدل(?:ها|ه|و)?|غير(?:ها|ه)?|حول(?:ها|ه)?|عوّ?ض(?:ها|ه)?)\s+(.+?)\s+(?:بـ?|بـ|ب|لـ?|على|كمان|وكمان|وخذ|وجيب|وحط|بدالها?|بدالو?|ببدل(?:ها|ه)?)\s*(.+)$/i;
   const replFull = t.match(REPLACE_FULL);
   if (replFull) {
     actions.push({ type: 'replace', from: replFull[1].trim(), to: replFull[2].trim() });
@@ -1875,7 +1875,34 @@ function hashMsg(raw) {
 }
 
 function tryQuickOrder(session, raw, inOrdering = false) {
-  const lines = raw.split(/\n/).map(l => l.trim()).filter(l => l.length > 1);
+  // ── فصل أصناف متعددة في سطر واحد ────────────────────────
+  // "3 دبل 2 كاليزوني" → ["3 دبل", "2 كاليزوني"]
+  // "فرشوحة و كولا" → ["فرشوحة", "كولا"]
+  function splitMultiItems(text) {
+    // نمط: رقم + صنف + رقم + صنف (بدون فاصل واضح)
+    // "3 دبل 2 كاليزوني 1 كولا" → split بالأرقام
+    const parts = text.split(/\s+(?=\d+\s+(?!\d))/);
+    if (parts.length > 1) return parts.map(p => p.trim()).filter(p => p.length > 1);
+
+    // أرقام عربية أيضاً
+    const parts2 = text.split(/\s+(?=[٠-٩]+\s+)/);
+    if (parts2.length > 1) return parts2.map(p => p.trim()).filter(p => p.length > 1);
+
+    // "فرشوحة و كولا" أو "فرشوحة + كولا"
+    if (/\s+(?:و|وكمان|مع|\+)\s+/.test(text)) {
+      return text.split(/\s+(?:و|وكمان|مع|\+)\s+/).map(p => p.trim()).filter(p => p.length > 1);
+    }
+
+    return [text];
+  }
+
+  let lines = raw.split(/\n/).map(l => l.trim()).filter(l => l.length > 1);
+  // فصل كل سطر فيه أصناف متعددة
+  const expanded = [];
+  for (const line of lines) {
+    expanded.push(...splitMultiItems(line));
+  }
+  lines = expanded;
   if (lines.length < 1) return null;
 
   // كشف إعادة الإرسال: إذا نفس الرسالة تقريباً والسلة مش فاضية
