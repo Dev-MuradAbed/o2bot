@@ -2425,186 +2425,186 @@ async function handleMessage(msg) {
   }
 
   // ── سياق ذكي: رسالة قصيرة بعد ذكر صنف/قسم ──────────────
-  // مثال: "جيلاتو" → "بلوبري" = جيلاتو بلوبري
-  const isShortMsg = rawOriginal.split(' ').length <= 2 && rawOriginal.length <= 20;
-  if (isShortMsg && session.lastItem && !findItem(rawOriginal)) {
-    // جرب دمج مع آخر صنف ذُكر
-    const combined = session.lastItem + ' ' + rawOriginal;
-    const combinedItem = findItem(combined);
-    if (combinedItem && combinedItem.active) {
-      session.state = 'pending_item';
-      session.pendingItem = combinedItem;
-      session.pendingQty = 1;
-      session.lastItem = combinedItem.name;
-      return `${combinedItem.name} — *${combinedItem.price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
-    }
-    // جرب كـ نكهة
-    const ingRes = findByIngredient(rawOriginal);
-    if (ingRes) {
-      // فلتر حسب آخر صنف/قسم
-      const contextItems = ingRes.items.filter(i =>
-        normalize(i.name).includes(normalize(session.lastItem || '')) ||
-        i.cat === session.lastCategory
-      );
-      if (contextItems.length === 1) {
-        // نكهة واحدة تطابق السياق → اقترحها مباشرة
-        session.state = 'pending_item';
-        session.pendingItem = contextItems[0];
-        session.pendingQty = 1;
-        return `${contextItems[0].name} — *${contextItems[0].price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
-      }
-      if (contextItems.length > 1) {
-        const list = contextItems.map(i => `• ${i.name} — ${i.price} ₪`).join('\n');
-        return `عندنا هالنكهات:\n${list}\n\nأي واحد بدك؟`;
-      }
-    }
-  }
+  // // مثال: "جيلاتو" → "بلوبري" = جيلاتو بلوبري
+  // const isShortMsg = rawOriginal.split(' ').length <= 2 && rawOriginal.length <= 20;
+  // if (isShortMsg && session.lastItem && !findItem(rawOriginal)) {
+  //   // جرب دمج مع آخر صنف ذُكر
+  //   const combined = session.lastItem + ' ' + rawOriginal;
+  //   const combinedItem = findItem(combined);
+  //   if (combinedItem && combinedItem.active) {
+  //     session.state = 'pending_item';
+  //     session.pendingItem = combinedItem;
+  //     session.pendingQty = 1;
+  //     session.lastItem = combinedItem.name;
+  //     return `${combinedItem.name} — *${combinedItem.price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
+  //   }
+  //   // جرب كـ نكهة
+  //   const ingRes = findByIngredient(rawOriginal);
+  //   if (ingRes) {
+  //     // فلتر حسب آخر صنف/قسم
+  //     const contextItems = ingRes.items.filter(i =>
+  //       normalize(i.name).includes(normalize(session.lastItem || '')) ||
+  //       i.cat === session.lastCategory
+  //     );
+  //     if (contextItems.length === 1) {
+  //       // نكهة واحدة تطابق السياق → اقترحها مباشرة
+  //       session.state = 'pending_item';
+  //       session.pendingItem = contextItems[0];
+  //       session.pendingQty = 1;
+  //       return `${contextItems[0].name} — *${contextItems[0].price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
+  //     }
+  //     if (contextItems.length > 1) {
+  //       const list = contextItems.map(i => `• ${i.name} — ${i.price} ₪`).join('\n');
+  //       return `عندنا هالنكهات:\n${list}\n\nأي واحد بدك؟`;
+  //     }
+  //   }
+  // }
 
-  // وضع الموظف البشري
-  if (STATE.settings.transferMode) {
-    let q = STATE.queue.find(q => q.phone === from);
-    if (!q) {
-      q = { phone: from, time: new Date().toLocaleTimeString('ar'), msgs: [] };
-      STATE.queue.push(q);
-      addLog(`👨‍💼 زبون في الانتظار: ${from}`);
-    }
-    q.msgs.push(rawOriginal);
-    if (q.msgs.length > 50) q.msgs = q.msgs.slice(-50);
-    saveState();
-    return `شكراً! أحد موظفينا سيتواصل معك قريباً 👨‍💼\nأوقات الدوام: ${STATE.settings.hours}`;
-  }
+//   // وضع الموظف البشري
+//   if (STATE.settings.transferMode) {
+//     let q = STATE.queue.find(q => q.phone === from);
+//     if (!q) {
+//       q = { phone: from, time: new Date().toLocaleTimeString('ar'), msgs: [] };
+//       STATE.queue.push(q);
+//       addLog(`👨‍💼 زبون في الانتظار: ${from}`);
+//     }
+//     q.msgs.push(rawOriginal);
+//     if (q.msgs.length > 50) q.msgs = q.msgs.slice(-50);
+//     saveState();
+//     return `شكراً! أحد موظفينا سيتواصل معك قريباً 👨‍💼\nأوقات الدوام: ${STATE.settings.hours}`;
+//   }
 
-  // إلغاء
-  if (/^(الغاء|إلغاء|كنسل|بطل|وقف)$/.test(text)) {
-    clearPendingOrder(from);
-    resetSession(from);
-    return 'تم الإلغاء ❌ أهلاً بك في أي وقت 🌿';
-  }
+//   // إلغاء
+//   if (/^(الغاء|إلغاء|كنسل|بطل|وقف)$/.test(text)) {
+//     clearPendingOrder(from);
+//     resetSession(from);
+//     return 'تم الإلغاء ❌ أهلاً بك في أي وقت 🌿';
+//   }
 
-  // ====== طلب معلق — تحقق عند أول رسالة للزبون ======
-  if (!session.state && !session.cart.length) {
-    const po = getPendingOrder(from);
-    if (po) {
-      // زبون عنده طلب معلق — نسأله
-      session.state = 'pending_order_choice';
-      session._pendingOrder = po;
-      const age = Math.round((Date.now() - po.savedAt) / 60000);
-      const ageText = age < 60 ? `منذ ${age} دقيقة` : `منذ ${Math.round(age/60)} ساعة`;
-      return `مرحباً! 👋 عندك طلب غير مكتمل (${ageText}):
+//   // ====== طلب معلق — تحقق عند أول رسالة للزبون ======
+//   if (!session.state && !session.cart.length) {
+//     const po = getPendingOrder(from);
+//     if (po) {
+//       // زبون عنده طلب معلق — نسأله
+//       session.state = 'pending_order_choice';
+//       session._pendingOrder = po;
+//       const age = Math.round((Date.now() - po.savedAt) / 60000);
+//       const ageText = age < 60 ? `منذ ${age} دقيقة` : `منذ ${Math.round(age/60)} ساعة`;
+//       return `مرحباً! 👋 عندك طلب غير مكتمل (${ageText}):
 
-${pendingOrderSummary(po)}
+// ${pendingOrderSummary(po)}
 
-1️⃣ *أكمل التحويل للطلب القديم*
-2️⃣ *اطلب جديد*
-3️⃣ *إلغاء الطلب القديم*`;
-    }
-  }
+// 1️⃣ *أكمل التحويل للطلب القديم*
+// 2️⃣ *اطلب جديد*
+// 3️⃣ *إلغاء الطلب القديم*`;
+//     }
+//   }
 
-  // استئناف طلب معلق
-  if (session.state === 'pending_order_choice') {
-    const po = session._pendingOrder;
-    if (/^(1|أكمل|اكمل|نفس الطلب|الطلب القديم|نفسو|أكملو|اكملو)$/i.test(text)) {
-      // استئناف — اعادة بناء السلة وانتقل لـ transfer_name
-      session.cart       = po.cart;
-      session.name       = po.name;
-      session.phone      = po.phone;
-      session.address    = po.address || '';
-      session.deliveryType = po.deliveryType;
-      session.deliveryFee  = po.deliveryFee || 0;
-      session.note       = po.note || '';
-      session.orderNum   = po.orderNum;
-      session.state      = 'transfer_name';
-      clearPendingOrder(from);
-      return `تمام! 😊 نكمل طلبك #${po.orderNum}
+//   // استئناف طلب معلق
+//   if (session.state === 'pending_order_choice') {
+//     const po = session._pendingOrder;
+//     if (/^(1|أكمل|اكمل|نفس الطلب|الطلب القديم|نفسو|أكملو|اكملو)$/i.test(text)) {
+//       // استئناف — اعادة بناء السلة وانتقل لـ transfer_name
+//       session.cart       = po.cart;
+//       session.name       = po.name;
+//       session.phone      = po.phone;
+//       session.address    = po.address || '';
+//       session.deliveryType = po.deliveryType;
+//       session.deliveryFee  = po.deliveryFee || 0;
+//       session.note       = po.note || '';
+//       session.orderNum   = po.orderNum;
+//       session.state      = 'transfer_name';
+//       clearPendingOrder(from);
+//       return `تمام! 😊 نكمل طلبك #${po.orderNum}
 
-${pendingOrderSummary(po)}
+// ${pendingOrderSummary(po)}
 
-أرسل *الاسم اللي حوّلت منه* 👇
+// أرسل *الاسم اللي حوّلت منه* 👇
 
-بيانات التحويل:
-الاسم: *${STATE.settings.bankName}*
-البنك: *${STATE.settings.bank}*
-جوال: *${STATE.settings.bankPhone}*`;
-    }
-    if (/^(2|جديد|طلب جديد|بدي اطلب|اطلب)$/i.test(text)) {
-      clearPendingOrder(from);
-      session.state = null; session._pendingOrder = null;
-      return `تمام! 🛒 قولي شو بدك تطلب 😊`;
-    }
-    if (/^(3|الغاء|إلغاء|لا|لأ)$/i.test(text)) {
-      clearPendingOrder(from);
-      session.state = null; session._pendingOrder = null;
-      return `تم إلغاء الطلب القديم ✅ أهلاً بك في أي وقت 🌿`;
-    }
-    return `اختار:
-1️⃣ أكمل التحويل
-2️⃣ طلب جديد
-3️⃣ إلغاء الطلب القديم`;
-  }
+// بيانات التحويل:
+// الاسم: *${STATE.settings.bankName}*
+// البنك: *${STATE.settings.bank}*
+// جوال: *${STATE.settings.bankPhone}*`;
+//     }
+//     if (/^(2|جديد|طلب جديد|بدي اطلب|اطلب)$/i.test(text)) {
+//       clearPendingOrder(from);
+//       session.state = null; session._pendingOrder = null;
+//       return `تمام! 🛒 قولي شو بدك تطلب 😊`;
+//     }
+//     if (/^(3|الغاء|إلغاء|لا|لأ)$/i.test(text)) {
+//       clearPendingOrder(from);
+//       session.state = null; session._pendingOrder = null;
+//       return `تم إلغاء الطلب القديم ✅ أهلاً بك في أي وقت 🌿`;
+//     }
+//     return `اختار:
+// 1️⃣ أكمل التحويل
+// 2️⃣ طلب جديد
+// 3️⃣ إلغاء الطلب القديم`;
+//   }
 
-  // ====== تتبع الطلب ======
-  const isTrack = /وين طلبي|وين الطلب|حالة الطلب|شو صار|طلع الطلب|تحرك الطلب|وصل طلبي/i.test(text)
-    || /^#?\d{1,6}$/.test(text.trim());
-  if (isTrack) {
-    const tOrd = (STATE.orders||[]).find(o=>o.customerPhone===from&&!['delivered','picked_up','cancelled'].includes(o.status));
-    const stMap = {
-      pending_payment:'⏳ انتظار تأكيد التحويل',
-      payment_confirmed:'✅ تم تأكيد الدفع — قيد التجهيز',
-      added_to_system:'📥 دخل للنظام — قيد التحضير',
-      preparing:'👨‍🍳 قيد التحضير الآن',
-      ready:'🔔 جاهز — ينتظر الديلفري',
-      out_for_delivery:`🚗 في الطريق${tOrd?.driverName?' مع '+tOrd.driverName:''}`,
-      ready_pickup:'🔔 جاهز للاستلام',
-    };
-    if (tOrd) return `📦 طلبك *#${tOrd.id}*\n${stMap[tOrd.status]||tOrd.status}\n💰 المجموع: *${tOrd.grandTotal||tOrd.total} ₪*`;
-    return `ما عندنا طلب نشط لك حالياً 😊\nقولي شو بدك تطلب!`;
-  }
+  // // ====== تتبع الطلب ======
+  // const isTrack = /وين طلبي|وين الطلب|حالة الطلب|شو صار|طلع الطلب|تحرك الطلب|وصل طلبي/i.test(text)
+  //   || /^#?\d{1,6}$/.test(text.trim());
+  // if (isTrack) {
+  //   const tOrd = (STATE.orders||[]).find(o=>o.customerPhone===from&&!['delivered','picked_up','cancelled'].includes(o.status));
+  //   const stMap = {
+  //     pending_payment:'⏳ انتظار تأكيد التحويل',
+  //     payment_confirmed:'✅ تم تأكيد الدفع — قيد التجهيز',
+  //     added_to_system:'📥 دخل للنظام — قيد التحضير',
+  //     preparing:'👨‍🍳 قيد التحضير الآن',
+  //     ready:'🔔 جاهز — ينتظر الديلفري',
+  //     out_for_delivery:`🚗 في الطريق${tOrd?.driverName?' مع '+tOrd.driverName:''}`,
+  //     ready_pickup:'🔔 جاهز للاستلام',
+  //   };
+  //   if (tOrd) return `📦 طلبك *#${tOrd.id}*\n${stMap[tOrd.status]||tOrd.status}\n💰 المجموع: *${tOrd.grandTotal||tOrd.total} ₪*`;
+  //   return `ما عندنا طلب نشط لك حالياً 😊\nقولي شو بدك تطلب!`;
+  // }
 
-  // سؤال عن الحساب
-  if (/كم الحساب|كم بيطلع|كم المبلغ|كم احول|كم بدفع|الحساب كم|بكم الطلب/.test(text)) {
-    if (session.cart.length) {
-      const total = cartTotal(session.cart) + (session.deliveryFee || 0);
-      return `💰 حسابك: *${total} ₪*\n${cartText(session.cart)}${session.deliveryFee ? `\n+ توصيل: ${session.deliveryFee} ₪` : ''}\n\nأرسل *تأكيد* لإتمام الطلب 😊`;
-    }
-    return `ما في طلب حالي 😊 قولي شو بدك!`;
-  }
+  // // سؤال عن الحساب
+  // if (/كم الحساب|كم بيطلع|كم المبلغ|كم احول|كم بدفع|الحساب كم|بكم الطلب/.test(text)) {
+  //   if (session.cart.length) {
+  //     const total = cartTotal(session.cart) + (session.deliveryFee || 0);
+  //     return `💰 حسابك: *${total} ₪*\n${cartText(session.cart)}${session.deliveryFee ? `\n+ توصيل: ${session.deliveryFee} ₪` : ''}\n\nأرسل *تأكيد* لإتمام الطلب 😊`;
+  //   }
+  //   return `ما في طلب حالي 😊 قولي شو بدك!`;
+  // }
 
-  // وقت التحضير
-  if (/وقت|كم بياخذ|متى جاهز|بتوصل امتى|قديش بياخذ/.test(text)) {
-    const t = STATE.settings.estimatedTime || 30;
-    const ready = new Date(Date.now() + t * 60000);
-    return `⏱️ وقت التحضير: *${t} دقيقة* (تقريباً ${ready.getHours().toString().padStart(2,'0')}:${ready.getMinutes().toString().padStart(2,'0')}) 😊`;
-  }
+  // // وقت التحضير
+  // if (/وقت|كم بياخذ|متى جاهز|بتوصل امتى|قديش بياخذ/.test(text)) {
+  //   const t = STATE.settings.estimatedTime || 30;
+  //   const ready = new Date(Date.now() + t * 60000);
+  //   return `⏱️ وقت التحضير: *${t} دقيقة* (تقريباً ${ready.getHours().toString().padStart(2,'0')}:${ready.getMinutes().toString().padStart(2,'0')}) 😊`;
+  // }
 
   // ====== PRIORITY 1: tryQuickOrder — دايماً أول شي ======
-  const hasNewlines = raw.includes('\n');
-  const looksLikeOrder = raw.length > 30 && /\d|[١٢٣٤٥٦٧٨٩]/.test(raw);
-  if (hasNewlines || looksLikeOrder) {
-    const inOrdering = session.state === 'ordering' || session.state === null;
-    const qr = tryQuickOrder(session, raw, inOrdering);
-    if (qr) return qr;
-  }
+  // const hasNewlines = raw.includes('\n');
+  // const looksLikeOrder = raw.length > 30 && /\d|[١٢٣٤٥٦٧٨٩]/.test(raw);
+  // if (hasNewlines || looksLikeOrder) {
+  //   const inOrdering = session.state === 'ordering' || session.state === null;
+  //   const qr = tryQuickOrder(session, raw, inOrdering);
+  //   if (qr) return qr;
+  // }
 
   // ====== PRIORITY 1.5: اسم قسم ← عرض المنيو ======
   // لما يكتب "شاورما" أو "بيتزا" أو "مشروبات" — يعرض منيو القسم
-  const catQuery = detectCategoryQuery(text);
-  if (catQuery) {
-    session.lastCategory = catQuery;
-    return getMenuText(catQuery) + '\n\nقولي شو بدك تطلب من قائمتنا 😊';
-  }
+  // const catQuery = detectCategoryQuery(text);
+  // if (catQuery) {
+  //   session.lastCategory = catQuery;
+  //   return getMenuText(catQuery) + '\n\nقولي شو بدك تطلب من قائمتنا 😊';
+  // }
 
   // ====== PRIORITY 1.8: تحيات واجتماعيات → رد لطيف ======
-  // "كيف حالك" / "شو اخبارك" / "كيف الاحوال" → يرد ويسأل عن الطلب
-  if (/^(كيف حالك|كيف الحال|كيف اخبارك|شو اخبارك|كيف الاحوال|عامل كيف|كيف عامل|ايش اخبارك|شو اخبارك|كيفك|كيفكم|كيف حالكم)[\s؟?!]*$/i.test(text)) {
-    return `الحمد لله بخير! 😊
-${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
-  }
-  if (/^(صباح|مساء)/.test(text) && text.length < 20) {
-    const isM = /صباح/.test(text);
-    return `${isM ? 'صباح النور' : 'مساء النور'} 🌿
-أهلاً بك في ${STATE.settings.name}!
-شو بدك تطلب اليوم؟ 😊`;
-  }
+//   // "كيف حالك" / "شو اخبارك" / "كيف الاحوال" → يرد ويسأل عن الطلب
+//   if (/^(كيف حالك|كيف الحال|كيف اخبارك|شو اخبارك|كيف الاحوال|عامل كيف|كيف عامل|ايش اخبارك|شو اخبارك|كيفك|كيفكم|كيف حالكم)[\s؟?!]*$/i.test(text)) {
+//     return `الحمد لله بخير! 😊
+// ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
+//   }
+//   if (/^(صباح|مساء)/.test(text) && text.length < 20) {
+//     const isM = /صباح/.test(text);
+//     return `${isM ? 'صباح النور' : 'مساء النور'} 🌿
+// أهلاً بك في ${STATE.settings.name}!
+// شو بدك تطلب اليوم؟ 😊`;
+//   }
 
   // ====== PRIORITY 2: الردود الثابتة ======
   // const hasOrderIntent = /بدي|عايز|اريد|أريد|اطلب/.test(text);
@@ -2785,7 +2785,7 @@ ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
         const aiReply = await tryAIUnderstand(from, rawOriginal, session);
         if (aiReply) return aiReply;
       } catch(e) { console.log('⚠️ AI error:', e.message); }
-    }
+    }f
     return `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`;
   }
 
