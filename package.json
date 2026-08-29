@@ -1,10 +1,11 @@
 {
   "name": "o2-whatsapp-bot",
-  "version": "3.0.0",
-  "description": "بوت واتساب مطعم O2 — Baileys + Firebase",
+  "version": "3.2.0",
+  "description": "بوت واتساب مطعم O2 — Baileys + Firebase، مع حسابات وصلاحيات وسجل تغييرات ولوحة رسبونسف",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test:local": "O2_TEST_MODE=1 SESSION_SECRET=test node index.js"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.9",

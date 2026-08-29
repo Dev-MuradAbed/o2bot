@@ -1427,8 +1427,15 @@ function analyzeChatExport(rawText) {
 function getMenuText(cat) {
   const items = STATE.items.filter(i => i.cat === cat && i.active);
   if (!items.length) return 'هاد القسم مش متوفر الحين 😅';
-  const icons = { شاورما:'🥙', ايطالي:'🍕', ساندويش:'🍔', سلطة:'🥗', مشروبات:'☕', حلويات:'🍰' };
-  return `${icons[cat]||'🍽️'} *${cat}*\n─────────────\n${items.map(i => `${i.name} ... ${i.price} ₪`).join('\n')}`;
+  const label = (STATE.categories.find(c => c.id === cat) || {}).label
+    || (({ شاورما:'🥙', ايطالي:'🍕', ساندويش:'🍔', سلطة:'🥗', مشروبات:'☕', حلويات:'🍰' })[cat] || '🍽️') + ' ' + cat;
+  const width = items.reduce((m, i) => Math.max(m, [...i.name].length), 0);
+  return [
+    `${label}   _(${items.length} صنف)_`,
+    '━━━━━━━━━━━━━━━',
+    ...items.map(i => itemLine(i, width)),
+    '━━━━━━━━━━━━━━━',
+  ].join('\n');
 }
 
 // ── كلمات كل قسم ──────────────────────────────────────────
@@ -1497,7 +1504,9 @@ function detectCategoryQuery(text) {
   }
 
   // 1. صنف محدد؟ → مش قسم
-  const exactItem = STATE.items.find(i => i.active && i.keys.some(k => normalize(k) === t));
+  // ملاحظة: نفحص كل الأصناف حتى المغلقة، وإلا سقط اسم الصنف المغلق
+  // على مطابقة القسم فعُرضت القائمة بدل رسالة "غير متوفر"
+  const exactItem = STATE.items.find(i => i.keys.some(k => normalize(k) === t));
   if (exactItem) return null;
 
   // 2. فحص CAT_KEYWORDS
@@ -2138,40 +2147,67 @@ function activeCategories() {
   return STATE.categories.filter(c => c.active !== false);
 }
 
-function categoriesMessage() {
-  const nums = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
-  const rows = activeCategories().map((c, i) => {
+const NUM_EMOJI = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+const SEP = '━━━━━━━━━━━━━━━';
+
+/** أسطر الأقسام المرقّمة — تُستخدم في البداية وفي نهاية كل قسم */
+function categoryLines() {
+  return activeCategories().map((c, i) => {
     const n = STATE.items.filter(it => it.cat === c.id && it.active).length;
-    return `${nums[i] || (i + 1) + '.'}  ${c.label}${n ? '' : '  (مغلق حالياً)'}`;
+    return `${NUM_EMOJI[i] || (i + 1) + '.'}  ${c.label}${n ? '' : '  (مغلق حالياً)'}`;
   });
+}
+
+/** القائمة الرئيسية: كل الأقسام + خيار الإنهاء */
+function categoriesMessage() {
   return [
-    `📋 *منيو ${STATE.settings.name}*`,
-    '━━━━━━━━━━━━━━━',
-    ...rows,
-    '━━━━━━━━━━━━━━━',
-    'أرسل رقم القسم لعرض أصنافه',
-    'أو اكتب اسم الصنف مباشرة 😊',
+    `📋 *أقسام ${STATE.settings.name}*`,
+    SEP,
+    ...categoryLines(),
+    SEP,
+    '0️⃣  إنهاء العملية',
+    '',
+    'أرسل رقم القسم لعرض أصنافه وأسعاره 👆',
   ].join('\n');
 }
 
-/** قائمة أصناف قسم مرقّمة — الأصناف المغلقة لا تظهر للزبون */
+/** يُلحق بعد أصناف أي قسم: اختر قسماً آخر أو أنهِ */
+function nextStepMessage() {
+  return [
+    '',
+    '👇 *بدك تشوف قسم تاني؟*',
+    '',
+    ...categoryLines(),
+    '0️⃣  إنهاء العملية',
+  ].join('\n');
+}
+
+/** سطر صنف بنقاط تملأ الفراغ حتى تصطف الأسعار */
+function itemLine(item, width) {
+  const len = [...item.name].length;
+  const dots = '.'.repeat(Math.max(3, width - len + 3));
+  return `${item.name} ${dots} *${item.price} ₪*`;
+}
+
+/** أصناف قسم واحد مرتّبة بأسعارها، ثم قائمة الأقسام من جديد */
 function categoryMessage(session, catId) {
   const cat = STATE.categories.find(c => c.id === catId);
   if (!cat) return null;
   const items = STATE.items.filter(i => i.cat === catId && i.active);
-  if (!items.length) {
-    session.browseList = [];
-    return `${cat.label}\n━━━━━━━━━━━━━━━\nلا يوجد صنف متوفر حالياً في هذا القسم 🙏\n\nأرسل *0* للرجوع للأقسام`;
-  }
-  session.browseList = items.map(i => i.id);
+  session.browseList = [];
   session.lastCategory = catId;
-  const rows = items.map((i, n) =>
-    `${String(n + 1).padStart(2, ' ')}. ${i.name} — *${i.price} ₪*`);
+
+  if (!items.length) {
+    return `${cat.label}\n${SEP}\nلا يوجد صنف متوفر حالياً في هذا القسم 🙏${nextStepMessage()}`;
+  }
+
+  const width = items.reduce((m, i) => Math.max(m, [...i.name].length), 0);
   return [
-    cat.label, '━━━━━━━━━━━━━━━', ...rows, '━━━━━━━━━━━━━━━',
-    'أرسل رقم الصنف لإضافته للطلب',
-    'أو *0* للرجوع للأقسام',
-  ].join('\n');
+    `${cat.label}   _(${items.length} صنف)_`,
+    SEP,
+    ...items.map(i => itemLine(i, width)),
+    SEP,
+  ].join('\n') + nextStepMessage();
 }
 
 /** بدائل متوفرة من نفس القسم عندما يطلب الزبون صنفاً مغلقاً */
@@ -2342,7 +2378,7 @@ async function handleMessage(msg) {
       if (!isTriggered(rawOriginal)) return null; // صمت تام
       touchChat(from);
       resetSession(from);
-      return `${STATE.settings.welcome}\n\n${categoriesMessage()}\n\n_للخروج من البوت أرسل *خروج*_`;
+      return `${STATE.settings.welcome}\n\n${categoriesMessage()}`;
     }
     touchChat(from);
     if (/^(خروج|انهاء|إنهاء|exit|stop|bye)$/.test(normalize(rawOriginal))) {
@@ -2358,33 +2394,28 @@ async function handleMessage(msg) {
   // ══════════════════════════════════════════════════════════
   // التصفّح بالأرقام: 0 = الأقسام، رقم داخل قسم = صنف
   // ══════════════════════════════════════════════════════════
-  if (/^(0|صفر|رجوع|الاقسام|الأقسام)$/.test(normalize(rawOriginal))) {
+  // ── 0 أو "إنهاء" = إنهاء العملية ──────────────────────────
+  if (/^(0|صفر|انهاء|انهاء العمليه|خلصت|تم)$/.test(normalize(rawOriginal)) && !session.state) {
+    activeChats.delete(from);
+    resetSession(from);
+    return `شكراً لك ونتشرف بخدمتك 🌿\n${SEP}\nتم إنهاء العملية.\n\nلعرض المنيو من جديد أرسل *bot* في أي وقت.`;
+  }
+
+  // ── طلب عرض الأقسام ───────────────────────────────────────
+  if (/^(الاقسام|رجوع|القائمه|قائمه|منيو|المنيو|menu)$/.test(normalize(rawOriginal)) && !session.state) {
     session.browseList = [];
-    session.state = session.cart.length ? session.state : null;
     return categoriesMessage();
   }
 
+  // ── رقم = اختيار قسم (تظهر أصنافه ثم الأقسام من جديد) ─────
   if (/^\d{1,2}$/.test(rawOriginal.trim()) && !session.state) {
-    const n = parseInt(rawOriginal.trim(), 10);
-
-    // داخل قسم معروض: الرقم يشير إلى صنف
-    if (session.browseList && session.browseList.length) {
-      const id = session.browseList[n - 1];
-      if (!id) return `الرقم خارج القائمة 🤔 اختر من 1 إلى ${session.browseList.length}، أو *0* للرجوع.`;
-      const item = STATE.items.find(i => i.id === id);
-      if (!item) return 'هذا الصنف لم يعد موجوداً. أرسل *0* لتحديث القائمة.';
-      if (!item.active) return `❌ للأسف *${item.name}* غير متوفر حالياً.${alternativesText(item)}`;
-      addToCart(session, item, 1);
-      session.lastItem = item.name;
-      return `تمام! أضفت *${item.name}* — ${item.price} ₪ ✅\n\n🛒 المجموع: ${cartTotal(session.cart)} ₪\n\n_أرسل *تأكيد* لإتمام الطلب، أو *0* للأقسام_`;
-    }
-
-    // في قائمة الأقسام: الرقم يشير إلى قسم
     const cats = activeCategories();
+    const n = parseInt(rawOriginal.trim(), 10);
     if (cats[n - 1]) {
       const msg = categoryMessage(session, cats[n - 1].id);
       if (msg) return msg;
     }
+    return `ما في قسم برقم ${n} 🤔\n\n${categoriesMessage()}`;
   }
 
   // ── سياق ذكي: رسالة قصيرة بعد ذكر صنف/قسم ──────────────
