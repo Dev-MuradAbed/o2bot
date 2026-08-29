@@ -12,6 +12,7 @@ const fs     = require('fs');
 const path   = require('path');
 const pino   = require('pino');
 const https  = require('https');
+const auth   = require('./auth');
 
 // ============================================================
 // STATE
@@ -33,6 +34,12 @@ let STATE = {
     botActive: true,
     groupId: '',
     sessionTimeoutMins: 30, // انتهاء الجلسة بعد X دقيقة من آخر رسالة
+    // ── تفعيل البوت بكلمة مفتاحية ──
+    // true = البوت صامت حتى يرسل الزبون كلمة تفعيل (مناسب للرقم الشخصي)
+    // false = البوت يرد على كل رسالة (مناسب لرقم المطعم المخصص)
+    requireTrigger: true,
+    triggerWords: ['bot', 'بوت', 'o2', 'منيو', 'menu'],
+    triggerTimeoutMins: 20, // تنتهي حالة التفعيل بعد هذه المدة من الخمول
   },
   deliveryZones: [
     { label: 'النصيرات (مستشفى العودة)', keys: ['العودة', 'مستشفى العودة'], fee: 5 },
@@ -151,6 +158,10 @@ let STATE = {
     { id:3, name:'خالد',  phone:'', shift:'evening', zones:[], maxActive:3, active:false, ordersToday:0, currentOrders:[] },
   ],
   driverDailyDate: '', // تاريخ آخر reset للعدادات
+
+  // ── الحسابات وسجل التغييرات ──
+  users: [],   // تُنشأ تلقائياً عند أول تشغيل (auth.init)
+  audit: [],   // من غيّر ماذا ومتى
 };
 
 // ============================================================
@@ -160,11 +171,17 @@ const { initializeApp, cert }  = require('firebase-admin/app');
 const { getFirestore }         = require('firebase-admin/firestore');
 
 // قراءة Service Account من متغير البيئة
-const _sa = process.env.FIREBASE_SERVICE_ACCOUNT;
-if (!_sa) { console.error('❌ FIREBASE_SERVICE_ACCOUNT غير موجود!'); process.exit(1); }
-initializeApp({ credential: cert(JSON.parse(_sa)) });
-const db        = getFirestore();
-const STATE_DOC = db.collection('o2bot').doc('state');
+let STATE_DOC;
+if (process.env.O2_TEST_MODE === '1') {
+  let mem = null;
+  STATE_DOC = { async set(d){ mem = JSON.parse(JSON.stringify(d)); }, async get(){ return { exists: !!mem, data: () => mem }; } };
+  console.log('🧪 وضع الاختبار: Firebase معطّل');
+} else {
+  const _sa = process.env.FIREBASE_SERVICE_ACCOUNT;
+  if (!_sa) { console.error('❌ FIREBASE_SERVICE_ACCOUNT غير موجود!'); process.exit(1); }
+  initializeApp({ credential: cert(JSON.parse(_sa)) });
+  STATE_DOC = getFirestore().collection('o2bot').doc('state');
+}
 
 // debounce — لا نكتب لـ Firebase أكثر من مرة كل 3 ثواني
 let saveTimer = null;
@@ -206,6 +223,8 @@ async function loadState() {
     if (saved.unknowns)         STATE.unknowns         = saved.unknowns;
     if (saved.runtimeAliases)   STATE.runtimeAliases   = saved.runtimeAliases;
     if (saved.learnedAliases)   STATE.learnedAliases   = saved.learnedAliases;
+    if (saved.users && saved.users.length) STATE.users = saved.users;
+    if (saved.audit)                       STATE.audit = saved.audit;
     if (saved.categories    && saved.categories.length)    STATE.categories    = saved.categories;
     if (saved.replies       && saved.replies.length)       STATE.replies       = saved.replies;
     if (saved.deliveryZones && saved.deliveryZones.length) STATE.deliveryZones = saved.deliveryZones;
@@ -308,6 +327,7 @@ function makeSession(from) {
     lastCategory: null,  // آخر قسم ذُكر (شاورما/حلويات/مشروبات)
     lastItem: null,      // آخر صنف ذُكر (كنافة/جيلاتو/بيتزا)
     history: [],         // آخر 5 رسائل للسياق
+    browseList: [],      // أصناف القسم المعروض حالياً — للاختيار بالرقم
   };
 }
 
@@ -2080,6 +2100,180 @@ async function sendToGroup(text) {
 }
 
 // ============================================================
+// TRIGGER + BROWSING + STAFF COMMANDS
+// ============================================================
+
+// الدردشات التي فُعّل فيها البوت: jid → آخر نشاط
+const activeChats = new Map();
+
+function triggerWords() {
+  const w = STATE.settings.triggerWords;
+  return (Array.isArray(w) && w.length ? w : ['bot']).map(x => normalize(String(x)));
+}
+
+function isTriggered(text) {
+  const t = normalize(text);
+  const words = triggerWords();
+  return words.includes(t) || words.includes(t.split(' ')[0]);
+}
+
+function chatIsActive(jid) {
+  const last = activeChats.get(jid);
+  if (!last) return false;
+  const ttl = (STATE.settings.triggerTimeoutMins || 20) * 60 * 1000;
+  if (Date.now() - last > ttl) { activeChats.delete(jid); return false; }
+  return true;
+}
+
+const touchChat = (jid) => activeChats.set(jid, Date.now());
+
+setInterval(() => {
+  const ttl = (STATE.settings.triggerTimeoutMins || 20) * 60 * 1000;
+  const now = Date.now();
+  for (const [jid, t] of activeChats) if (now - t > ttl) activeChats.delete(jid);
+}, 5 * 60 * 1000);
+
+// ── رسائل التصفّح ──────────────────────────────────────────
+function activeCategories() {
+  return STATE.categories.filter(c => c.active !== false);
+}
+
+function categoriesMessage() {
+  const nums = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
+  const rows = activeCategories().map((c, i) => {
+    const n = STATE.items.filter(it => it.cat === c.id && it.active).length;
+    return `${nums[i] || (i + 1) + '.'}  ${c.label}${n ? '' : '  (مغلق حالياً)'}`;
+  });
+  return [
+    `📋 *منيو ${STATE.settings.name}*`,
+    '━━━━━━━━━━━━━━━',
+    ...rows,
+    '━━━━━━━━━━━━━━━',
+    'أرسل رقم القسم لعرض أصنافه',
+    'أو اكتب اسم الصنف مباشرة 😊',
+  ].join('\n');
+}
+
+/** قائمة أصناف قسم مرقّمة — الأصناف المغلقة لا تظهر للزبون */
+function categoryMessage(session, catId) {
+  const cat = STATE.categories.find(c => c.id === catId);
+  if (!cat) return null;
+  const items = STATE.items.filter(i => i.cat === catId && i.active);
+  if (!items.length) {
+    session.browseList = [];
+    return `${cat.label}\n━━━━━━━━━━━━━━━\nلا يوجد صنف متوفر حالياً في هذا القسم 🙏\n\nأرسل *0* للرجوع للأقسام`;
+  }
+  session.browseList = items.map(i => i.id);
+  session.lastCategory = catId;
+  const rows = items.map((i, n) =>
+    `${String(n + 1).padStart(2, ' ')}. ${i.name} — *${i.price} ₪*`);
+  return [
+    cat.label, '━━━━━━━━━━━━━━━', ...rows, '━━━━━━━━━━━━━━━',
+    'أرسل رقم الصنف لإضافته للطلب',
+    'أو *0* للرجوع للأقسام',
+  ].join('\n');
+}
+
+/** بدائل متوفرة من نفس القسم عندما يطلب الزبون صنفاً مغلقاً */
+function alternativesText(item) {
+  const alts = STATE.items.filter(i => i.cat === item.cat && i.active).slice(0, 4);
+  if (!alts.length) return '';
+  return `\n\nبدائل متوفرة من نفس القسم:\n${alts.map(i => `• ${i.name} — ${i.price} ₪`).join('\n')}`;
+}
+
+// ── إشعار الطاقم عند تغيّر التوفّر ─────────────────────────
+async function notifyStaffAvailability(item, who) {
+  const icon = item.active ? '✅' : '🚫';
+  const verb = item.active ? 'تم تفعيل' : 'تم إغلاق';
+  return sendToGroup(`${icon} ${verb} *${item.name}*\n👤 بواسطة: ${who}\n🕐 ${new Date().toLocaleString('ar-EG')}`);
+}
+
+// ── أوامر الطاقم من واتساب ────────────────────────────────
+function closedItemsMessage() {
+  const closed = STATE.items.filter(i => !i.active);
+  if (!closed.length) return '✅ كل الأصناف متوفرة حالياً.';
+  const groups = {};
+  for (const i of closed) (groups[i.cat] = groups[i.cat] || []).push(i);
+  const out = [`🚫 *الأصناف المغلقة (${closed.length})*`, '━━━━━━━━━━━━━━━'];
+  for (const [cat, list] of Object.entries(groups)) {
+    const label = (STATE.categories.find(c => c.id === cat) || {}).label || cat;
+    out.push(`*${label}*`);
+    for (const i of list) out.push(`• ${i.name}${i.updatedBy ? ` — ${i.updatedBy}` : ''}`);
+    out.push('');
+  }
+  return out.join('\n').trim();
+}
+
+async function handleStaffCommand(from, raw) {
+  const parts = raw.slice(1).trim().split(/\s+/);
+  const cmd = normalize(parts[0] || '');
+  const arg = parts.slice(1).join(' ').trim();
+  const user = auth.byWhatsapp(from);
+
+  if (['دخول', 'login', 'تسجيل'].includes(cmd)) {
+    const num = String(from).split('@')[0].replace(/\D/g, '');
+    if (!num) return '⚠️ تعذّر قراءة رقمك. أرسل الأمر من واتساب مباشرة (لا من محاكي الداشبورد).';
+    const account = auth.login(parts[1], parts.slice(2).join(' '));
+    if (!account) return '❌ بيانات الدخول غير صحيحة.\nالصيغة: #دخول اسم_المستخدم كلمة_المرور';
+    const prev = auth.byWhatsapp(from);
+    if (prev && prev.id !== account.id) auth.updateUser(prev.id, { whatsappNumber: '' });
+    auth.updateUser(account.id, { whatsappNumber: num });
+    auth.audit(account, 'staff.link', 'واتساب', `ربط الرقم ${num}`, 'whatsapp');
+    return `✅ تم ربط رقمك بحساب *${account.displayName}* (${auth.roleLabel(account.role)}).\n\nالأوامر:\n#اغلاق اسم الصنف\n#تفعيل اسم الصنف\n#المغلق\n#خروج_طاقم`;
+  }
+
+  if (!user) return '🔒 هذا الأمر للطاقم فقط.\nسجّل دخولك أولاً:\n#دخول اسم_المستخدم كلمة_المرور';
+
+  if (['خروج_طاقم', 'logout'].includes(cmd)) {
+    auth.updateUser(user.id, { whatsappNumber: '' });
+    auth.audit(user, 'staff.unlink', 'واتساب', 'فك ربط الرقم', 'whatsapp');
+    return '✅ تم فك ربط رقمك.';
+  }
+
+  if (['المغلق', 'مغلق', 'closed'].includes(cmd)) return closedItemsMessage();
+
+  const opening = ['تفعيل', 'فتح', 'open'].includes(cmd);
+  const closing = ['اغلاق', 'إغلاق', 'خلص', 'close'].includes(cmd);
+  if (opening || closing) {
+    if (!auth.can(user, 'menu.toggle')) return '🔒 حسابك لا يملك صلاحية تعديل التوفّر.';
+    if (!arg) return `⚠️ الصيغة: #${parts[0]} اسم الصنف`;
+    const now = new Date().toISOString();
+
+    // قسم كامل؟
+    const cat = STATE.categories.find(c =>
+      normalize(c.id) === normalize(arg) || normalize(c.label).includes(normalize(arg)));
+    if (cat) {
+      const affected = STATE.items.filter(i => i.cat === cat.id && i.active !== opening);
+      for (const it of affected) {
+        it.active = opening; it.updatedBy = user.displayName;
+        it.updatedRole = user.role; it.updatedAt = now;
+      }
+      saveState();
+      auth.audit(user, opening ? 'category.open' : 'category.close', cat.id,
+        `${opening ? 'تفعيل' : 'إغلاق'} ${affected.length} صنف`, 'whatsapp');
+      addLog(`${opening ? '✅' : '🚫'} ${cat.label}: ${affected.length} صنف — ${user.displayName}`);
+      return `${opening ? '✅' : '🚫'} ${opening ? 'تم تفعيل' : 'تم إغلاق'} قسم *${cat.label}* (${affected.length} صنف) — بواسطة ${user.displayName}`;
+    }
+
+    const item = findItem(arg);
+    if (!item) return `🤔 لم أجد صنفاً باسم "${arg}".\nجرّب الاسم كما هو في المنيو، أو أرسل #المغلق.`;
+    if (item.active === opening) return `ℹ️ *${item.name}* أصلاً ${opening ? 'مفعّل' : 'مغلق'}.`;
+    item.active = opening;
+    item.updatedBy = user.displayName;
+    item.updatedRole = user.role;
+    item.updatedAt = now;
+    saveState();
+    auth.audit(user, opening ? 'menu.open' : 'menu.close', item.name,
+      opening ? 'تفعيل الصنف' : 'إغلاق الصنف', 'whatsapp');
+    addLog(`${opening ? '✅ فُعّل' : '🚫 أُغلق'}: ${item.name} — ${user.displayName}`);
+    notifyStaffAvailability(item, user.displayName).catch(()=>{});
+    return `${opening ? '✅' : '🚫'} *${item.name}* أصبح ${opening ? 'متوفراً' : 'غير متوفر'} — بواسطة ${user.displayName}`;
+  }
+
+  return 'الأوامر: #اغلاق | #تفعيل | #المغلق | #خروج_طاقم';
+}
+
+// ============================================================
 // MAIN MESSAGE HANDLER
 // ============================================================
 // رد ذكي لما البوت ما يفهم (بدون AI)
@@ -2132,8 +2326,66 @@ async function handleMessage(msg) {
 
   if (!STATE.settings.botActive) return null;
 
+  // ══════════════════════════════════════════════════════════
+  // أوامر الطاقم — تعمل دائماً بغض النظر عن حالة التفعيل
+  // ══════════════════════════════════════════════════════════
+  if (rawOriginal.startsWith('#')) {
+    return await handleStaffCommand(from, rawOriginal);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // بوابة التفعيل — عند requireTrigger البوت صامت حتى
+  // يرسل الزبون كلمة التفعيل (يجعل ربطه برقم شخصي آمناً)
+  // ══════════════════════════════════════════════════════════
+  if (STATE.settings.requireTrigger) {
+    if (!chatIsActive(from)) {
+      if (!isTriggered(rawOriginal)) return null; // صمت تام
+      touchChat(from);
+      resetSession(from);
+      return `${STATE.settings.welcome}\n\n${categoriesMessage()}\n\n_للخروج من البوت أرسل *خروج*_`;
+    }
+    touchChat(from);
+    if (/^(خروج|انهاء|إنهاء|exit|stop|bye)$/.test(normalize(rawOriginal))) {
+      activeChats.delete(from);
+      resetSession(from);
+      return 'تم إنهاء المحادثة الآلية 🌿\nأرسل *bot* في أي وقت لتشغيلها من جديد.';
+    }
+  }
+
   const raw = fixSpelling(translateEN(rawOriginal));
   const text = raw.toLowerCase();
+
+  // ══════════════════════════════════════════════════════════
+  // التصفّح بالأرقام: 0 = الأقسام، رقم داخل قسم = صنف
+  // ══════════════════════════════════════════════════════════
+  if (/^(0|صفر|رجوع|الاقسام|الأقسام)$/.test(normalize(rawOriginal))) {
+    session.browseList = [];
+    session.state = session.cart.length ? session.state : null;
+    return categoriesMessage();
+  }
+
+  if (/^\d{1,2}$/.test(rawOriginal.trim()) && !session.state) {
+    const n = parseInt(rawOriginal.trim(), 10);
+
+    // داخل قسم معروض: الرقم يشير إلى صنف
+    if (session.browseList && session.browseList.length) {
+      const id = session.browseList[n - 1];
+      if (!id) return `الرقم خارج القائمة 🤔 اختر من 1 إلى ${session.browseList.length}، أو *0* للرجوع.`;
+      const item = STATE.items.find(i => i.id === id);
+      if (!item) return 'هذا الصنف لم يعد موجوداً. أرسل *0* لتحديث القائمة.';
+      if (!item.active) return `❌ للأسف *${item.name}* غير متوفر حالياً.${alternativesText(item)}`;
+      addToCart(session, item, 1);
+      session.lastItem = item.name;
+      return `تمام! أضفت *${item.name}* — ${item.price} ₪ ✅\n\n🛒 المجموع: ${cartTotal(session.cart)} ₪\n\n_أرسل *تأكيد* لإتمام الطلب، أو *0* للأقسام_`;
+    }
+
+    // في قائمة الأقسام: الرقم يشير إلى قسم
+    const cats = activeCategories();
+    if (cats[n - 1]) {
+      const msg = categoryMessage(session, cats[n - 1].id);
+      if (msg) return msg;
+    }
+  }
 
   // ── سياق ذكي: رسالة قصيرة بعد ذكر صنف/قسم ──────────────
   // مثال: "جيلاتو" → "بلوبري" = جيلاتو بلوبري
@@ -2709,6 +2961,57 @@ ${deliveryInfo}
 // HTTP SERVER & API
 // ============================================================
 let currentQR = '';
+let CURRENT_USER = null; // المستخدم صاحب الطلب الجاري (يُضبط قبل كل handleAPI)
+
+function loginPage(){
+  return `<!doctype html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a"><title>دخول — مطعم O2</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Cairo',system-ui,Tahoma,sans-serif;background:#0a0e1a;color:#e6edf3;
+  min-height:100dvh;display:grid;place-items:center;padding:20px}
+.box{background:#111827;border:1px solid #1f2937;border-radius:20px;padding:28px 22px;width:100%;max-width:390px}
+@media(min-width:480px){.box{padding:34px 30px}}
+h1{font-size:23px;font-weight:800;text-align:center;color:#00d97e}
+.sub{text-align:center;color:#8b98a5;font-size:12.5px;margin:4px 0 22px}
+label{display:block;font-size:12.5px;font-weight:700;color:#8b98a5;margin:12px 0 5px}
+input{width:100%;padding:12px;font-size:16px;font-family:inherit;border-radius:10px;
+  border:1px solid #1f2937;background:#0a0e1a;color:#e6edf3}
+input:focus{outline:2px solid #00d97e;outline-offset:-1px}
+button{width:100%;margin-top:20px;padding:13px;font-size:15px;font-weight:700;font-family:inherit;
+  border:0;border-radius:10px;background:#00d97e;color:#062b1c;cursor:pointer;min-height:48px}
+button:disabled{opacity:.6}
+.err{background:#3b1418;color:#ff8a80;border:1px solid #5b1f24;padding:10px 13px;
+  border-radius:10px;font-size:13px;font-weight:600;margin-bottom:8px;display:none}
+</style></head><body>
+<form class="box" onsubmit="go(event)">
+  <h1>مطعم O2</h1>
+  <div class="sub">لوحة التحكم</div>
+  <div class="err" id="err"></div>
+  <label for="u">اسم المستخدم</label>
+  <input id="u" autocomplete="username" required autofocus>
+  <label for="p">كلمة المرور</label>
+  <input id="p" type="password" autocomplete="current-password" required>
+  <button id="btn" type="submit">دخول</button>
+</form>
+<script>
+async function go(e){
+  e.preventDefault();
+  var btn=document.getElementById('btn'), err=document.getElementById('err');
+  btn.disabled=true; btn.textContent='جاري الدخول…'; err.style.display='none';
+  try{
+    var r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({username:document.getElementById('u').value,password:document.getElementById('p').value})});
+    var d=await r.json();
+    if(d.ok){ location.href='/'; return; }
+    err.textContent=d.error||'تعذّر الدخول'; err.style.display='block';
+  }catch(_){ err.textContent='لا يوجد اتصال بالخادم'; err.style.display='block'; }
+  btn.disabled=false; btn.textContent='دخول';
+}
+</script></body></html>`;
+}
 
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
@@ -2731,6 +3034,27 @@ const server = http.createServer((req, res) => {
       res.end(`<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="55"><style>body{font-family:Arial;text-align:center;padding:30px;background:#0a0e1a;color:#fff}img{border:6px solid #25D366;border-radius:12px;margin:20px}h2{color:#25D366}</style></head><body><h2>📱 امسح الكود بواتساب</h2><img src="${url2}" width="280"/><p>واتساب ← الأجهزة المرتبطة ← ربط جهاز</p></body></html>`);
     });
     return;
+  }
+
+  // ─── صفحة الدخول ─────────────────────────────────────────
+  if (url === '/login' && method === 'GET') {
+    res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
+    res.end(loginPage());
+    return;
+  }
+  if (url === '/logout') {
+    res.writeHead(302, {'Location':'/login', 'Set-Cookie': auth.clearCookieHeader()});
+    res.end();
+    return;
+  }
+
+  // ─── حارس الدخول للداشبورد ────────────────────────────────
+  if (url === '/' || url === '/dashboard') {
+    if (!auth.userFromReq(req)) {
+      res.writeHead(302, {'Location':'/login'});
+      res.end();
+      return;
+    }
   }
 
   if (url === '/' || url === '/dashboard') {
@@ -2756,6 +3080,46 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({error:'Invalid JSON: ' + e.message}));
         return;
       }
+
+      // ─── تسجيل الدخول والخروج ───────────────────────────
+      if (url === '/api/auth/login' && method === 'POST') {
+        const u = auth.login(parsed.username, parsed.password);
+        if (!u) {
+          res.writeHead(401, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({error:'اسم المستخدم أو كلمة المرور غير صحيحة'}));
+          return;
+        }
+        auth.audit(u, 'auth.login', 'لوحة التحكم', '', 'dashboard');
+        res.writeHead(200, {'Content-Type':'application/json', 'Set-Cookie': auth.cookieHeader(auth.issue(u))});
+        res.end(JSON.stringify({ok:true, user: auth.publicUser(u)}));
+        return;
+      }
+      if (url === '/api/auth/logout') {
+        res.writeHead(200, {'Content-Type':'application/json', 'Set-Cookie': auth.clearCookieHeader()});
+        res.end(JSON.stringify({ok:true}));
+        return;
+      }
+
+      // ─── التحقق من الهوية والصلاحية ─────────────────────
+      const me = auth.userFromReq(req);
+      if (url === '/api/auth/me') {
+        res.writeHead(me ? 200 : 401, {'Content-Type':'application/json'});
+        res.end(JSON.stringify(me ? {ok:true, user: auth.publicUser(me)} : {error:'غير مسجّل'}));
+        return;
+      }
+      if (!me) {
+        res.writeHead(401, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'يجب تسجيل الدخول', login:true}));
+        return;
+      }
+      const needed = auth.permFor(url, method, parsed);
+      if (needed && !auth.can(me, needed)) {
+        res.writeHead(403, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'حسابك لا يملك صلاحية هذا الإجراء'}));
+        return;
+      }
+      CURRENT_USER = me; // يستخدمه handleAPI لتسجيل من قام بالتغيير
+
       handleAPI(url, method, parsed, res).catch(e => {
         if (!res.writableEnded) {
           res.writeHead(500, {'Content-Type':'application/json'});
@@ -2793,6 +3157,52 @@ async function handleAPI(url, method, body, res) {
   if (url === '/api/orders' && method === 'GET') return json(STATE.orders);
   if (url === '/api/logs'   && method === 'GET') return json(STATE.logs);
   if (url === '/api/queue'  && method === 'GET') return json(STATE.queue);
+
+  // ---- الحسابات ----
+  if (url === '/api/users' && method === 'GET')
+    return json(auth.users().map(auth.publicUser));
+
+  const userMatch = url.match(/^\/api\/users\/([\w-]+)$/);
+  if (userMatch && method === 'PUT') {
+    const target = auth.byId(userMatch[1]);
+    if (!target) return json({error:'not found'}, 404);
+    auth.updateUser(target.id, {
+      displayName: body.displayName, username: body.username,
+      whatsappNumber: body.whatsappNumber, active: body.active,
+    });
+    auth.audit(CURRENT_USER, 'user.update', target.displayName, 'تحديث بيانات الحساب');
+    if (body.password && String(body.password).length >= 6) {
+      auth.setPassword(target.id, body.password);
+      auth.audit(CURRENT_USER, 'user.password', target.displayName, 'تغيير كلمة المرور');
+    }
+    return json({ok:true, user: auth.publicUser(auth.byId(target.id))});
+  }
+
+  // ---- سجل التغييرات ----
+  if (url === '/api/audit' && method === 'GET')
+    return json({ entries: auth.auditList({limit:300}), stats: auth.auditStats() });
+
+  // ---- تبديل توفّر قسم كامل ----
+  const catToggle = url.match(/^\/api\/cats\/toggle$/);
+  if (catToggle && method === 'POST') {
+    const cat = String(body.cat || '');
+    const active = !!body.active;
+    const affected = STATE.items.filter(i => i.cat === cat && i.active !== active);
+    const stamp = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
+    for (const it of affected) {
+      it.active = active;
+      it.updatedBy = stamp;
+      it.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
+      it.updatedAt = new Date().toISOString();
+    }
+    saveState();
+    if (affected.length) {
+      auth.audit(CURRENT_USER, active ? 'category.open' : 'category.close', cat,
+        `${active ? 'تفعيل' : 'إغلاق'} ${affected.length} صنف`);
+      addLog(`${active ? '✅' : '🚫'} ${cat}: ${affected.length} صنف — ${stamp}`);
+    }
+    return json({ok:true, affected: affected.length});
+  }
 
   // ---- BOT CONTROL ----
   if (url === '/api/bot/restart' && method === 'POST') {
@@ -2861,26 +3271,51 @@ async function handleAPI(url, method, body, res) {
       active: true,
       keys: body.keys || [body.name.toLowerCase()],
     };
+    item.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
+    item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
+    item.updatedAt   = new Date().toISOString();
     STATE.items.push(item);
     saveState();
-    addLog(`➕ أُضيف: ${item.name}`);
+    auth.audit(CURRENT_USER, 'item.create', item.name, `صنف جديد بسعر ${item.price} ₪`);
+    addLog(`➕ أُضيف: ${item.name} — ${item.updatedBy}`);
     return json({ok: true, item});
   }
   const itemMatch = url.match(/^\/api\/items\/(\d+)$/);
   if (itemMatch && method === 'PUT') {
     const idx = STATE.items.findIndex(i => i.id === parseInt(itemMatch[1]));
     if (idx === -1) return json({error: 'not found'}, 404);
+    const it     = STATE.items[idx];
+    const before = { name: it.name, price: it.price, cat: it.cat, active: it.active };
     if (body.price !== undefined) body.price = Number(body.price);
-    Object.assign(STATE.items[idx], body);
+    Object.assign(it, body);
+
+    // ختم: من غيّر ومتى — يظهر لكل الحسابات
+    it.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
+    it.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
+    it.updatedAt   = new Date().toISOString();
     saveState();
-    addLog(`✏️ عُدّل: ${STATE.items[idx].name}`);
-    return json({ok: true, item: STATE.items[idx]});
+
+    if (before.active !== it.active) {
+      auth.audit(CURRENT_USER, it.active ? 'menu.open' : 'menu.close', it.name,
+        it.active ? 'تفعيل الصنف' : 'إغلاق الصنف');
+      addLog(`${it.active ? '✅ فُعّل' : '🚫 أُغلق'}: ${it.name} — ${it.updatedBy}`);
+      notifyStaffAvailability(it, it.updatedBy).catch(()=>{});
+    } else {
+      const ch = [];
+      if (before.name  !== it.name)  ch.push(`الاسم: ${before.name} ← ${it.name}`);
+      if (before.price !== it.price) ch.push(`السعر: ${before.price} ← ${it.price} ₪`);
+      if (before.cat   !== it.cat)   ch.push(`القسم: ${before.cat} ← ${it.cat}`);
+      auth.audit(CURRENT_USER, 'item.edit', it.name, ch.join(' | ') || 'تحديث بيانات');
+      addLog(`✏️ عُدّل: ${it.name} — ${it.updatedBy}`);
+    }
+    return json({ok: true, item: it});
   }
   if (itemMatch && method === 'DELETE') {
     const item = STATE.items.find(i => i.id === parseInt(itemMatch[1]));
     if (!item) return json({error: 'not found'}, 404);
     STATE.items = STATE.items.filter(i => i.id !== parseInt(itemMatch[1]));
     saveState();
+    auth.audit(CURRENT_USER, 'item.delete', item.name, 'حذف الصنف نهائياً');
     addLog(`🗑️ حُذف: ${item.name}`);
     return json({ok: true});
   }
@@ -3642,5 +4077,6 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
   console.log('🚀 O2 Bot يبدأ...');
   await loadState();
   console.log('✅ state محمّل من Firebase');
+  auth.init(STATE, saveState);
   startBaileys();
 })();
