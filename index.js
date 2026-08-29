@@ -40,6 +40,12 @@ let STATE = {
     requireTrigger: true,
     triggerWords: ['bot', 'بوت', 'o2', 'منيو', 'menu'],
     triggerTimeoutMins: 20, // تنتهي حالة التفعيل بعد هذه المدة من الخمول
+
+    // ── طريقة ربط واتساب ──
+    // 'qr'   = مسح رمز QR بالكاميرا
+    // 'pair' = كود من 8 خانات يُكتب في الهاتف (لا يحتاج كاميرا)
+    linkMethod: 'qr',
+    pairPhone: '', // رقم الواتساب بصيغة دولية أرقام فقط، مثل 970567743979
   },
   deliveryZones: [
     { label: 'النصيرات (مستشفى العودة)', keys: ['العودة', 'مستشفى العودة'], fee: 5 },
@@ -2991,8 +2997,179 @@ ${deliveryInfo}
 // ============================================================
 // HTTP SERVER & API
 // ============================================================
+/** يمسح مجلد جلسة واتساب — مطلوب قبل أي ربط جديد */
+function clearAuthFolder() {
+  const dir = path.join(__dirname, 'baileys_auth');
+  try {
+    if (!fs.existsSync(dir)) return false;
+    fs.rmSync(dir, { recursive: true, force: true });
+    return true;
+  } catch (e) {
+    console.log('⚠️ تعذّر مسح baileys_auth:', e.message);
+    return false;
+  }
+}
+
 let currentQR = '';
+let pairCode = '';        // كود الربط الحالي (8 خانات)
+let pairCodeAt = 0;       // وقت توليده
+let pairRequested = false; // منع تكرار الطلب في نفس الجلسة (تجنّب خطأ 429)
 let CURRENT_USER = null; // المستخدم صاحب الطلب الجاري (يُضبط قبل كل handleAPI)
+
+function linkPage(){
+  return `<!doctype html><html lang="ar" dir="rtl"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a0e1a"><title>ربط واتساب — O2</title>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Cairo',system-ui,Tahoma,sans-serif;background:#0a0e1a;color:#e6edf3;
+  min-height:100dvh;padding:16px calc(16px + env(safe-area-inset-left)) 40px}
+.wrap{max-width:520px;margin:0 auto}
+h1{font-size:20px;font-weight:800;margin:6px 0 4px}
+h1 a{color:#6b7a99;font-size:13px;font-weight:600;text-decoration:none;margin-inline-start:8px}
+.sub{color:#6b7a99;font-size:12.5px;margin-bottom:16px}
+.card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:16px;margin-bottom:12px}
+@media(min-width:480px){.card{padding:20px}}
+.tabs{display:flex;gap:8px;margin-bottom:14px}
+.tabs button{flex:1;padding:11px;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;
+  border-radius:10px;border:1px solid #1f2937;background:#0a0e1a;color:#6b7a99;min-height:46px}
+.tabs button.on{background:#00d97e;color:#04150f;border-color:#00d97e}
+label{display:block;font-size:12.5px;font-weight:700;color:#6b7a99;margin:10px 0 5px}
+input{width:100%;padding:12px;font-size:16px;font-family:inherit;border-radius:10px;
+  border:1px solid #1f2937;background:#0a0e1a;color:#e6edf3;direction:ltr;text-align:left}
+input:focus{outline:2px solid #00d97e;outline-offset:-1px}
+.btn{width:100%;margin-top:14px;padding:13px;font-size:15px;font-weight:700;font-family:inherit;
+  border:0;border-radius:10px;background:#00d97e;color:#04150f;cursor:pointer;min-height:48px}
+.btn.ghost{background:none;color:#e6edf3;border:1px solid #1f2937}
+.btn.red{background:#3b1418;color:#ff8a80;border:1px solid #5b1f24}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.code{font-size:clamp(30px,10vw,46px);font-weight:800;letter-spacing:6px;text-align:center;
+  color:#00d97e;background:#0a0e1a;border:2px dashed #00d97e55;border-radius:14px;
+  padding:20px 10px;margin:6px 0 10px;direction:ltr;font-variant-numeric:tabular-nums;cursor:pointer}
+.hint{font-size:12.5px;color:#6b7a99;line-height:1.9}
+.hint b{color:#e6edf3}
+.state{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:12px}
+.dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
+.ok{background:#00d97e}.wait{background:#ffd32a}.off{background:#ff4757}
+img{display:block;margin:0 auto;border-radius:12px;border:6px solid #00d97e;max-width:100%}
+.msg{font-size:13px;font-weight:600;padding:10px 13px;border-radius:10px;margin-top:10px;display:none}
+.msg.e{background:#3b1418;color:#ff8a80}.msg.s{background:#0f2f22;color:#00d97e}
+ol{margin:8px 20px 0;font-size:13px;color:#6b7a99;line-height:2}
+</style></head><body><div class="wrap">
+<h1>ربط واتساب <a href="/">← الداشبورد</a></h1>
+<div class="sub">اختر طريقة ربط رقم البوت</div>
+
+<div class="card">
+  <div class="state"><span class="dot wait" id="dot"></span><span id="stateTxt">جاري القراءة…</span></div>
+  <div class="tabs">
+    <button id="tab-pair" onclick="pick('pair')">🔢 كود من 8 خانات</button>
+    <button id="tab-qr" onclick="pick('qr')">📷 رمز QR</button>
+  </div>
+
+  <div id="pane-pair" style="display:none">
+    <label for="ph">رقم الواتساب (بصيغة دولية، أرقام فقط)</label>
+    <input id="ph" inputmode="numeric" placeholder="970567743979">
+    <div class="hint" style="margin-top:6px">بدون + أو مسافات أو شرطات. مثال فلسطين: <b>970</b> ثم الرقم بلا صفر البداية.</div>
+    <button class="btn" id="genBtn" onclick="startPair()">توليد كود الربط</button>
+    <div class="msg" id="msg"></div>
+  </div>
+
+  <div id="pane-qr" style="display:none">
+    <div id="qrBox" class="hint">جاري تجهيز الرمز…</div>
+    <button class="btn ghost" onclick="startQR()">إعادة توليد الرمز</button>
+  </div>
+</div>
+
+<div class="card" id="codeCard" style="display:none">
+  <div class="hint" style="text-align:center">اكتب هذا الكود في هاتفك — اضغط عليه لنسخه</div>
+  <div class="code" id="codeBox" onclick="copyCode()">— — — —</div>
+  <ol>
+    <li>افتح واتساب على الهاتف</li>
+    <li>الإعدادات ← <b>الأجهزة المرتبطة</b></li>
+    <li>اضغط <b>ربط جهاز</b></li>
+    <li>اضغط <b>الربط برقم الهاتف بدلاً من ذلك</b></li>
+    <li>أدخل الكود أعلاه</li>
+  </ol>
+  <div class="hint" style="margin-top:10px">الكود صالح لدقائق قليلة. إن انتهى، اضغط «توليد كود الربط» من جديد.</div>
+</div>
+
+<div class="card">
+  <div class="hint">فك الربط يمسح جلسة واتساب المحفوظة ويوقف البوت حتى تربط من جديد.</div>
+  <button class="btn red" onclick="unlink()">🔌 فك الربط ومسح الجلسة</button>
+</div>
+
+<script>
+var METHOD='qr';
+function show(id,on){ document.getElementById(id).style.display = on?'':'none'; }
+function say(t,cls){ var m=document.getElementById('msg'); m.textContent=t; m.className='msg '+cls; m.style.display=t?'block':'none'; }
+
+function pick(m){
+  METHOD=m;
+  document.getElementById('tab-pair').classList.toggle('on', m==='pair');
+  document.getElementById('tab-qr').classList.toggle('on', m==='qr');
+  show('pane-pair', m==='pair'); show('pane-qr', m==='qr');
+}
+
+function copyCode(){
+  var t=document.getElementById('codeBox').textContent.replace(/[^A-Za-z0-9]/g,'');
+  if(navigator.clipboard) navigator.clipboard.writeText(t).then(function(){ say('نُسخ الكود ✅','s'); });
+}
+
+async function startPair(){
+  var phone=document.getElementById('ph').value.replace(/\D/g,'');
+  if(phone.length<8){ say('أدخل الرقم بصيغة دولية بالأرقام فقط','e'); return; }
+  if(!confirm('سيُمسح الربط الحالي ويتوقف البوت حتى تُدخل الكود. متابعة؟')) return;
+  var b=document.getElementById('genBtn'); b.disabled=true; b.textContent='جاري التوليد…';
+  say('',''); 
+  try{
+    var r=await fetch('/api/bot/link',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({method:'pair',phone:phone})});
+    var d=await r.json();
+    if(!d.ok){ say(d.error||'تعذّر البدء','e'); }
+    else say('جاري الاتصال بواتساب… سيظهر الكود خلال ثوانٍ','s');
+  }catch(_){ say('لا يوجد اتصال بالخادم','e'); }
+  b.disabled=false; b.textContent='توليد كود الربط';
+}
+
+async function startQR(){
+  if(!confirm('سيُمسح الربط الحالي. متابعة؟')) return;
+  await fetch('/api/bot/link',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({method:'qr'})});
+}
+
+async function unlink(){
+  if(!confirm('فك الربط ومسح الجلسة نهائياً؟')) return;
+  await fetch('/api/bot/unlink',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+}
+
+async function poll(){
+  try{
+    var r=await fetch('/api/bot/link');
+    if(r.status===401){ location.href='/login'; return; }
+    var d=await r.json();
+    var dot=document.getElementById('dot'), st=document.getElementById('stateTxt');
+    if(d.connected){ dot.className='dot ok'; st.textContent='متصل ويعمل ✅'; }
+    else if(d.pairCode||d.qrAvailable){ dot.className='dot wait'; st.textContent='بانتظار إتمام الربط…'; }
+    else { dot.className='dot off'; st.textContent='غير مرتبط'; }
+
+    if(!window.__picked){ pick(d.method||'qr'); if(d.phone) document.getElementById('ph').value=d.phone; window.__picked=true; }
+
+    show('codeCard', !!d.pairCode);
+    if(d.pairCode) document.getElementById('codeBox').textContent=d.pairCode;
+
+    if(METHOD==='qr'){
+      var box=document.getElementById('qrBox');
+      if(d.connected) box.innerHTML='<div class="hint">مرتبط بالفعل — لا حاجة لرمز.</div>';
+      else if(d.qrAvailable) box.innerHTML='<img src="/qr-img?t='+Date.now()+'" width="260" height="260" alt="رمز QR">';
+      else box.innerHTML='<div class="hint">جاري تجهيز الرمز…</div>';
+    }
+  }catch(_){ }
+}
+poll(); setInterval(poll, 3000);
+</script>
+</div></body></html>`;
+}
 
 function loginPage(){
   return `<!doctype html><html lang="ar" dir="rtl"><head>
@@ -3054,6 +3231,16 @@ const server = http.createServer((req, res) => {
   if (method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
 
   if (url === '/ping') { res.writeHead(200); res.end('ok'); return; }
+  if (url === '/qr-img') {
+    if (!currentQR) { res.writeHead(404); res.end(); return; }
+    QRCode.toBuffer(currentQR, {width:320, margin:1}, (err, buf) => {
+      if (err) { res.writeHead(500); res.end(); return; }
+      res.writeHead(200, {'Content-Type':'image/png','Cache-Control':'no-store'});
+      res.end(buf);
+    });
+    return;
+  }
+
   if (url === '/qr') {
     if (!currentQR) {
       res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
@@ -3076,6 +3263,14 @@ const server = http.createServer((req, res) => {
   if (url === '/logout') {
     res.writeHead(302, {'Location':'/login', 'Set-Cookie': auth.clearCookieHeader()});
     res.end();
+    return;
+  }
+
+  // ─── صفحة ربط واتساب ──────────────────────────────────────
+  if (url === '/link') {
+    if (!auth.userFromReq(req)) { res.writeHead(302, {'Location':'/login'}); res.end(); return; }
+    res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
+    res.end(linkPage());
     return;
   }
 
@@ -3233,6 +3428,53 @@ async function handleAPI(url, method, body, res) {
       addLog(`${active ? '✅' : '🚫'} ${cat}: ${affected.length} صنف — ${stamp}`);
     }
     return json({ok:true, affected: affected.length});
+  }
+
+  // ---- ربط واتساب: QR أو كود ----
+  if (url === '/api/bot/link' && method === 'GET') {
+    const registered = !!(waSocket && waSocket.authState && waSocket.authState.creds && waSocket.authState.creds.registered);
+    return json({
+      method: STATE.settings.linkMethod || 'qr',
+      phone: STATE.settings.pairPhone || '',
+      connected: STATE.botConnected,
+      registered,
+      qrAvailable: !!currentQR,
+      pairCode: pairCode ? (pairCode.match(/.{1,4}/g) || [pairCode]).join('-') : '',
+      pairCodeAgeSec: pairCode ? Math.floor((Date.now() - pairCodeAt) / 1000) : 0,
+    });
+  }
+
+  if (url === '/api/bot/link' && method === 'POST') {
+    const wanted = body.method === 'pair' ? 'pair' : 'qr';
+    const phone  = String(body.phone || '').replace(/\D/g, '');
+    if (wanted === 'pair' && phone.length < 8)
+      return json({error: 'أدخل رقم الواتساب بصيغة دولية بالأرقام فقط، مثل 970567743979'}, 400);
+
+    STATE.settings.linkMethod = wanted;
+    STATE.settings.pairPhone  = phone;
+    saveState();
+    auth.audit(CURRENT_USER, 'settings.edit', 'ربط واتساب',
+      wanted === 'pair' ? `التبديل إلى كود الربط (${phone})` : 'التبديل إلى QR');
+
+    // كود الربط لا يُطلب إلا لجلسة غير مسجّلة — نمسح الجلسة القديمة
+    const cleared = clearAuthFolder();
+    pairCode = ''; currentQR = ''; pairRequested = false;
+    STATE.botConnected = false;
+    addLog(`🔗 إعادة ربط بطريقة ${wanted === 'pair' ? 'الكود' : 'QR'}${cleared ? ' (مُسحت الجلسة السابقة)' : ''}`);
+    setTimeout(() => { try { startBaileys(); } catch(e){ console.log(e.message); } }, 1200);
+    return json({ok: true, method: wanted, phone, cleared});
+  }
+
+  // فك الربط: مسح الجلسة وإعادة التشغيل
+  if (url === '/api/bot/unlink' && method === 'POST') {
+    try { if (waSocket) await waSocket.logout(); } catch(e) { /* غير متصل */ }
+    const cleared = clearAuthFolder();
+    pairCode = ''; currentQR = ''; pairRequested = false;
+    STATE.botConnected = false;
+    auth.audit(CURRENT_USER, 'settings.edit', 'ربط واتساب', 'فك الربط ومسح الجلسة');
+    addLog('🔌 فُك الربط ومُسحت الجلسة');
+    setTimeout(() => { try { startBaileys(); } catch(e){ console.log(e.message); } }, 1500);
+    return json({ok: true, cleared});
   }
 
   // ---- BOT CONTROL ----
@@ -3894,6 +4136,7 @@ const client = {
 async function startBaileys() {
   try {
     // حفظ جلسة واتساب في مجلد baileys_auth
+    pairRequested = false; // كل محاولة اتصال جديدة تبدأ بعلم نظيف
     const { state: authState, saveCreds } = await useMultiFileAuthState('./baileys_auth');
     const { version } = await fetchLatestBaileysVersion();
 
@@ -3916,8 +4159,49 @@ async function startBaileys() {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        currentQR = qr;
         STATE.botConnected = false;
+
+        // ── وضع كود الربط ──────────────────────────────────
+        // حدث qr يُطلق أيضاً في وضع الكود، ونستخدمه كمُحفِّز لأن
+        // السوكيت قد لا يكون جاهزاً فور إنشائه (توثيق Baileys)
+        const wantPair = STATE.settings.linkMethod === 'pair';
+        const phone = String(STATE.settings.pairPhone || '').replace(/\D/g, '');
+        const registered = !!(waSocket.authState && waSocket.authState.creds && waSocket.authState.creds.registered);
+
+        if (wantPair && phone.length >= 8 && !registered && !pairRequested) {
+          pairRequested = true;
+          try {
+            const code = await waSocket.requestPairingCode(phone);
+            pairCode   = String(code || '').replace(/\W/g, '');
+            pairCodeAt = Date.now();
+            currentQR  = '';
+            const pretty = pairCode.match(/.{1,4}/g)?.join('-') || pairCode;
+            const issued = pairCode;
+            // ينتهي الكود بعد 3 دقائق فتطلب الواجهة توليد غيره
+            setTimeout(() => {
+              if (pairCode === issued && !STATE.botConnected) {
+                pairCode = '';
+                pairRequested = false;
+                addLog('⏱️ انتهت صلاحية كود الربط');
+              }
+            }, 3 * 60 * 1000);
+            addLog(`🔗 كود الربط: ${pretty}`);
+            console.log('🔗 كود الربط:', pretty, '— واتساب ← الأجهزة المرتبطة ← ربط برقم الهاتف');
+          } catch (e) {
+            pairRequested = false;
+            pairCode = '';
+            addLog('⚠️ فشل توليد كود الربط: ' + e.message);
+            console.log('⚠️ فشل كود الربط:', e.message, '— الرجوع إلى QR');
+            currentQR = qr;
+          }
+          return;
+        }
+
+        // كود صالح معروض بالفعل — تجاهل أحداث qr المتكررة
+        // (واتساب يبعثها كل ~20 ثانية وستملأ الواجهة بلا داع)
+        if (wantPair && pairCode) return;
+
+        currentQR = qr;
         console.log('📱 QR جاهز — افتح /qr في الداشبورد');
         // ينتهي QR بعد دقيقة
         setTimeout(() => { if (currentQR === qr) currentQR = ''; }, 60000);
@@ -3925,6 +4209,8 @@ async function startBaileys() {
 
       if (connection === 'open') {
         currentQR = '';
+        pairCode = '';
+        pairRequested = false;
         STATE.botConnected = true;
         addLog('✅ البوت اتصل بواتساب (Baileys)');
         console.log('✅ Baileys متصل!');
