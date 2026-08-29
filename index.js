@@ -2607,13 +2607,13 @@ ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
   }
 
   // ====== PRIORITY 2: الردود الثابتة ======
-  const hasOrderIntent = /بدي|عايز|اريد|أريد|اطلب/.test(text);
-  if (!session.state && !session.cart.length && !hasOrderIntent) {
-    for (const r of STATE.replies) {
-      if (!r.active) continue;
-      if (r.keys.some(k => text.includes(k.toLowerCase()))) return r.text;
-    }
-  }
+  // const hasOrderIntent = /بدي|عايز|اريد|أريد|اطلب/.test(text);
+  // if (!session.state && !session.cart.length && !hasOrderIntent) {
+  //   for (const r of STATE.replies) {
+  //     if (!r.active) continue;
+  //     if (r.keys.some(k => text.includes(k.toLowerCase()))) return r.text;
+  //   }
+  // }
 
   // ====== STATES ======
   if (!session.state) {
