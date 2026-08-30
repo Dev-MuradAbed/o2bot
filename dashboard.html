@@ -342,6 +342,21 @@ img,canvas,svg{max-width:100%;height:auto}
 .mu-perms b{color:var(--text)}
 .uwarn{font-size:12px;color:#ffd32a;font-weight:600;
   background:#3b2a0833;border:1px solid #5b471f;padding:9px 12px;border-radius:9px}
+
+/* ══════════ مساحة سفلية تكفي لظهور آخر بطاقة كاملة ══════════ */
+.main{padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+.page{padding-bottom:24px}
+.page:last-child{padding-bottom:0}
+/* آخر عنصر في أي شبكة بطاقات لا يُقصّ */
+.ulist,.mgrid{padding-bottom:8px}
+@media(max-width:640px){
+  .main{padding:12px 12px calc(110px + env(safe-area-inset-bottom))!important}
+  .page{padding:0 0 20px!important}
+}
+@media(max-width:900px){
+  /* الشريط الجانبي المنزلق يحتاج مساحة أسفله أيضاً */
+  .sidebar{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
+}
 </style>
 </head>
 <body>
@@ -750,6 +765,39 @@ img,canvas,svg{max-width:100%;height:auto}
       <div class="card"><div class="card-body" id="logs-body"><div class="loading"><div class="spinner"></div></div></div></div>
     </div>
 
+    <!-- ══════════ الحسابات ══════════ -->
+    <div class="page" id="page-users">
+      <div class="page-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
+        <h2 style="flex:1">👥 الحسابات والصلاحيات</h2>
+        <button class="btn btn-green" id="btn-add-user">➕ حساب جديد</button>
+      </div>
+
+      <div class="urow-tools">
+        <input id="user-search" placeholder="🔍 ابحث بالاسم أو اسم المستخدم" autocomplete="off">
+      </div>
+      <div class="uchips" id="user-chips"></div>
+
+      <div class="ulist" id="users-grid"></div>
+      <div class="empty" id="users-empty" style="display:none"><div class="ico">👥</div>لا يوجد حساب مطابق</div>
+    </div>
+
+    <!-- ══════════ سجل التغييرات ══════════ -->
+    <div class="page" id="page-audit">
+      <h2 class="page-title" style="margin-bottom:14px">📜 سجل التغييرات</h2>
+      <div class="grid" id="audit-stats"></div>
+      <div class="card" style="margin-top:12px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+          <input id="audit-q" placeholder="ابحث باسم الصنف أو الموظف" style="flex:1;min-width:180px"
+                 oninput="renderAudit()">
+          <button class="btn" onclick="loadAudit()">🔄 تحديث</button>
+        </div>
+        <div class="table-wrap"><table class="rtable">
+          <thead><tr><th>الوقت</th><th>الموظف</th><th>الإجراء</th><th>التفاصيل</th><th>المصدر</th></tr></thead>
+          <tbody id="audit-tbody"></tbody>
+        </table></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -787,23 +835,6 @@ img,canvas,svg{max-width:100%;height:auto}
   </div>
 </div>
 
-<div class="toast" id="toast">
-<!-- ══════════ الحسابات ══════════ -->
-<div class="page" id="page-users">
-  <div class="page-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
-    <h2 style="flex:1">👥 الحسابات والصلاحيات</h2>
-    <button class="btn btn-green" id="btn-add-user">➕ حساب جديد</button>
-  </div>
-
-  <div class="urow-tools">
-    <input id="user-search" placeholder="🔍 ابحث بالاسم أو اسم المستخدم" autocomplete="off">
-  </div>
-  <div class="uchips" id="user-chips"></div>
-
-  <div class="ulist" id="users-grid"></div>
-  <div class="empty" id="users-empty" style="display:none"><div class="ico">👥</div>لا يوجد حساب مطابق</div>
-</div>
-
 <!-- Modal: إضافة / تعديل حساب -->
 <div class="modal-overlay" id="modal-user">
   <div class="modal">
@@ -839,23 +870,7 @@ img,canvas,svg{max-width:100%;height:auto}
   </div>
 </div>
 
-<!-- ══════════ سجل التغييرات ══════════ -->
-<div class="page" id="page-audit">
-  <h2 class="page-title" style="margin-bottom:14px">📜 سجل التغييرات</h2>
-  <div class="grid" id="audit-stats"></div>
-  <div class="card" style="margin-top:12px">
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-      <input id="audit-q" placeholder="ابحث باسم الصنف أو الموظف" style="flex:1;min-width:180px"
-             oninput="renderAudit()">
-      <button class="btn" onclick="loadAudit()">🔄 تحديث</button>
-    </div>
-    <div class="table-wrap"><table class="rtable">
-      <thead><tr><th>الوقت</th><th>الموظف</th><th>الإجراء</th><th>التفاصيل</th><th>المصدر</th></tr></thead>
-      <tbody id="audit-tbody"></tbody>
-    </table></div>
-  </div>
-</div>
-</div>
+<div class="toast" id="toast"></div>
 
 <script>
 // ============================================================
@@ -2549,8 +2564,8 @@ function switchTab(tab) {
 }
 </script>
   <!-- DRIVER MODAL -->
-  <div class="modal" id="modal-driver">
-    <div class="modal-content" style="max-width:460px">
+  <div class="modal-overlay" id="modal-driver">
+    <div class="modal" style="max-width:460px">
       <div class="modal-head">
         <h3>بيانات السائق</h3>
         <button class="modal-close" onclick="closeModal('modal-driver')">✕</button>
