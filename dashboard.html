@@ -380,6 +380,17 @@ img,canvas,svg{max-width:100%;height:auto}
   opacity:0;transition:opacity .15s;pointer-events:none}
 .mthumb.editable:hover .mcam{opacity:1}
 @media(pointer:coarse){ .mcam{opacity:1} }
+
+/* ══════════ صفوف الإعدادات ══════════ */
+.setrow{display:flex;align-items:flex-start;gap:14px;padding:13px 0;border-bottom:1px solid var(--border)}
+.setrow:last-of-type{border-bottom:none}
+.setinfo{flex:1;min-width:0}
+.settitle{font-size:13.5px;font-weight:800;margin-bottom:4px}
+.setdesc{font-size:11.5px;color:var(--muted);line-height:1.9}
+.setdesc b{color:var(--text)}
+.behnote{margin-top:12px;background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:11px 13px;font-size:12.5px;line-height:1.8;color:var(--muted)}
+.behnote b{color:var(--green)}
 </style>
 </head>
 <body>
@@ -469,7 +480,13 @@ img,canvas,svg{max-width:100%;height:auto}
     <div class="page" id="page-menu">
       <div class="page-head"><h2>إدارة المنيو</h2><p>التغييرات تطبق فوراً على البوت</p></div>
       <div class="card">
-        <div class="card-head"><h3>الأصناف</h3><button class="btn btn-green" onclick="openAddItem()">+ إضافة صنف</button></div>
+        <div class="card-head">
+          <h3>الأصناف <span id="menu-stamp" style="font-size:11px;font-weight:500;color:var(--muted);margin-inline-start:8px"></span></h3>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-sm" onclick="loadMenu()" title="جلب أحدث نسخة">🔄 تحديث</button>
+            <button class="btn btn-green" onclick="openAddItem()">+ إضافة صنف</button>
+          </div>
+        </div>
         <div class="card-body">
           <div class="cat-tabs" id="menu-cat-tabs"></div>
           <div class="search-box"><input type="text" id="menu-search" placeholder="ابحث..." oninput="filterMenu()"></div>
@@ -731,6 +748,52 @@ img,canvas,svg{max-width:100%;height:auto}
             </div>
           </div>
           <button class="btn btn-green" onclick="saveGroupId()">💾 حفظ القروب</button>
+        </div>
+      </div>
+
+      <!-- سلوك البوت -->
+      <div class="card" style="border-right:3px solid var(--green)">
+        <div class="card-head"><h3>🤖 سلوك البوت مع الزبائن</h3></div>
+        <div class="card-body">
+
+          <div class="setrow">
+            <div class="setinfo">
+              <div class="settitle">يتطلب كلمة تفعيل</div>
+              <div class="setdesc">عند التفعيل يبقى البوت <b>صامتاً تماماً</b> حتى يرسل الزبون كلمة التفعيل.
+                مناسب لو ربطت البوت برقمك الشخصي.<br>
+                <b style="color:var(--yellow)">أطفئه لو الرقم مخصّص للمطعم</b> — عندها يرد على أي رسالة.</div>
+            </div>
+            <label class="toggle" style="margin:0">
+              <input type="checkbox" id="set-trigger" onchange="saveBotBehavior()">
+              <div class="toggle-track"></div><div class="toggle-thumb"></div>
+            </label>
+          </div>
+
+          <div class="form-group" id="trigger-words-wrap" style="margin-top:10px">
+            <label>كلمات التفعيل (بفاصلة)</label>
+            <input id="set-triggerwords" placeholder="bot، بوت، منيو، o2" onchange="saveBotBehavior()">
+          </div>
+
+          <div class="setrow">
+            <div class="setinfo">
+              <div class="settitle">وضع التصفّح فقط</div>
+              <div class="setdesc">البوت يعرض الأقسام والأصناف المتوفرة فقط — لا ترحيب ولا أسعار مفردة ولا طلبات.<br>
+                <b style="color:var(--yellow)">أطفئه لتعود كل قدرات البوت</b>: الطلبات، الأسعار، التوصيل، الردود التلقائية.</div>
+            </div>
+            <label class="toggle" style="margin:0">
+              <input type="checkbox" id="set-browseonly" onchange="saveBotBehavior()">
+              <div class="toggle-track"></div><div class="toggle-thumb"></div>
+            </label>
+          </div>
+
+          <div class="form-row" style="margin-top:10px">
+            <div class="form-group"><label>مهلة انتهاء التفعيل (دقيقة)</label>
+              <input id="set-triggertimeout" type="number" min="5" max="180" onchange="saveBotBehavior()"></div>
+            <div class="form-group"><label>مهلة انتهاء جلسة الزبون (دقيقة)</label>
+              <input id="set-sessiontimeout" type="number" min="5" max="180" onchange="saveBotBehavior()"></div>
+          </div>
+
+          <div id="bot-behavior-note" class="behnote"></div>
         </div>
       </div>
 
@@ -1060,10 +1123,29 @@ async function loadDashboard() {
 // ============================================================
 // MENU
 // ============================================================
-async function loadMenu() {
-  if(!S) S = await apiGet('/state');
-  renderMenuCatTabs();
-  renderMenuTable();
+// بصمة تُقارَن لكشف تغيّر المنيو من جهاز آخر
+function menuSignature(items){
+  return (items||[]).map(function(i){
+    return i.id+':'+i.active+':'+i.price+':'+i.name+':'+(i.image||'');
+  }).join('|');
+}
+
+/** يجلب الحالة دائماً — لا يعتمد على النسخة المخزّنة محلياً */
+async function loadMenu(silent) {
+  try{
+    const fresh = await apiGet('/state');
+    if(!fresh || !fresh.items) return;
+    const changed = !S || menuSignature(S.items) !== menuSignature(fresh.items);
+    S = fresh;
+    if(!silent || changed){
+      renderMenuCatTabs();
+      renderMenuTable();
+      if(silent && changed) toast('🔄 المنيو تحدّث من جهاز آخر');
+    }
+    const stamp = document.getElementById('menu-stamp');
+    if(stamp) stamp.textContent = 'آخر تحديث: ' +
+      new Date().toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'});
+  }catch(e){ if(!silent) toast('تعذّر تحميل المنيو', true); }
 }
 
 function renderMenuCatTabs() {
@@ -1295,7 +1377,7 @@ async function saveItem() {
     toast('تمت الإضافة ✅');
   }
   closeModal('modal-item');
-  renderMenuTable();
+  await loadMenu();
   loadDashboard();
 }
 
@@ -1303,7 +1385,7 @@ async function saveItem() {
 // CATEGORIES
 // ============================================================
 async function loadCats() {
-  if(!S) S = await apiGet('/state');
+  S = await apiGet('/state');
   const el = document.getElementById('cats-body');
   el.innerHTML = (S.categories||[]).map((c,i)=>`
     <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 0;border-bottom:1px solid var(--border)">
@@ -1476,6 +1558,49 @@ async function loadSettings() {
   document.getElementById('set-bphone').value=st.bankPhone||'';
   document.getElementById('set-iban').value=st.iban||'';
   document.getElementById('set-groupid').value=st.groupId||'';
+
+  // سلوك البوت
+  document.getElementById('set-trigger').checked    = st.requireTrigger !== false;
+  document.getElementById('set-browseonly').checked = st.browseOnly !== false;
+  document.getElementById('set-triggerwords').value =
+    (Array.isArray(st.triggerWords) ? st.triggerWords : ['bot','بوت','o2','منيو','menu']).join('، ');
+  document.getElementById('set-triggertimeout').value = st.triggerTimeoutMins || 20;
+  document.getElementById('set-sessiontimeout').value = st.sessionTimeoutMins || 30;
+  renderBehaviorNote();
+}
+
+function renderBehaviorNote(){
+  var trig = document.getElementById('set-trigger').checked;
+  var brw  = document.getElementById('set-browseonly').checked;
+  var words = document.getElementById('set-triggerwords').value.split(/[،,]/)
+                .map(function(w){return w.trim();}).filter(Boolean);
+  document.getElementById('trigger-words-wrap').style.display = trig ? '' : 'none';
+
+  var t;
+  if (trig && brw)      t = '📴 البوت صامت حتى يرسل الزبون <b>' + (words[0]||'bot') + '</b>، ثم يعرض الأقسام فقط.';
+  else if (trig && !brw) t = '🔑 البوت صامت حتى يرسل الزبون <b>' + (words[0]||'bot') + '</b>، ثم يعمل بكل قدراته (طلبات، أسعار، توصيل).';
+  else if (!trig && brw) t = '📋 البوت يرد على <b>أي رسالة</b> بقائمة الأقسام — بلا طلبات.';
+  else                   t = '✅ البوت يرد على <b>أي رسالة</b> بكل قدراته — السلوك الكامل الأصلي.';
+  document.getElementById('bot-behavior-note').innerHTML = t;
+}
+
+async function saveBotBehavior(){
+  var words = document.getElementById('set-triggerwords').value.split(/[،,]/)
+                .map(function(w){return w.trim();}).filter(Boolean);
+  if(!words.length) words = ['bot'];
+  var payload = {
+    requireTrigger:     document.getElementById('set-trigger').checked,
+    browseOnly:         document.getElementById('set-browseonly').checked,
+    triggerWords:       words,
+    triggerTimeoutMins: parseInt(document.getElementById('set-triggertimeout').value)||20,
+    sessionTimeoutMins: parseInt(document.getElementById('set-sessiontimeout').value)||30,
+  };
+  renderBehaviorNote();
+  try{
+    await apiPost('/settings', payload);
+    if(S) Object.assign(S.settings, payload);
+    toast('✅ تم حفظ سلوك البوت');
+  }catch(e){ toast('تعذّر الحفظ', true); }
 }
 
 async function saveSettings() {
@@ -2166,6 +2291,8 @@ setInterval(() => {
   if (activePage && activePage.id === 'page-dashboard') loadDashboard();
   // تحديث الطلبات إذا كانت الصفحة مفتوحة
   if (activePage && activePage.id === 'page-orders' && ordersLoaded) loadOrders();
+  // المنيو: يجلب بهدوء ولا يعيد الرسم إلا لو تغيّر فعلاً من جهاز آخر
+  if (activePage && activePage.id === 'page-menu') loadMenu(true);
 }, 30000);
 
 // ================================================================

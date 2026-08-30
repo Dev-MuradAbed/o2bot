@@ -2447,6 +2447,9 @@ async function handleMessage(msg) {
     return categoriesMessage();
   }
 
+  // كلمة التفعيل تعرض الأقسام دائماً، حتى في الوضع الكامل
+  if (isTriggered(rawOriginal)) return categoriesMessage();
+
   const raw = fixSpelling(translateEN(rawOriginal));
   const text = raw.toLowerCase();
 
@@ -2838,7 +2841,7 @@ async function handleMessage(msg) {
         const aiReply = await tryAIUnderstand(from, rawOriginal, session);
         if (aiReply) return aiReply;
       } catch(e) { console.log('⚠️ AI error:', e.message); }
-    }f
+    }
     return `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`;
   }
 
@@ -4372,7 +4375,7 @@ async function startBaileys() {
             await waSocket.sendMessage(jid, { text: reply });
           }
         } catch(err) {
-          console.error('خطأ رسالة:', err.message);
+          console.error('خطأ رسالة:', err.message, err.stack ? err.stack.split('\n')[1] : '');
         }
       }
     });
