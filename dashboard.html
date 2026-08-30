@@ -395,6 +395,22 @@ img,canvas,svg{max-width:100%;height:auto}
 .dbalert{background:#3b1418;border-bottom:2px solid var(--red);color:#ffb4ad;
   padding:12px 16px;font-size:12.5px;line-height:1.8;text-align:center}
 .dbalert b{color:#ff6b60;font-size:14px;display:block;margin-bottom:3px}
+
+/* ══════════ تبويب الفروع ══════════ */
+.branch-tabs{display:flex;gap:8px;margin-bottom:12px;overflow-x:auto;
+  scrollbar-width:none;-ms-overflow-style:none;padding-bottom:2px}
+.branch-tabs::-webkit-scrollbar{display:none}
+.branch-tab{position:relative;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;
+  white-space:nowrap;padding:9px 16px;border-radius:10px;min-height:40px;
+  border:1px solid var(--border);background:var(--surface2);color:var(--muted)}
+.branch-tab.on{background:var(--green);color:#04150f;border-color:var(--green)}
+.branch-tab b{opacity:.65;margin-inline-start:6px;font-weight:700}
+.branch-tab .offdot{position:absolute;top:6px;inset-inline-end:6px;width:7px;height:7px;
+  border-radius:50%;background:var(--red);display:block}
+.mdesc{font-size:10.5px;color:var(--muted);margin-top:3px;line-height:1.6;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.mbranch{font-size:10px;color:var(--muted);margin-top:4px;font-weight:700}
+.price small{font-size:9.5px;opacity:.8}
 </style>
 </head>
 <body>
@@ -501,6 +517,7 @@ img,canvas,svg{max-width:100%;height:auto}
           </div>
         </div>
         <div class="card-body">
+          <div class="branch-tabs" id="menu-branch-tabs"></div>
           <div class="cat-tabs" id="menu-cat-tabs"></div>
           <div class="search-box"><input type="text" id="menu-search" placeholder="ابحث..." oninput="filterMenu()"></div>
           <div id="menu-table-wrap"><div class="loading"><div class="spinner"></div>جاري التحميل...</div></div>
@@ -804,6 +821,44 @@ img,canvas,svg{max-width:100%;height:auto}
               <input id="set-triggertimeout" type="number" min="5" max="180" onchange="saveBotBehavior()"></div>
             <div class="form-group"><label>مهلة انتهاء جلسة الزبون (دقيقة)</label>
               <input id="set-sessiontimeout" type="number" min="5" max="180" onchange="saveBotBehavior()"></div>
+          </div>
+
+          <div class="setrow">
+            <div class="setinfo">
+              <div class="settitle">تعدّد الفروع</div>
+              <div class="setdesc">عند التفعيل يسأل البوت الزبون عن فرعه أول المحادثة، ويعرض منيو ذلك الفرع فقط.<br>
+                أطفئه لو الرقم يخدم فرعاً واحداً — عندها اختر الفرع من القائمة تحت.</div>
+            </div>
+            <label class="toggle" style="margin:0">
+              <input type="checkbox" id="set-branchask" onchange="saveBotBehavior()">
+              <div class="toggle-track"></div><div class="toggle-thumb"></div>
+            </label>
+          </div>
+
+          <div class="form-group" id="branch-single-wrap">
+            <label>الفرع الذي يخدمه هذا الرقم</label>
+            <select id="set-activebranch" onchange="saveBotBehavior()">
+              <option value="gaza">فرع غزة</option>
+              <option value="middle">الفرع الأوسط</option>
+            </select>
+          </div>
+
+          <div class="setrow">
+            <div class="setinfo">
+              <div class="settitle">إظهار وصف الصنف</div>
+              <div class="setdesc">يعرض المكوّنات تحت اسم الصنف — مثل «شاورما - جبنة - زيتون اسود».</div>
+            </div>
+            <label class="toggle" style="margin:0">
+              <input type="checkbox" id="set-showdesc" onchange="saveBotBehavior()">
+              <div class="toggle-track"></div><div class="toggle-thumb"></div>
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label>نطاق صور المنيو</label>
+            <input id="set-imagebase" dir="ltr" placeholder="https://o2restaurant.com" onchange="saveBotBehavior()">
+            <div class="imghint">صور المنيو مسارات نسبية مثل <code>/menu/shawarma/48.jpg</code>.
+              ضع هنا نطاق موقعكم لتظهر في البطاقات. اتركه فارغاً ليظهر رمز القسم.</div>
           </div>
 
           <div id="bot-behavior-note" class="behnote"></div>
@@ -1168,9 +1223,66 @@ async function loadMenu(silent) {
   }catch(e){ if(!silent) toast('تعذّر تحميل المنيو', true); }
 }
 
+var activeBranch = '';   // '' = كل الفروع
+var BRANCHES = [{id:'gaza',label:'فرع غزة'},{id:'middle',label:'الفرع الأوسط'}];
+
+function branchOf(i){ return i.branch || ''; }
+function itemsOfBranch(){
+  const all = S.items || [];
+  return activeBranch ? all.filter(i=>branchOf(i)===activeBranch) : all;
+}
+
+function renderBranchTabs(){
+  const el = document.getElementById('menu-branch-tabs');
+  if(!el) return;
+  const has = (S.items||[]).some(i=>i.branch);
+  if(!has){ el.innerHTML=''; return; }   // منيو بلا فروع
+  el.innerHTML = '<button class="branch-tab'+(activeBranch===''?' on':'')+'" onclick="setBranch(\'\')">كل الفروع'
+    + '<b>'+(S.items||[]).length+'</b></button>'
+    + BRANCHES.map(function(b){
+        const n = (S.items||[]).filter(i=>i.branch===b.id).length;
+        if(!n) return '';
+        const off = (S.items||[]).filter(i=>i.branch===b.id && !i.active).length;
+        return '<button class="branch-tab'+(activeBranch===b.id?' on':'')+'" onclick="setBranch(\''+b.id+'\')">'
+             + b.label+'<b>'+n+'</b>'+(off?'<i class="offdot" title="'+off+' مغلق"></i>':'')+'</button>';
+      }).join('');
+}
+
+function setBranch(b){ activeBranch=b; renderBranchTabs(); renderMenuCatTabs(); renderMenuTable(); }
+
+function catLabel(id){
+  const c = (S.categories||[]).find(x=>x.id===id);
+  return c ? c.label : id;
+}
+
 function renderMenuCatTabs() {
-  const cats = ['الكل', ...(S.categories||[]).filter(c=>c.active).map(c=>c.id)];
-  document.getElementById('menu-cat-tabs').innerHTML = cats.map(c=>`<button class="cat-tab${c===activeCat?' active':''}" onclick="setMenuCat('${c}')">${c}</button>`).join('');
+  renderBranchTabs();
+  const pool = itemsOfBranch();
+  const ids = (S.categories||[]).filter(c=>c.active).map(c=>c.id);
+  const cats = ['الكل', ...ids];
+  document.getElementById('menu-cat-tabs').innerHTML = cats.map(function(c){
+    const n = c==='الكل' ? pool.length : pool.filter(i=>i.cat===c).length;
+    const lbl = c==='الكل' ? 'الكل' : catLabel(c);
+    return '<button class="cat-tab'+(c===activeCat?' active':'')+'" onclick="setMenuCat(\''+c+'\')">'
+         + lbl+' <span style="opacity:.6">'+n+'</span></button>';
+  }).join('');
+}
+
+/** نص السعر: بالوزن / بأحجام / مفرد */
+function priceLabel(i){
+  if(i.pricePerKg) return i.pricePerKg+' ₪<small style="font-weight:600">/كغم</small>';
+  if(Array.isArray(i.variants) && i.variants.length)
+    return i.variants.map(function(v){return v.name+' '+v.price;}).join(' · ')+' ₪';
+  return i.price+' ₪';
+}
+
+/** يبني رابط الصورة: النسبي يُسبق بالنطاق من الإعدادات */
+function imageUrl(i){
+  const raw = i.image || '';
+  if(!raw) return '';
+  if(/^https?:\/\//i.test(raw)) return raw;
+  const base = ((S.settings||{}).imageBaseUrl||'').replace(/\/+$/,'');
+  return base ? base + (raw.startsWith('/')?'':'/') + raw : '';
 }
 
 function setMenuCat(cat){activeCat=cat;renderMenuCatTabs();renderMenuTable();}
@@ -1179,10 +1291,14 @@ function filterMenu(){renderMenuTable();}
 
 // رموز احتياطية حسب القسم — تُستخدم حين لا صورة للصنف
 var CAT_ART = {
-  'شاورما':  ['🥙','#f5a623'], 'ايطالي':  ['🍕','#ff6b35'],
-  'ساندويش': ['🍔','#e8543f'], 'سلطة':    ['🥗','#2ecc71'],
-  'مشروبات': ['☕','#8b6f47'], 'حلويات':  ['🍰','#e84393'],
+  shawarma:['🥙','#f5a623'], italian:['🍕','#ff6b35'], sandwiches:['🍔','#e8543f'],
+  salads:['🥗','#2ecc71'],   barSweets:['🧇','#c77dff'], westernSweets:['🍰','#e84393'],
+  easternSweets:['🍯','#d4a017'], gelato:['🍨','#4cc9f0'], drinks:['☕','#8b6f47'],
+  // توافق مع المنيو القديم
+  'شاورما':['🥙','#f5a623'], 'ايطالي':['🍕','#ff6b35'], 'ساندويش':['🍔','#e8543f'],
+  'سلطة':['🥗','#2ecc71'], 'مشروبات':['☕','#8b6f47'], 'حلويات':['🍰','#e84393'],
 };
+function branchName(id){ var b=BRANCHES.find(function(x){return x.id===id}); return b?b.label:id; }
 function catArt(cat){ return CAT_ART[cat] || ['🍽️','#4a9eff']; }
 function escH(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){
   return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -1197,7 +1313,7 @@ function itemAgo(iso){
 
 function renderMenuTable() {
   const search = (document.getElementById('menu-search')||{value:''}).value.toLowerCase();
-  let items = (S.items||[]).filter(i=>(activeCat==='الكل'||i.cat===activeCat)&&i.name.toLowerCase().includes(search));
+  let items = itemsOfBranch().filter(i=>(activeCat==='الكل'||i.cat===activeCat)&&i.name.toLowerCase().includes(search));
   const wrap = document.getElementById('menu-table-wrap');
   if(!items.length){wrap.innerHTML='<div class="empty"><div class="ico">🍽️</div>لا توجد أصناف</div>';return;}
 
@@ -1208,8 +1324,9 @@ function renderMenuTable() {
     '<div class="mcount">'+items.length+' صنف'+(closed?' · <b style="color:var(--red)">'+closed+' مغلق</b>':'')+'</div>'
     + '<div class="mgrid">' + items.map(function(i){
       const art = catArt(i.cat);
-      const thumb = i.image
-        ? '<img src="'+escH(i.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+      const src = imageUrl(i);
+      const thumb = src
+        ? '<img src="'+escH(src)+'" alt="" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
           + '<div class="mfallback" style="display:none;background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>'
         : '<div class="mfallback" style="background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>';
       return '<div class="mcard'+(i.active?'':' off')+'" id="mcard-'+i.id+'">'
@@ -1221,8 +1338,10 @@ function renderMenuTable() {
         + '</div>'
         + '<div class="mbody">'
         +   '<div class="mtitle">'+escH(i.name)+'</div>'
-        +   '<div class="mmeta"><span class="badge badge-blue">'+escH(i.cat)+'</span>'
-        +     '<span class="price">'+i.price+' ₪</span></div>'
+        +   (i.desc ? '<div class="mdesc">'+escH(i.desc)+'</div>' : '')
+        +   '<div class="mmeta"><span class="badge badge-blue">'+escH(catLabel(i.cat))+'</span>'
+        +     '<span class="price">'+priceLabel(i)+'</span></div>'
+        +   (i.branch && !activeBranch ? '<div class="mbranch">'+escH(branchName(i.branch))+'</div>' : '')
         +   (i.updatedBy ? '<div class="mby">آخر تغيير: <b>'+escH(i.updatedBy)+'</b> '+itemAgo(i.updatedAt)+'</div>' : '')
         + '</div>'
         + '<div class="mact">'
@@ -1586,6 +1705,10 @@ async function loadSettings() {
     (Array.isArray(st.triggerWords) ? st.triggerWords : ['bot','بوت','o2','منيو','menu']).join('، ');
   document.getElementById('set-triggertimeout').value = st.triggerTimeoutMins || 20;
   document.getElementById('set-sessiontimeout').value = st.sessionTimeoutMins || 30;
+  document.getElementById('set-branchask').checked   = st.branchMode !== 'single';
+  document.getElementById('set-activebranch').value  = st.activeBranch || 'gaza';
+  document.getElementById('set-showdesc').checked    = st.showItemDesc !== false;
+  document.getElementById('set-imagebase').value     = st.imageBaseUrl || '';
   renderBehaviorNote();
 }
 
@@ -1595,12 +1718,17 @@ function renderBehaviorNote(){
   var words = document.getElementById('set-triggerwords').value.split(/[،,]/)
                 .map(function(w){return w.trim();}).filter(Boolean);
   document.getElementById('trigger-words-wrap').style.display = trig ? '' : 'none';
+  var askB = document.getElementById('set-branchask').checked;
+  document.getElementById('branch-single-wrap').style.display = askB ? 'none' : '';
 
   var t;
   if (trig && brw)      t = '📴 البوت صامت حتى يرسل الزبون <b>' + (words[0]||'bot') + '</b>، ثم يعرض الأقسام فقط.';
   else if (trig && !brw) t = '🔑 البوت صامت حتى يرسل الزبون <b>' + (words[0]||'bot') + '</b>، ثم يعمل بكل قدراته (طلبات، أسعار، توصيل).';
   else if (!trig && brw) t = '📋 البوت يرد على <b>أي رسالة</b> بقائمة الأقسام — بلا طلبات.';
   else                   t = '✅ البوت يرد على <b>أي رسالة</b> بكل قدراته — السلوك الكامل الأصلي.';
+  t += askB
+    ? '<br>🏬 يسأل الزبون عن فرعه أولاً، ثم يعرض منيو ذلك الفرع.'
+    : '<br>🏬 يخدم <b>' + (document.getElementById('set-activebranch').selectedOptions[0]||{text:''}).text + '</b> فقط.';
   document.getElementById('bot-behavior-note').innerHTML = t;
 }
 
@@ -1614,6 +1742,10 @@ async function saveBotBehavior(){
     triggerWords:       words,
     triggerTimeoutMins: parseInt(document.getElementById('set-triggertimeout').value)||20,
     sessionTimeoutMins: parseInt(document.getElementById('set-sessiontimeout').value)||30,
+    branchMode:         document.getElementById('set-branchask').checked ? 'ask' : 'single',
+    activeBranch:       document.getElementById('set-activebranch').value,
+    showItemDesc:       document.getElementById('set-showdesc').checked,
+    imageBaseUrl:       document.getElementById('set-imagebase').value.trim(),
   };
   renderBehaviorNote();
   try{

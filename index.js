@@ -13,6 +13,7 @@ const path   = require('path');
 const pino   = require('pino');
 const https  = require('https');
 const auth   = require('./auth');
+const menuBuild = require('./menu-build');
 
 // ============================================================
 // STATE
@@ -47,6 +48,14 @@ let STATE = {
     // ── طريقة ربط واتساب ──
     // 'qr'   = مسح رمز QR بالكاميرا
     // 'pair' = كود من 8 خانات يُكتب في الهاتف (لا يحتاج كاميرا)
+    // ── الفروع ──
+    // 'single' = فرع واحد ثابت (activeBranch)
+    // 'ask'    = يسأل الزبون عن فرعه أول المحادثة
+    branchMode: 'ask',
+    activeBranch: 'gaza',
+    imageBaseUrl: '',   // مثال: https://o2restaurant.com — يُسبق مسارات الصور النسبية
+    showItemDesc: true, // إظهار وصف الصنف تحت اسمه للزبون
+
     linkMethod: 'qr',
     pairPhone: '', // رقم الواتساب بصيغة دولية أرقام فقط، مثل 970567743979
   },
@@ -57,85 +66,9 @@ let STATE = {
     { label: 'الزوايدة والمغازي', keys: ['الزوايدة', 'المغازي'], fee: 20 },
     { label: 'دير البلح', keys: ['دير البلح'], fee: 35 },
   ],
-  categories: [
-    { id: 'شاورما',  label: '🥙 الشاورما',   active: true },
-    { id: 'ايطالي',  label: '🍕 الإيطالي',    active: true },
-    { id: 'ساندويش', label: '🍔 الساندويشات', active: true },
-    { id: 'سلطة',    label: '🥗 السلطات',     active: true },
-    { id: 'مشروبات', label: '☕ المشروبات',   active: true },
-    { id: 'حلويات',  label: '🍰 الحلويات',    active: true },
-  ],
-  items: [
-    { id:1,  name:'فرشوحة عادي',        cat:'شاورما',  price:20, active:true, keys:['فرشوحة عادي','فرشوحة','فرشوحه','فراشيح عادي','فراشيح عادية','فرشوحات عادي','فرشوحات','فرشوحه عادي'] },
-    { id:2,  name:'فرشوحة دبل',         cat:'شاورما',  price:22, active:true, keys:['فرشوحة دبل','فرشوحه دبل','فرشوحات دبل','فراشيح دبل','دبل'] },
-    { id:3,  name:'فرشوحة دبل لحمة',    cat:'شاورما',  price:28, active:true, keys:['فرشوحة دبل لحمة','دبل لحمة','فرشوحه دبل لحمة','فرشوحة دوبل لحمة','دوبل لحمة','فراشيح دبل لحمة','فراشيح دوبل لحمة','دبل لحم'] },
-    { id:4,  name:'فرشوحة دبل دبل',     cat:'شاورما',  price:30, active:true, keys:['فرشوحة دبل دبل','دبل دبل','دوبل دوبل','فرشوحه دبل دبل'] },
-    { id:5,  name:'سوري',               cat:'شاورما',  price:32, active:true, keys:['سوري','السوري','شاورما سوري','سورية','سوريه'] },
-    { id:6,  name:'صفيحة',              cat:'شاورما',  price:38, active:true, keys:['صفيحة','صفيحه','صفايح','الصفيحة','صفيحة شاورما','صفيحه شاورما'] },
-    { id:7,  name:'باشكا',              cat:'شاورما',  price:45, active:true, keys:['باشكا'] },
-    { id:8,  name:'شاورما عربي',        cat:'شاورما',  price:38, active:true, keys:['شاورما عربي','شاورما عربيه','عربي','العربي','الشاورما العربي','شاورمة عربي'] },
-    { id:9,  name:'شاورما إيطالي',      cat:'شاورما',  price:38, active:true, keys:['شاورما ايطالي','شاورما إيطالي'] },
-    { id:10, name:'صحن شاورما',         cat:'شاورما',  price:30, active:true, keys:['صحن شاورما','صحن','الصحن'] },
-    { id:11, name:'كالزوني دجاج',       cat:'ايطالي',  price:35, active:true, keys:['كالزوني دجاج','كاليزوني دجاج','كالزوني','كاليزوني','كلزوني','الكلزوني','الكالزوني','كلزوني دجاج','كاليزوني'] },
-    { id:12, name:'كالزوني خضار',       cat:'ايطالي',  price:20, active:true, keys:['كالزوني خضار','كاليزوني خضار'] },
-    { id:13, name:'بيتزا مكسيكي دجاج', cat:'ايطالي',  price:25, active:true, keys:['بيتزا مكسيكي','مكسيكي','تشكن بيتزا','تشيكن بيتزا','بيتزا دجاج','دجاج بيتزا','بيتزا تشكن','المكسيكي'] },
-    { id:14, name:'بيتزا خضار وذرة',    cat:'ايطالي',  price:20, active:true, keys:['بيتزا خضار','خضار وذرة'] },
-    { id:15, name:'بيتزا ماما روزا',    cat:'ايطالي',  price:20, active:true, keys:['ماما روزا','ماما'] },
-    { id:16, name:'نابولي',             cat:'ايطالي',  price:20, active:true, keys:['نابولي'] },
-    { id:17, name:'مارغريتا',           cat:'ايطالي',  price:20, active:true, keys:['مارغريتا','مرغريتا','مارجريتا','مرجريتا'] },
-    { id:18, name:'علبة صوص إكسترا',   cat:'ايطالي',  price:3,  active:true, keys:['صوص إكسترا','اكسترا صوص','علبة صوص','صوص','الصوص','علبة صوص اكسترا'] },
-    { id:19, name:'زنجر',               cat:'ساندويش', price:30, active:true, keys:['زنجر','الزنجر','زينجر','الزنجر العادي','زنجر عادي'] },
-    { id:20, name:'بيج زنجر',           cat:'ساندويش', price:40, active:true, keys:['بيج زنجر','بيغ زنجر','بيج الزنجر','زنجر كبير'] },
-    { id:21, name:'بيف برجر',           cat:'ساندويش', price:30, active:true, keys:['بيف برجر','بيف','برجر بيف','اللحمة برجر'] },
-    { id:22, name:'تشيكن برجر',         cat:'ساندويش', price:30, active:true, keys:['تشيكن برجر','تشيكن','تشكن','تشكن برجر','دجاج برجر','برجر دجاج','تشيكن برغر'] },
-    { id:23, name:'بيج ماك',            cat:'ساندويش', price:40, active:true, keys:['بيج ماك','بيغ ماك','البيج ماك','بيج الماك'] },
-    { id:24, name:'شيش طاووق',          cat:'ساندويش', price:30, active:true, keys:['شيش طاووق','شيش طاوق','شيش','الشيش','وقية شيش','شيش دجاج'] },
-    { id:25, name:'فطيرة ذهبية',        cat:'ساندويش', price:30, active:true, keys:['فطيرة ذهبية','فطيره ذهبيه','فطيرة','فطيره','الفطيرة','الفطيرة الذهبية'] },
-    { id:26, name:'بانسية',             cat:'ساندويش', price:30, active:true, keys:['بانسية','بانسيه','بانيه','دجاج بانيه','بانه','باني','البانيه'] },
-    { id:27, name:'باربكيو',            cat:'ساندويش', price:30, active:true, keys:['باربكيو'] },
-    { id:28, name:'ستيك دجاج مشوي',    cat:'ساندويش', price:30, active:true, keys:['ستيك','ستيك دجاج','ستيك مشوي','الصاروخ','صاروخ','الستيك'] },
-    { id:29, name:'بطاطا كبير',         cat:'سلطة',    price:10, active:true, keys:['بطاطا كبير','بطاطا','علبة بطاطا','صحن بطاطا','شيبس','شيبس بطاطس','علب بطاطا','البطاطا'] },
-    { id:30, name:'سلطات وسط',          cat:'سلطة',    price:10, active:true, keys:['سلطة وسط','سلطة','سلطات وسط'] },
-    { id:31, name:'سلطات كبيرة',        cat:'سلطة',    price:15, active:true, keys:['سلطة كبيرة','سلطات كبيرة'] },
-    { id:32, name:'نسكافيه',            cat:'مشروبات', price:5,  active:true, keys:['نسكافيه','نسكفيه','ناسكافيه','نسكافي'] },
-    { id:33, name:'كابتشينو',           cat:'مشروبات', price:5,  active:true, keys:['كابتشينو','كابتشينو','كابوتشينو'] },
-    { id:34, name:'إسبريسو سنجل',      cat:'مشروبات', price:5,  active:true, keys:['اسبريسو سنجل','اسبريسو','إسبريسو'] },
-    { id:35, name:'إسبريسو دبل',       cat:'مشروبات', price:10, active:true, keys:['اسبريسو دبل','إسبريسو دبل'] },
-    { id:36, name:'قهوة تركي سنجل',    cat:'مشروبات', price:5,  active:true, keys:['قهوة تركي','تركي'] },
-    { id:37, name:'قهوة تركي دبل',     cat:'مشروبات', price:10, active:true, keys:['تركي دبل'] },
-    { id:38, name:'شاي',               cat:'مشروبات', price:3,  active:true, keys:['شاي'] },
-    { id:39, name:'عصير الموسم',       cat:'مشروبات', price:12, active:true, keys:['عصير موسم','موسم','عصير'] },
-    { id:40, name:'عصير ليمون ونعناع', cat:'مشروبات', price:12, active:true, keys:['ليمون نعناع','ليمون'] },
-    { id:41, name:'عصير أفوكاتو',      cat:'مشروبات', price:15, active:true, keys:['افوكاتو','أفوكاتو'] },
-    { id:42, name:'ميلك شيك سبيشل',   cat:'مشروبات', price:20, active:true, keys:['ميلك شيك سبيشل','ميلك شيك','ملك شيك','ميلكشيك','ملكشيك'] },
-    { id:43, name:'موهيتو',            cat:'مشروبات', price:20, active:true, keys:['موهيتو','موهيطو','موهيتو'] },
-    { id:44, name:'كنافة نوتيلا',      cat:'حلويات',  price:15, active:true, keys:['كنافة نوتيلا','كنافه نوتيلا'] },
-    { id:45, name:'كنافة دبي',         cat:'حلويات',  price:20, active:true, keys:['كنافة دبي','كنافه دبي','كنافة دبيه','كنافه دبيه'] },
-    { id:46, name:'مولتن كيك',         cat:'حلويات',  price:20, active:true, keys:['مولتن','مولتن كيك','موتلن','مولتن كيكه'] },
-    { id:47, name:'وافل سنيك',         cat:'حلويات',  price:25, active:true, keys:['وافل سنيك','وافل','وافله','وافلة','الوافل'] },
-    { id:48, name:'كريب دبي',          cat:'حلويات',  price:30, active:true, keys:['كريب دبي','كريبة دبي','كريبه دبي','الكريب'] },
-    { id:49, name:'تشيز كيك',          cat:'حلويات',  price:10, active:true, keys:['تشيز كيك','تشيزكيك','تشيز','cheesecake'] },
-    { id:50, name:'جيلاتو لوتس',       cat:'حلويات',  price:15, active:true, keys:['لوتس','جيلاتو لوتس','جيلاتو','الجيلاتو','جيلاتو الجلاتو'] },
-    { id:51, name:'كنافة عربية',       cat:'حلويات',  price:40, active:true, keys:['كنافة عربية','كنافه عربيه','كنافة عربيه','كنافه عربية'] },
-    { id:52, name:'بقلاوة لوز',        cat:'حلويات',  price:48, active:true, keys:['بقلاوة لوز','بقلاوه لوز'] },
-    { id:53, name:'بان كيك نوتيلا',    cat:'حلويات',  price:25, active:true, keys:['بان كيك نوتيلا','بانكيك نوتيلا','بان كيك','بانكيك','pancake nutella','pancake','بانكيك نوتيله'] },
-    { id:54, name:'بان كيك لوتس',      cat:'حلويات',  price:25, active:true, keys:['بان كيك لوتس','بانكيك لوتس'] },
-    { id:55, name:'لقيمات نوتيلا',     cat:'حلويات',  price:25, active:true, keys:['لقيمات نوتيلا','لقيمة نوتيلا','لقيمات','لقيمه نوتيلا','لقيمات نوتيلا ب','لقيمه','لقيمة'] },
-    { id:56, name:'لقيمات لوتس',       cat:'حلويات',  price:25, active:true, keys:['لقيمات لوتس','لقيمة لوتس'] },
-    { id:57, name:'كنافة نابلسية',     cat:'حلويات',  price:30, active:true, keys:['كنافة نابلسية','كنافه نابلسيه','كنافة نابلسيه','كنافه نابلسية','نابلسية','نابلسيه','النابلسية','كنافة نابلسية ب'] },
-    { id:58, name:'آيس كافي كراميل',   cat:'مشروبات', price:12, active:true, keys:['ايس كافي كراميل','آيس كافي كراميل','كافي كراميل','ايس كافي','آيس كافي','ايس كوفي','ايس كوفيه','آيس كوفي','ايس كافيه','آيس كوفيه','كافي بارد'] },
-    { id:59, name:'آيس كافي نوتيلا',   cat:'مشروبات', price:12, active:true, keys:['ايس كافي نوتيلا','آيس كافي نوتيلا','كافي نوتيلا','ايس كافي نوتيلا'] },
-    { id:60, name:'كولا كبير',         cat:'مشروبات', price:10, active:true, keys:['كولا كبير','كولا','كوكاكولا','كوكا','كوكا كولا','كوكاكولا كبير'] },
-    { id:61, name:'سبرايت',            cat:'مشروبات', price:10, active:true, keys:['سبرايت','سبريت'] },
-    { id:62, name:'بيبسي',             cat:'مشروبات', price:10, active:true, keys:['بيبسي','بيبسى'] },
-    { id:63, name:'ميرندا',            cat:'مشروبات', price:10, active:true, keys:['ميرندا'] },
-    { id:64, name:'كول سلو',           cat:'سلطة',    price:10, active:true, keys:['كول سلو','كولسلو','كولسلاو','سلطة كول سلو','كول سلاو'] },
-    { id:65, name:'ذرة بمايونيز',      cat:'سلطة',    price:10, active:true, keys:['ذرة بمايونيز','ذرة مايونيز','ذرة','سلطة ذرة','ذره بمايونيز','الذرة','ذرة بالمايونيز'] },
-    { id:66, name:'بيكانتي',           cat:'سلطة',    price:10, active:true, keys:['بيكانتي','بيكانتى','بيكانتو','البيكانتي','سلطة بيكانتي','صحن بيكانتي'] },
-    { id:67, name:'بيتا شاورما',       cat:'شاورما',  price:25, active:true, keys:['بيتا شاورما','بيتا','الفراشيح','فراشيح شاورما','فراشيح','بيتا بيتا'] },
-    { id:68, name:'فرشوحة شاورما',     cat:'شاورما',  price:25, active:true, keys:['فرشوحة شاورما','فرشوحه شاورما','فرشوحة الشاورما'] },
-    { id:69, name:'ميجا شاورما',       cat:'شاورما',  price:50, active:true, keys:['ميجا شاورما','ميجا','الميجا','mega'] },
-  ],
+  // المنيو الرسمي — مبني من menu-source.js (فرعا غزة والأوسط)
+  categories: menuBuild.buildCategories(),
+  items: menuBuild.buildItems(1000),
   replies: [
     { id:1, keys:['مرحبا','هلا','اهلا','السلام','هاي','hi','hello'], text:'أهلاً وسهلاً! 🌿 شو بدك اليوم؟', active:true },
     { id:2, keys:['منيو','قائمة','اسعار','أسعار'],                   text:'شو بدك تشوف؟ 😊\n1️⃣ الشاورما\n2️⃣ الإيطالي\n3️⃣ الساندويشات\n4️⃣ السلطات\n5️⃣ المشروبات\n6️⃣ الحلويات', active:true },
@@ -149,7 +82,7 @@ let STATE = {
   orders: [],
   queue: [],
   logs: [],
-  nextId: 100,
+  nextId: 2000,
   nextOrderNum: 10001,
   botConnected: false,
   customerProfiles: {}, // بيانات الزبائن المتكررين
@@ -225,6 +158,7 @@ let saveTimer = null;
 // ══════════════════════════════════════════════════════════
 let stateLoaded = false;
 let loadError   = '';
+let migrationPending = false;
 
 function saveState() {
   if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return; }
@@ -304,6 +238,22 @@ async function loadState() {
       const closed = STATE.items.filter(i => !i.active).length;
       console.log(`✅ Firebase: ${STATE.items.length} صنف محمّل (${closed} مغلق)`);
     }
+    // ══ ترحيل المنيو إلى بيانات الفروع الرسمية (مرة واحدة) ══
+    if (saved.menuVersion !== menuBuild.MENU_VERSION) {
+      const oldCount = STATE.items.length;
+      STATE.itemsBackup = { at: new Date().toISOString(), version: saved.menuVersion || 'legacy', items: STATE.items };
+      STATE.categories  = menuBuild.buildCategories();
+      STATE.items       = menuBuild.buildItems(1000);
+      STATE.menuVersion = menuBuild.MENU_VERSION;
+      STATE.nextId      = Math.max(STATE.nextId || 100, 1000 + STATE.items.length + 50);
+      STATE.deletedItemIds = [];
+      const g = STATE.items.filter(i => i.branch === 'gaza').length;
+      const m = STATE.items.filter(i => i.branch === 'middle').length;
+      console.log(`🔄 ترحيل المنيو: ${oldCount} صنف قديم ← ${STATE.items.length} صنف (غزة ${g} / الأوسط ${m})`);
+      console.log('   النسخة القديمة محفوظة في itemsBackup');
+      migrationPending = true;
+    }
+
     console.log('✅ Firebase: state محمّل (' + STATE.orders.length + ' طلب)');
     stateLoaded = true;
     loadError = '';
@@ -445,6 +395,7 @@ function getSession(from) {
 
 function resetSession(from) {
   sessions[from] = makeSession(from);
+  return sessions[from];
 }
 
 // تنظيف الجلسات المنتهية كل 10 دقائق
@@ -2258,63 +2209,113 @@ const NUM_EMOJI = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','
 const SEP = '━━━━━━━━━━━━━━━';
 
 /** أسطر الأقسام المرقّمة — تُستخدم في البداية وفي نهاية كل قسم */
-function categoryLines() {
+function categoryLines(branch) {
+  const pool = branchItems(branch);
   return activeCategories().map((c, i) => {
-    const n = STATE.items.filter(it => it.cat === c.id && it.active).length;
+    const n = pool.filter(it => it.cat === c.id && it.active).length;
     return `${NUM_EMOJI[i] || (i + 1) + '.'}  ${c.label}${n ? '' : '  (مغلق حالياً)'}`;
   });
 }
 
 /** القائمة الرئيسية: كل الأقسام + خيار الإنهاء */
-function categoriesMessage() {
+function categoriesMessage(branch) {
+  const b = branch || STATE.settings.activeBranch || 'gaza';
+  const multi = STATE.settings.branchMode === 'ask' && branchList().length > 1;
   return [
-    `📋 *أقسام ${STATE.settings.name}*`,
+    `📋 *أقسام ${STATE.settings.name}*` + (multi ? ` — ${branchLabel(b)}` : ''),
     SEP,
-    ...categoryLines(),
+    ...categoryLines(b),
     SEP,
-    '0️⃣  إنهاء العملية',
+    '0️⃣  إنهاء العملية' + (multi ? '   |   *99* تغيير الفرع' : ''),
     '',
     'أرسل رقم القسم لعرض أصنافه وأسعاره 👆',
   ].join('\n');
 }
 
 /** يُلحق بعد أصناف أي قسم: اختر قسماً آخر أو أنهِ */
-function nextStepMessage() {
+function nextStepMessage(branch) {
+  const multi = STATE.settings.branchMode === 'ask' && branchList().length > 1;
   return [
     '',
     '👇 *بدك تشوف قسم تاني؟*',
     '',
-    ...categoryLines(),
-    '0️⃣  إنهاء العملية',
+    ...categoryLines(branch),
+    '0️⃣  إنهاء العملية' + (multi ? '   |   *99* تغيير الفرع' : ''),
   ].join('\n');
 }
 
-/** سطر صنف بنقاط تملأ الفراغ حتى تصطف الأسعار */
+/** نص سعر الصنف: بالوزن، أو بأحجام، أو سعر مفرد */
+function priceText(item) {
+  if (item.pricePerKg) return `${item.pricePerKg} ₪/كغم`;
+  if (Array.isArray(item.variants) && item.variants.length)
+    return item.variants.map(v => `${v.name} ${v.price}`).join(' · ') + ' ₪';
+  return `${item.price} ₪`;
+}
+
+/** سطر صنف بنقاط تملأ الفراغ حتى تصطف الأسعار، ووصف تحته إن وُجد */
 function itemLine(item, width) {
   const len = [...item.name].length;
   const dots = '.'.repeat(Math.max(3, width - len + 3));
-  return `${item.name} ${dots} *${item.price} ₪*`;
+  let line = `${item.name} ${dots} *${priceText(item)}*`;
+  if (STATE.settings.showItemDesc && item.desc) line += `\n   _${item.desc}_`;
+  return line;
+}
+
+/* ══════════════ الفروع ══════════════ */
+
+function branchList() {
+  return menuBuild.BRANCHES;
+}
+
+function branchLabel(id) {
+  const b = branchList().find(x => x.id === id);
+  return b ? b.label : id;
+}
+
+/** الفرع الذي يخدم هذه المحادثة */
+function sessionBranch(session) {
+  if (STATE.settings.branchMode === 'single') return STATE.settings.activeBranch || 'gaza';
+  return session.branch || STATE.settings.activeBranch || 'gaza';
+}
+
+/** أصناف فرع معيّن فقط — الأصناف بلا حقل branch تُعتبر عامة */
+function branchItems(branch) {
+  return STATE.items.filter(i => !i.branch || i.branch === branch);
+}
+
+function branchQuestion() {
+  const nums = ['1️⃣','2️⃣','3️⃣','4️⃣'];
+  return [
+    `👋 أهلاً بك في *${STATE.settings.name}*`,
+    SEP,
+    'اختر الفرع الأقرب لك:',
+    ...branchList().map((b, i) => `${nums[i] || (i+1)+'.'}  ${b.label}`),
+  ].join('\n');
 }
 
 /** أصناف قسم واحد مرتّبة بأسعارها، ثم قائمة الأقسام من جديد */
 function categoryMessage(session, catId) {
   const cat = STATE.categories.find(c => c.id === catId);
   if (!cat) return null;
-  const items = STATE.items.filter(i => i.cat === catId && i.active);
+  const branch = sessionBranch(session);
+  const items = branchItems(branch).filter(i => i.cat === catId && i.active);
   session.browseList = [];
   session.lastCategory = catId;
 
   if (!items.length) {
-    return `${cat.label}\n${SEP}\nلا يوجد صنف متوفر حالياً في هذا القسم 🙏${nextStepMessage()}`;
+    return `${cat.label}\n${SEP}\nلا يوجد صنف متوفر حالياً في هذا القسم 🙏${nextStepMessage(branch)}`;
   }
 
   const width = items.reduce((m, i) => Math.max(m, [...i.name].length), 0);
+  const head = cat.byWeight
+    ? `${cat.label}   _(${items.length} صنف — الأسعار بالكيلو)_`
+    : `${cat.label}   _(${items.length} صنف)_`;
   return [
-    `${cat.label}   _(${items.length} صنف)_`,
+    head,
     SEP,
     ...items.map(i => itemLine(i, width)),
     SEP,
-  ].join('\n') + nextStepMessage();
+  ].join('\n') + nextStepMessage(branch);
 }
 
 /** بدائل متوفرة من نفس القسم عندما يطلب الزبون صنفاً مغلقاً */
@@ -2484,10 +2485,16 @@ async function handleMessage(msg) {
     if (!chatIsActive(from)) {
       if (!isTriggered(rawOriginal)) return null; // صمت تام
       touchChat(from);
-      resetSession(from);
+      const fresh = resetSession(from);
+      const sess = fresh && fresh.cart ? fresh : getSession(from);
+      if (STATE.settings.branchMode === 'ask' && branchList().length > 1) {
+        sess.state = 'pick_branch';
+        return branchQuestion();
+      }
+      const br = sessionBranch(sess);
       return STATE.settings.browseOnly
-        ? categoriesMessage()
-        : `${STATE.settings.welcome}\n\n${categoriesMessage()}`;
+        ? categoriesMessage(br)
+        : `${STATE.settings.welcome}\n\n${categoriesMessage(br)}`;
     }
     touchChat(from);
     if (/^(خروج|انهاء|إنهاء|exit|stop|bye)$/.test(normalize(rawOriginal))) {
@@ -2504,6 +2511,18 @@ async function handleMessage(msg) {
   // ══════════════════════════════════════════════════════════
   if (STATE.settings.browseOnly) {
     const t = normalize(rawOriginal);
+    const askBranch = STATE.settings.branchMode === 'ask' && branchList().length > 1;
+    const cur = getSession(from);
+
+    // مرحلة اختيار الفرع
+    if (askBranch && cur.state === 'pick_branch') {
+      const n = parseInt(rawOriginal.trim(), 10);
+      const picked = branchList()[n - 1];
+      if (!picked) return `اختر رقم الفرع 👇\n\n${branchQuestion()}`;
+      cur.branch = picked.id;
+      cur.state = null;
+      return `✅ ${picked.label}\n\n${categoriesMessage(picked.id)}`;
+    }
 
     if (/^(0|صفر|انهاء|خروج|خلصت|تم|بس)$/.test(t)) {
       activeChats.delete(from);
@@ -2511,22 +2530,28 @@ async function handleMessage(msg) {
       return `شكراً لك ونتشرف بخدمتك 🌿\n${SEP}\nتم إنهاء العملية.\n\nلعرض المنيو من جديد أرسل *bot* في أي وقت.`;
     }
 
+    // 9 = تغيير الفرع
+    if (askBranch && (rawOriginal.trim() === '99' || /^(تغيير الفرع|فرع|الفرع|فروع)$/.test(t))) {
+      cur.state = 'pick_branch';
+      return branchQuestion();
+    }
+
     if (/^\d{1,2}$/.test(rawOriginal.trim())) {
       const cats = activeCategories();
       const n = parseInt(rawOriginal.trim(), 10);
       if (cats[n - 1]) {
-        const msg = categoryMessage(session, cats[n - 1].id);
+        const msg = categoryMessage(cur, cats[n - 1].id);
         if (msg) return msg;
       }
-      return `ما في قسم برقم ${n} 🤔\n\n${categoriesMessage()}`;
+      return `ما في قسم برقم ${n} 🤔\n\n${categoriesMessage(sessionBranch(cur))}`;
     }
 
     // أي شيء آخر — بما فيه أسماء الأصناف والتحيات — يعيد الأقسام
-    return categoriesMessage();
+    return categoriesMessage(sessionBranch(cur));
   }
 
   // كلمة التفعيل تعرض الأقسام دائماً، حتى في الوضع الكامل
-  if (isTriggered(rawOriginal)) return categoriesMessage();
+  if (isTriggered(rawOriginal)) return categoriesMessage(sessionBranch(session));
 
   const raw = fixSpelling(translateEN(rawOriginal));
   const text = raw.toLowerCase();
@@ -4566,6 +4591,7 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
   console.log('🚀 O2 Bot يبدأ...');
   const ok = await loadStateWithRetry();
   if (!ok) return;   // الكتابة مقفلة والبوت متوقف — تستمر المحاولة في الخلفية
+  if (migrationPending) { await saveStateNow(); migrationPending = false; console.log('💾 حُفظ المنيو الجديد'); }
   console.log('✅ state محمّل من Firebase');
   auth.init(STATE, saveState);
   startBaileys();
