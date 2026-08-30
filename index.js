@@ -25,7 +25,7 @@ let STATE = {
     hours: '11 صباحاً - 11 مساءً',
     estimatedTime: 30,
     welcome: 'أهلاً وسهلاً بك في مطعم O2 🌿\nيسعدنا خدمتك! شو بدك اليوم؟',
-    defaultReply: 'هههه مش فاهم قصدك كتير 😄 بدك تطلب ولا بدك تشوف الأسعار؟',
+    // defaultReply: 'هههه مش فاهم قصدك كتير 😄 بدك تطلب ولا بدك تشوف الأسعار؟',
     bankName: 'فادي أبو شرخ',
     bank: 'بنك فلسطين',
     bankPhone: '0567743979',
@@ -38,6 +38,9 @@ let STATE = {
     // true = البوت صامت حتى يرسل الزبون كلمة تفعيل (مناسب للرقم الشخصي)
     // false = البوت يرد على كل رسالة (مناسب لرقم المطعم المخصص)
     requireTrigger: true,
+    // browseOnly: البوت لا يفعل شيئاً سوى عرض الأقسام والأصناف المتوفرة.
+    // لا ترحيب، لا رد على صنف مفرد، لا طلبات، لا أسئلة عامة.
+    browseOnly: true,
     triggerWords: ['bot', 'بوت', 'o2', 'منيو', 'menu'],
     triggerTimeoutMins: 20, // تنتهي حالة التفعيل بعد هذه المدة من الخمول
 
@@ -165,6 +168,8 @@ let STATE = {
   ],
   driverDailyDate: '', // تاريخ آخر reset للعدادات
 
+  deletedItemIds: [], // شواهد الحذف — تمنع عودة صنف حذفه المستخدم
+
   // ── الحسابات وسجل التغييرات ──
   users: [],   // تُنشأ تلقائياً عند أول تشغيل (auth.init)
   audit: [],   // من غيّر ماذا ومتى
@@ -178,7 +183,14 @@ const { getFirestore }         = require('firebase-admin/firestore');
 
 // قراءة Service Account من متغير البيئة
 let STATE_DOC;
-if (process.env.O2_TEST_MODE === '1') {
+if (process.env.O2_TEST_MODE === 'persist') {
+  // وضع اختبار يبقي المستند بين إعادات التشغيل (global)
+  STATE_DOC = {
+    async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
+    async get(){ return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc }; },
+  };
+  console.log('🧪 وضع اختبار الاستمرارية');
+} else if (process.env.O2_TEST_MODE === '1') {
   let mem = null;
   STATE_DOC = { async set(d){ mem = JSON.parse(JSON.stringify(d)); }, async get(){ return { exists: !!mem, data: () => mem }; } };
   console.log('🧪 وضع الاختبار: Firebase معطّل');
@@ -234,13 +246,24 @@ async function loadState() {
     if (saved.categories    && saved.categories.length)    STATE.categories    = saved.categories;
     if (saved.replies       && saved.replies.length)       STATE.replies       = saved.replies;
     if (saved.deliveryZones && saved.deliveryZones.length) STATE.deliveryZones = saved.deliveryZones;
-    const CODE_COUNT = STATE.items.length;
-    if (saved.items && saved.items.length >= CODE_COUNT) {
-      STATE.items = saved.items;
-      console.log('✅ Firebase: ' + saved.items.length + ' صنف محمّل');
-    } else if (saved.items) {
-      const custom = saved.items.filter(i => i.id >= 100);
-      if (custom.length) STATE.items.push(...custom);
+    // ── دمج المنيو ──────────────────────────────────────────
+    // المحفوظ هو المرجع دائماً. المقارنة بعدد أصناف الكود كانت
+    // ترمي القائمة كاملة بمجرد حذف صنف واحد، فتعود كل الأصناف
+    // مُفعّلة وتضيع كل حالات الإغلاق.
+    STATE.deletedItemIds = Array.isArray(saved.deletedItemIds) ? saved.deletedItemIds : [];
+    if (saved.items && saved.items.length) {
+      const codeItems = STATE.items;                 // النسخة الافتراضية من الكود
+      STATE.items = saved.items;                     // المحفوظ يفوز
+      const haveIds  = new Set(STATE.items.map(i => i.id));
+      const gone     = new Set(STATE.deletedItemIds);
+      // أضف فقط أصناف الكود الجديدة التي لم تُحفظ ولم تُحذف يدوياً
+      const fresh = codeItems.filter(i => !haveIds.has(i.id) && !gone.has(i.id));
+      if (fresh.length) {
+        STATE.items.push(...fresh);
+        console.log(`➕ ${fresh.length} صنف جديد من الكود أُضيف للمنيو`);
+      }
+      const closed = STATE.items.filter(i => !i.active).length;
+      console.log(`✅ Firebase: ${STATE.items.length} صنف محمّل (${closed} مغلق)`);
     }
     console.log('✅ Firebase: state محمّل (' + STATE.orders.length + ' طلب)');
   } catch(e) { console.log('⚠️ Firebase loadState:', e.message); }
@@ -2290,7 +2313,7 @@ async function handleStaffCommand(from, raw) {
         it.active = opening; it.updatedBy = user.displayName;
         it.updatedRole = user.role; it.updatedAt = now;
       }
-      saveState();
+      await saveStateNow();
       auth.audit(user, opening ? 'category.open' : 'category.close', cat.id,
         `${opening ? 'تفعيل' : 'إغلاق'} ${affected.length} صنف`, 'whatsapp');
       addLog(`${opening ? '✅' : '🚫'} ${cat.label}: ${affected.length} صنف — ${user.displayName}`);
@@ -2304,7 +2327,7 @@ async function handleStaffCommand(from, raw) {
     item.updatedBy = user.displayName;
     item.updatedRole = user.role;
     item.updatedAt = now;
-    saveState();
+    await saveStateNow();
     auth.audit(user, opening ? 'menu.open' : 'menu.close', item.name,
       opening ? 'تفعيل الصنف' : 'إغلاق الصنف', 'whatsapp');
     addLog(`${opening ? '✅ فُعّل' : '🚫 أُغلق'}: ${item.name} — ${user.displayName}`);
@@ -2384,7 +2407,9 @@ async function handleMessage(msg) {
       if (!isTriggered(rawOriginal)) return null; // صمت تام
       touchChat(from);
       resetSession(from);
-      return `${STATE.settings.welcome}\n\n${categoriesMessage()}`;
+      return STATE.settings.browseOnly
+        ? categoriesMessage()
+        : `${STATE.settings.welcome}\n\n${categoriesMessage()}`;
     }
     touchChat(from);
     if (/^(خروج|انهاء|إنهاء|exit|stop|bye)$/.test(normalize(rawOriginal))) {
@@ -2392,6 +2417,34 @@ async function handleMessage(msg) {
       resetSession(from);
       return 'تم إنهاء المحادثة الآلية 🌿\nأرسل *bot* في أي وقت لتشغيلها من جديد.';
     }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  // وضع التصفّح فقط — لا رد إلا على: كلمة التفعيل، رقم قسم،
+  // طلب الأقسام، الإنهاء. أي شيء آخر يُعاد إليه عرض الأقسام،
+  // ولا شيء إطلاقاً قبل التفعيل.
+  // ══════════════════════════════════════════════════════════
+  if (STATE.settings.browseOnly) {
+    const t = normalize(rawOriginal);
+
+    if (/^(0|صفر|انهاء|خروج|خلصت|تم|بس)$/.test(t)) {
+      activeChats.delete(from);
+      resetSession(from);
+      return `شكراً لك ونتشرف بخدمتك 🌿\n${SEP}\nتم إنهاء العملية.\n\nلعرض المنيو من جديد أرسل *bot* في أي وقت.`;
+    }
+
+    if (/^\d{1,2}$/.test(rawOriginal.trim())) {
+      const cats = activeCategories();
+      const n = parseInt(rawOriginal.trim(), 10);
+      if (cats[n - 1]) {
+        const msg = categoryMessage(session, cats[n - 1].id);
+        if (msg) return msg;
+      }
+      return `ما في قسم برقم ${n} 🤔\n\n${categoriesMessage()}`;
+    }
+
+    // أي شيء آخر — بما فيه أسماء الأصناف والتحيات — يعيد الأقسام
+    return categoriesMessage();
   }
 
   const raw = fixSpelling(translateEN(rawOriginal));
@@ -3396,12 +3449,33 @@ async function handleAPI(url, method, body, res) {
       displayName: body.displayName, username: body.username,
       whatsappNumber: body.whatsappNumber, active: body.active,
     });
+    if (body.role && body.role !== target.role) {
+      const rr = auth.setRole(target.id, body.role, CURRENT_USER ? CURRENT_USER.id : null);
+      if (rr.error) return json({error: rr.error}, 400);
+      auth.audit(CURRENT_USER, 'user.update', target.displayName,
+        `تغيير الدور إلى ${auth.roleLabel(body.role)}`);
+    }
     auth.audit(CURRENT_USER, 'user.update', target.displayName, 'تحديث بيانات الحساب');
     if (body.password && String(body.password).length >= 6) {
       auth.setPassword(target.id, body.password);
       auth.audit(CURRENT_USER, 'user.password', target.displayName, 'تغيير كلمة المرور');
     }
     return json({ok:true, user: auth.publicUser(auth.byId(target.id))});
+  }
+
+  if (url === '/api/users' && method === 'POST') {
+    const r = auth.createUser(body);
+    if (r.error) return json({error: r.error}, 400);
+    auth.audit(CURRENT_USER, 'user.create', r.user.displayName,
+      `حساب جديد بدور ${auth.roleLabel(r.user.role)}`);
+    return json({ok: true, user: auth.publicUser(r.user)});
+  }
+
+  if (userMatch && method === 'DELETE') {
+    const r = auth.deleteUser(userMatch[1], CURRENT_USER ? CURRENT_USER.id : null);
+    if (r.error) return json({error: r.error}, 400);
+    auth.audit(CURRENT_USER, 'user.delete', r.displayName, 'حذف الحساب');
+    return json({ok: true});
   }
 
   // ---- سجل التغييرات ----
@@ -3421,7 +3495,7 @@ async function handleAPI(url, method, body, res) {
       it.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
       it.updatedAt = new Date().toISOString();
     }
-    saveState();
+    await saveStateNow();
     if (affected.length) {
       auth.audit(CURRENT_USER, active ? 'category.open' : 'category.close', cat,
         `${active ? 'تفعيل' : 'إغلاق'} ${affected.length} صنف`);
@@ -3566,7 +3640,9 @@ async function handleAPI(url, method, body, res) {
     it.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     it.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
     it.updatedAt   = new Date().toISOString();
-    saveState();
+    // تغيير التوفّر حرج: نحفظ فوراً بدل انتظار مؤقت الثلاث ثوانٍ،
+    // فإيقاف الخدمة خلالها كان يبتلع التغيير ويعيد الصنف مُفعّلاً
+    await saveStateNow();
 
     if (before.active !== it.active) {
       auth.audit(CURRENT_USER, it.active ? 'menu.open' : 'menu.close', it.name,
@@ -3586,8 +3662,11 @@ async function handleAPI(url, method, body, res) {
   if (itemMatch && method === 'DELETE') {
     const item = STATE.items.find(i => i.id === parseInt(itemMatch[1]));
     if (!item) return json({error: 'not found'}, 404);
-    STATE.items = STATE.items.filter(i => i.id !== parseInt(itemMatch[1]));
-    saveState();
+    const delId = parseInt(itemMatch[1]);
+    STATE.items = STATE.items.filter(i => i.id !== delId);
+    if (!Array.isArray(STATE.deletedItemIds)) STATE.deletedItemIds = [];
+    if (!STATE.deletedItemIds.includes(delId)) STATE.deletedItemIds.push(delId);
+    await saveStateNow(); // حفظ فوري — لا ننتظر المؤقت
     auth.audit(CURRENT_USER, 'item.delete', item.name, 'حذف الصنف نهائياً');
     addLog(`🗑️ حُذف: ${item.name}`);
     return json({ok: true});

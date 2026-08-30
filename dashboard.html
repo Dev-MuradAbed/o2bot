@@ -257,6 +257,59 @@ img,canvas,svg{max-width:100%;height:auto}
 
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
+
+/* ══════════ بطاقات المنيو ══════════ */
+.mcount{font-size:12.5px;color:var(--muted);margin:0 0 10px;font-weight:600}
+.mgrid{display:grid;gap:11px;grid-template-columns:repeat(auto-fill,minmax(165px,1fr))}
+@media(min-width:520px){.mgrid{grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}}
+@media(min-width:900px){.mgrid{grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:13px}}
+
+.mcard{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  overflow:hidden;display:flex;flex-direction:column;transition:border-color .18s,opacity .18s}
+.mcard.off{border-color:#5b1f2480;background:#1a1114}
+.mcard.busy{opacity:.5;pointer-events:none}
+
+.mthumb{position:relative;aspect-ratio:4/3;background:#0a0e1a;overflow:hidden}
+.mthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.mfallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:44px}
+.mcard.off .mthumb img,.mcard.off .mfallback{filter:grayscale(1);opacity:.45}
+.mstate{position:absolute;top:7px;inset-inline-start:7px;font-size:10.5px;font-weight:800;
+  padding:3px 9px;border-radius:20px;background:var(--green);color:#04150f}
+.mcard.off .mstate{background:var(--red);color:#fff}
+
+.mbody{padding:9px 11px 6px;flex:1;min-width:0}
+.mtitle{font-weight:700;font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.mcard.off .mtitle{color:var(--muted);text-decoration:line-through;text-decoration-thickness:1px}
+.mmeta{display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;flex-wrap:wrap}
+.mby{font-size:10.5px;color:var(--muted);margin-top:5px;overflow-wrap:anywhere}
+.mby b{color:var(--text)}
+
+.mact{display:flex;gap:5px;padding:0 9px 9px;align-items:stretch}
+.mtoggle{flex:1;min-height:38px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
+  border-radius:9px;border:1px solid #5b1f2455;background:#3b141833;color:#ff8a80}
+.mtoggle.on{border-color:#0f5c3f;background:#0f2f2233;color:var(--green)}
+.mtoggle:active{transform:scale(.97)}
+.mact .btn.btn-sm{min-height:38px;padding:0 10px}
+
+/* ══════════ بطاقات الحسابات ══════════ */
+.ugrid{display:grid;gap:12px;grid-template-columns:1fr}
+@media(min-width:640px){.ugrid{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}}
+.ucard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px}
+.ucard.me{border-color:var(--green)}
+.uhead{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap}
+.uav{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;
+  font-size:17px;font-weight:800;color:#04150f;flex:0 0 auto}
+.uname{font-weight:800;font-size:14.5px;line-height:1.3;min-width:0;overflow-wrap:anywhere}
+.uname small{display:block;font-weight:600;font-size:11px;color:var(--muted)}
+.urole{font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:20px;color:#04150f;white-space:nowrap}
+.ucard label{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin:9px 0 4px}
+.ucard input,.ucard select{width:100%;padding:9px 11px;font-size:16px;font-family:inherit;
+  border-radius:9px;border:1px solid var(--border);background:#0a0e1a;color:var(--text)}
+@media(min-width:700px){.ucard input,.ucard select{font-size:13.5px}}
+.ufoot{display:flex;gap:7px;margin-top:13px}
+.ufoot .btn{flex:1;min-height:40px}
+.uwarn{font-size:11px;color:#ffd32a;margin-top:8px;font-weight:600}
+
 </style>
 </head>
 <body>
@@ -680,6 +733,8 @@ img,canvas,svg{max-width:100%;height:auto}
       <div class="form-group"><label>السعر (₪)</label><input id="mi-price" type="number" min="0"></div>
       <div class="form-group"><label>كلمات مفتاحية (بفاصلة)</label><input id="mi-keys" placeholder="شاورما, عربي"></div>
     </div>
+    <div class="form-group"><label>رابط صورة الصنف (اختياري)</label>
+      <input id="mi-image" placeholder="https://…  — اتركه فارغاً ليظهر رمز القسم" dir="ltr"></div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn" onclick="closeModal('modal-item')">إلغاء</button>
       <button class="btn btn-green" onclick="saveItem()">💾 حفظ</button>
@@ -703,14 +758,40 @@ img,canvas,svg{max-width:100%;height:auto}
 <div class="toast" id="toast">
 <!-- ══════════ الحسابات ══════════ -->
 <div class="page" id="page-users">
-  <h2 class="page-title" style="margin-bottom:14px">👥 الحسابات والصلاحيات</h2>
-  <div class="card">
-    <div class="table-wrap"><table class="rtable">
-      <thead><tr><th>الحساب</th><th>الدور</th><th>واتساب</th><th>آخر دخول</th><th>كلمة المرور</th></tr></thead>
-      <tbody id="users-tbody"></tbody>
-    </table></div>
+  <div class="page-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    <h2 style="flex:1">👥 الحسابات والصلاحيات</h2>
+    <button class="btn btn-green" onclick="openAddUser()">➕ حساب جديد</button>
   </div>
-  <div id="users-forms"></div>
+  <div class="ugrid" id="users-grid"></div>
+</div>
+
+<!-- Modal: حساب جديد -->
+<div class="modal-overlay" id="modal-user">
+  <div class="modal">
+    <div class="modal-head"><h3>إضافة حساب جديد</h3>
+      <button class="modal-close" onclick="closeModal('modal-user')">✕</button></div>
+    <div class="form-row">
+      <div class="form-group"><label>الاسم الظاهر في السجل</label>
+        <input id="nu-name" placeholder="أحمد سالم"></div>
+      <div class="form-group"><label>اسم المستخدم (إنجليزي)</label>
+        <input id="nu-username" placeholder="ahmad" autocomplete="off"></div>
+    </div>
+    <div class="form-row">
+      <div class="form-group"><label>الدور</label>
+        <select id="nu-role">
+          <option value="cashier">كاشير</option>
+          <option value="call_center">كول سنتر</option>
+          <option value="customer_care">كاستمر كير</option>
+          <option value="super_admin">سوبر أدمن</option>
+        </select></div>
+      <div class="form-group"><label>كلمة المرور (6 أحرف فأكثر)</label>
+        <input id="nu-pass" type="password" autocomplete="new-password"></div>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+      <button class="btn" onclick="closeModal('modal-user')">إلغاء</button>
+      <button class="btn btn-green" onclick="createUser()">💾 إنشاء</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════ سجل التغييرات ══════════ -->
@@ -877,31 +958,81 @@ function setMenuCat(cat){activeCat=cat;renderMenuCatTabs();renderMenuTable();}
 
 function filterMenu(){renderMenuTable();}
 
+// رموز احتياطية حسب القسم — تُستخدم حين لا صورة للصنف
+var CAT_ART = {
+  'شاورما':  ['🥙','#f5a623'], 'ايطالي':  ['🍕','#ff6b35'],
+  'ساندويش': ['🍔','#e8543f'], 'سلطة':    ['🥗','#2ecc71'],
+  'مشروبات': ['☕','#8b6f47'], 'حلويات':  ['🍰','#e84393'],
+};
+function catArt(cat){ return CAT_ART[cat] || ['🍽️','#4a9eff']; }
+function escH(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
+function itemAgo(iso){
+  if(!iso) return '';
+  var m=Math.floor((Date.now()-new Date(iso))/60000);
+  if(m<1) return 'الآن'; if(m<60) return 'قبل '+m+' د';
+  var h=Math.floor(m/60); if(h<24) return 'قبل '+h+' س';
+  return 'قبل '+Math.floor(h/24)+' يوم';
+}
+
 function renderMenuTable() {
   const search = (document.getElementById('menu-search')||{value:''}).value.toLowerCase();
   let items = (S.items||[]).filter(i=>(activeCat==='الكل'||i.cat===activeCat)&&i.name.toLowerCase().includes(search));
   const wrap = document.getElementById('menu-table-wrap');
   if(!items.length){wrap.innerHTML='<div class="empty"><div class="ico">🍽️</div>لا توجد أصناف</div>';return;}
-  wrap.innerHTML=`<table><thead><tr><th>الصنف</th><th>القسم</th><th>السعر</th><th>التوفر</th><th>إجراءات</th></tr></thead><tbody>${
-    items.map(i=>`<tr>
-      <td style="font-weight:600">${i.name}</td>
-      <td><span class="badge badge-blue">${i.cat}</span></td>
-      <td><span class="price">${i.price} ₪</span></td>
-      <td><label class="toggle"><input type="checkbox" ${i.active?'checked':''} onchange="toggleItem(${i.id},this.checked)"><div class="toggle-track"></div><div class="toggle-thumb"></div></label></td>
-      <td style="display:flex;gap:5px">
-        <button class="btn btn-sm" onclick="openEditItem(${i.id})">✏️</button>
-        <button class="btn btn-sm btn-red" onclick="deleteItem(${i.id})">🗑️</button>
-      </td>
-    </tr>`).join('')
-  }</tbody></table>`;
+
+  const closed = items.filter(i=>!i.active).length;
+  const canEdit = hasPerm('menu.edit');
+
+  wrap.innerHTML =
+    '<div class="mcount">'+items.length+' صنف'+(closed?' · <b style="color:var(--red)">'+closed+' مغلق</b>':'')+'</div>'
+    + '<div class="mgrid">' + items.map(function(i){
+      const art = catArt(i.cat);
+      const thumb = i.image
+        ? '<img src="'+escH(i.image)+'" alt="" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
+          + '<div class="mfallback" style="display:none;background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>'
+        : '<div class="mfallback" style="background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>';
+      return '<div class="mcard'+(i.active?'':' off')+'" id="mcard-'+i.id+'">'
+        + '<div class="mthumb">'+thumb
+        +   '<span class="mstate">'+(i.active?'متوفر':'مغلق')+'</span>'
+        + '</div>'
+        + '<div class="mbody">'
+        +   '<div class="mtitle">'+escH(i.name)+'</div>'
+        +   '<div class="mmeta"><span class="badge badge-blue">'+escH(i.cat)+'</span>'
+        +     '<span class="price">'+i.price+' ₪</span></div>'
+        +   (i.updatedBy ? '<div class="mby">آخر تغيير: <b>'+escH(i.updatedBy)+'</b> '+itemAgo(i.updatedAt)+'</div>' : '')
+        + '</div>'
+        + '<div class="mact">'
+        +   '<button class="mtoggle'+(i.active?'':' on')+'" onclick="toggleItem('+i.id+','+(!i.active)+')">'
+        +     (i.active?'🚫 إلغاء التفعيل':'✅ تفعيل')+'</button>'
+        +   (canEdit
+              ? '<button class="btn btn-sm" title="تعديل" onclick="openEditItem('+i.id+')">✏️</button>'
+                + '<button class="btn btn-sm btn-red" title="حذف" onclick="deleteItem('+i.id+')">🗑️</button>'
+              : '')
+        + '</div>'
+        + '</div>';
+    }).join('') + '</div>';
 }
 
 async function toggleItem(id, val) {
-  await apiPut('/items/'+id, {active:val});
-  const item = S.items.find(i=>i.id===id);
-  if(item){item.active=val;}
-  toast(val?'✅ الصنف متوفر':'❌ الصنف غير متوفر');
-  loadDashboard();
+  const card = document.getElementById('mcard-'+id);
+  if(card) card.classList.add('busy');
+  try{
+    const res = await apiPut('/items/'+id, {active:val});
+    if(res && res.error){ toast(res.error, true); if(card) card.classList.remove('busy'); return; }
+    const item = S.items.find(i=>i.id===id);
+    if(item){
+      item.active = val;
+      if(res && res.item){ item.updatedBy=res.item.updatedBy; item.updatedAt=res.item.updatedAt; }
+    }
+    toast(val?'✅ الصنف متوفر':'🚫 الصنف غير متوفر');
+    renderMenuTable();
+    loadDashboard();
+  }catch(e){
+    toast('تعذّر الحفظ — لم يتغيّر شيء', true);
+    if(card) card.classList.remove('busy');
+  }
 }
 
 async function deleteItem(id) {
@@ -931,6 +1062,7 @@ function openEditItem(id) {
   document.getElementById('mi-name').value=item.name;
   document.getElementById('mi-price').value=item.price;
   document.getElementById('mi-keys').value=(item.keys||[]).join(', ');
+  { const el=document.getElementById('mi-image'); if(el) el.value=(item.image||''); }
   document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}"${c.id===item.cat?' selected':''}>${c.label}</option>`).join('');
   document.getElementById('modal-item').classList.add('open');
 }
@@ -940,14 +1072,15 @@ async function saveItem() {
   const cat=document.getElementById('mi-cat').value;
   const price=parseInt(document.getElementById('mi-price').value)||0;
   const keys=document.getElementById('mi-keys').value.split(',').map(k=>k.trim()).filter(Boolean);
+  const image=(document.getElementById('mi-image')||{value:''}).value.trim();
   if(!name){toast('أدخل اسم الصنف',true);return;}
   if(editItemId) {
-    await apiPut('/items/'+editItemId, {name,cat,price,keys:keys.length?keys:[name]});
+    await apiPut('/items/'+editItemId, {name,cat,price,image,keys:keys.length?keys:[name]});
     const idx=S.items.findIndex(i=>i.id===editItemId);
-    if(idx>=0) Object.assign(S.items[idx],{name,cat,price,keys:keys.length?keys:[name]});
+    if(idx>=0) Object.assign(S.items[idx],{name,cat,price,image,keys:keys.length?keys:[name]});
     toast('تم التعديل ✅');
   } else {
-    const res = await apiPost('/items', {name,cat,price,keys:keys.length?keys:[name]});
+    const res = await apiPost('/items', {name,cat,price,image,keys:keys.length?keys:[name]});
     if(res.item) S.items.push(res.item);
     toast('تمت الإضافة ✅');
   }
@@ -2528,55 +2661,109 @@ function ago(iso){
   return 'قبل '+Math.floor(h/24)+' يوم';
 }
 
+var ROLE_OPTS = [
+  ['cashier','كاشير'], ['call_center','كول سنتر'],
+  ['customer_care','كاستمر كير'], ['super_admin','سوبر أدمن'],
+];
+
 async function loadUsers(){
   var r = await fetch('/api/users'); if(!r.ok) return;
   var list = await r.json();
-  document.getElementById('users-tbody').innerHTML = list.map(function(u){
-    return '<tr>'
-      + '<td data-l="الحساب"><b>'+esc(u.displayName)+'</b><div class="mm" style="font-size:11.5px;color:var(--muted)">'+esc(u.username)+'</div></td>'
-      + '<td data-l="الدور"><span class="rl" style="background:'+u.color+';color:#04150f;font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px">'+esc(u.roleLabel)+'</span></td>'
-      + '<td data-l="واتساب">'+(u.whatsappNumber ? esc(u.whatsappNumber) : '<span style="color:var(--muted)">غير مربوط</span>')+'</td>'
-      + '<td data-l="آخر دخول">'+ago(u.lastLoginAt)+'</td>'
-      + '<td data-l="كلمة المرور">'+(u.usingDefaultPassword
-          ? '<span style="color:var(--red);font-weight:700">افتراضية</span>'
-          : '<span style="color:var(--green);font-weight:700">مُغيّرة</span>')+'</td>'
-      + '</tr>';
-  }).join('');
+  var meId = (window.ME||{}).id;
 
-  document.getElementById('users-forms').innerHTML = list.map(function(u){
-    return '<div class="card" style="margin-top:12px">'
-      + '<h3 style="font-size:15px;font-weight:800;margin-bottom:10px">'+esc(u.displayName)
-      + ' <span class="rl" style="background:'+u.color+';color:#04150f;font-size:11px;padding:2px 8px;border-radius:20px">'+esc(u.roleLabel)+'</span></h3>'
-      + '<div class="grid">'
-      + '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">الاسم الظاهر في السجل</label>'
-      +   '<input id="un-'+u.id+'" value="'+esc(u.displayName)+'"></div>'
-      + '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">اسم المستخدم</label>'
-      +   '<input id="uu-'+u.id+'" value="'+esc(u.username)+'"></div>'
-      + '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">كلمة مرور جديدة (فارغ = بلا تغيير)</label>'
-      +   '<input id="up-'+u.id+'" type="password" autocomplete="new-password" minlength="6"></div>'
-      + '<div><label style="font-size:12px;color:var(--muted);display:block;margin-bottom:4px">رقم واتساب للأوامر السريعة</label>'
-      +   '<input id="uw-'+u.id+'" value="'+esc(u.whatsappNumber)+'" placeholder="9705XXXXXXXX"></div>'
+  document.getElementById('users-grid').innerHTML = list.map(function(u){
+    var isMe = u.id===meId;
+    var initial = (u.displayName||'?').trim().charAt(0);
+    var opts = ROLE_OPTS.map(function(o){
+      return '<option value="'+o[0]+'"'+(o[0]===u.role?' selected':'')+'>'+o[1]+'</option>';
+    }).join('');
+    return '<div class="ucard'+(isMe?' me':'')+'">'
+      + '<div class="uhead">'
+      +   '<div class="uav" style="background:'+u.color+'">'+esc(initial)+'</div>'
+      +   '<div class="uname" style="flex:1">'+esc(u.displayName)
+      +     '<small>@'+esc(u.username)+(isMe?' · أنت':'')+'</small></div>'
+      +   '<span class="urole" style="background:'+u.color+'">'+esc(u.roleLabel)+'</span>'
       + '</div>'
-      + '<button class="btn btn-green" style="margin-top:12px" onclick="saveUser(\''+u.id+'\')">💾 حفظ</button>'
+
+      + '<label>الاسم الظاهر في السجل</label>'
+      + '<input id="un-'+u.id+'" value="'+esc(u.displayName)+'">'
+
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
+      +   '<div><label>اسم المستخدم</label><input id="uu-'+u.id+'" value="'+esc(u.username)+'"></div>'
+      +   '<div><label>الدور</label><select id="ur-'+u.id+'"'+(isMe?' disabled':'')+'>'+opts+'</select></div>'
+      + '</div>'
+
+      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
+      +   '<div><label>كلمة مرور جديدة</label>'
+      +     '<input id="up-'+u.id+'" type="password" placeholder="اتركه فارغاً" autocomplete="new-password"></div>'
+      +   '<div><label>رقم واتساب</label>'
+      +     '<input id="uw-'+u.id+'" value="'+esc(u.whatsappNumber)+'" placeholder="9705XXXXXXXX"></div>'
+      + '</div>'
+
+      + (u.usingDefaultPassword ? '<div class="uwarn">⚠️ ما زال على كلمة المرور الافتراضية</div>' : '')
+      + '<div class="uwarn" style="color:var(--muted);font-weight:500">'
+      +   'آخر دخول: '+(u.lastLoginAt?ago(u.lastLoginAt):'لم يدخل بعد')+'</div>'
+
+      + '<div class="ufoot">'
+      +   '<button class="btn btn-green" onclick="saveUser(\''+u.id+'\')">💾 حفظ</button>'
+      +   (isMe
+            ? '<button class="btn" disabled title="لا يمكنك حذف حسابك">🗑️</button>'
+            : '<button class="btn btn-red" onclick="removeUser(\''+u.id+'\',\''+esc(u.displayName).replace(/'/g,"\\\\'")+'\')">🗑️ حذف</button>')
+      + '</div>'
       + '</div>';
   }).join('');
 }
 
+function openAddUser(){
+  ['nu-name','nu-username','nu-pass'].forEach(function(id){ document.getElementById(id).value=''; });
+  document.getElementById('nu-role').value='cashier';
+  document.getElementById('modal-user').classList.add('open');
+}
+
+async function createUser(){
+  var payload = {
+    displayName: document.getElementById('nu-name').value.trim(),
+    username:    document.getElementById('nu-username').value.trim(),
+    role:        document.getElementById('nu-role').value,
+    password:    document.getElementById('nu-pass').value,
+  };
+  if(!payload.displayName){ toast('أدخل الاسم الظاهر', true); return; }
+  var r = await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(payload)});
+  var d = await r.json();
+  if(!d.ok){ toast(d.error||'تعذّر الإنشاء', true); return; }
+  closeModal('modal-user');
+  toast('تم إنشاء الحساب ✅');
+  loadUsers();
+}
+
 async function saveUser(id){
   var pw = document.getElementById('up-'+id).value;
-  if(pw && pw.length < 6){ alert('كلمة المرور يجب أن تكون 6 أحرف على الأقل'); return; }
-  var r = await fetch('/api/users/'+id, {
-    method:'PUT', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      displayName: document.getElementById('un-'+id).value,
-      username:    document.getElementById('uu-'+id).value,
-      whatsappNumber: document.getElementById('uw-'+id).value,
-      password: pw || undefined,
-    })
-  });
+  if(pw && pw.length < 6){ toast('كلمة المرور 6 أحرف على الأقل', true); return; }
+  var roleEl = document.getElementById('ur-'+id);
+  var body = {
+    displayName: document.getElementById('un-'+id).value,
+    username:    document.getElementById('uu-'+id).value,
+    whatsappNumber: document.getElementById('uw-'+id).value,
+  };
+  if(roleEl && !roleEl.disabled) body.role = roleEl.value;
+  if(pw) body.password = pw;
+
+  var r = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)});
   var d = await r.json();
-  if(d.ok){ document.getElementById('up-'+id).value=''; loadUsers(); alert('تم الحفظ ✅'); }
-  else alert(d.error || 'تعذّر الحفظ');
+  if(!d.ok){ toast(d.error||'تعذّر الحفظ', true); return; }
+  toast('تم الحفظ ✅');
+  loadUsers();
+}
+
+async function removeUser(id, name){
+  if(!confirm('حذف حساب "'+name+'" نهائياً؟')) return;
+  var r = await fetch('/api/users/'+id,{method:'DELETE',headers:{'Content-Type':'application/json'}});
+  var d = await r.json();
+  if(!d.ok){ toast(d.error||'تعذّر الحذف', true); return; }
+  toast('تم حذف الحساب 🗑️');
+  loadUsers();
 }
 
 var AUDIT = { entries: [], stats: {byUser:{}} };

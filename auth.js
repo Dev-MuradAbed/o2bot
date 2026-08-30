@@ -125,6 +125,62 @@ function updateUser(id, patch) {
   return u;
 }
 
+/** إنشاء حساب جديد */
+function createUser({ username, displayName, role, password }) {
+  const u = String(username || '').trim().toLowerCase();
+  if (!u) return { error: 'اسم المستخدم مطلوب' };
+  if (!/^[a-z0-9._-]{3,20}$/.test(u)) return { error: 'اسم المستخدم: حروف إنجليزية وأرقام فقط، 3–20 خانة' };
+  if (byUsername(u)) return { error: 'اسم المستخدم مستخدم بالفعل' };
+  if (!ROLES[role]) return { error: 'الدور غير معروف' };
+  if (!password || String(password).length < 6) return { error: 'كلمة المرور 6 أحرف على الأقل' };
+
+  const { salt, hash: h } = hash(String(password));
+  const user = {
+    id: 'u-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+    username: u,
+    displayName: String(displayName || u).trim(),
+    role,
+    salt, hash: h,
+    active: true,
+    usingDefaultPassword: false,
+    whatsappNumber: '',
+    lastLoginAt: null,
+    createdAt: new Date().toISOString(),
+  };
+  STATE.users.push(user);
+  saveState();
+  return { user };
+}
+
+/** حذف حساب — مع حمايتين: لا تحذف نفسك، ولا آخر سوبر أدمن */
+function deleteUser(id, actingUserId) {
+  const u = byId(id);
+  if (!u) return { error: 'الحساب غير موجود' };
+  if (u.id === actingUserId) return { error: 'لا يمكنك حذف حسابك الحالي' };
+  if (u.role === 'super_admin') {
+    const admins = users().filter(x => x.role === 'super_admin' && x.active);
+    if (admins.length <= 1) return { error: 'لا يمكن حذف آخر حساب سوبر أدمن' };
+  }
+  STATE.users = STATE.users.filter(x => x.id !== id);
+  saveState();
+  return { ok: true, displayName: u.displayName };
+}
+
+/** تغيير دور حساب — بنفس حماية آخر سوبر أدمن */
+function setRole(id, role, actingUserId) {
+  const u = byId(id);
+  if (!u) return { error: 'الحساب غير موجود' };
+  if (!ROLES[role]) return { error: 'الدور غير معروف' };
+  if (u.role === 'super_admin' && role !== 'super_admin') {
+    const admins = users().filter(x => x.role === 'super_admin' && x.active);
+    if (admins.length <= 1) return { error: 'لا يمكن تنزيل آخر حساب سوبر أدمن' };
+    if (u.id === actingUserId) return { error: 'لا يمكنك تنزيل صلاحية حسابك بنفسك' };
+  }
+  u.role = role;
+  saveState();
+  return { user: u };
+}
+
 /** نسخة آمنة للإرسال للواجهة — بدون hash/salt */
 function publicUser(u) {
   if (!u) return null;
@@ -259,7 +315,7 @@ module.exports = {
   ROLES, COOKIE,
   init, can, roleLabel,
   users, byId, byUsername, byWhatsapp, publicUser,
-  login, setPassword, updateUser,
+  login, setPassword, updateUser, createUser, deleteUser, setRole,
   audit, auditList, auditStats,
   issue, readToken, userFromReq, cookieHeader, clearCookieHeader,
   permFor,

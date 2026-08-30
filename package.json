@@ -1,7 +1,7 @@
 {
   "name": "o2-whatsapp-bot",
-  "version": "3.3.0",
-  "description": "بوت واتساب مطعم O2 — Baileys + Firebase، مع حسابات وصلاحيات وسجل تغييرات ولوحة رسبونسف",
+  "version": "4.0.0",
+  "description": "بوت واتساب مطعم O2 — وضع تصفّح المنيو، صلاحيات، سجل تغييرات، لوحة بطاقات رسبونسف",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
