@@ -3412,6 +3412,15 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('Not found');
 });
 
+/** يقبل روابط http/https فقط — يمنع javascript: و data: */
+function cleanImageUrl(raw) {
+  const u = String(raw || '').trim();
+  if (!u) return '';
+  if (!/^https?:\/\//i.test(u)) return '';
+  if (u.length > 500) return '';
+  return u;
+}
+
 async function handleAPI(url, method, body, res) {
   const json = (data, code = 200) => {
     if (res.writableEnded) return;
@@ -3617,6 +3626,7 @@ async function handleAPI(url, method, body, res) {
       price: Number(body.price),
       active: true,
       keys: body.keys || [body.name.toLowerCase()],
+      image: cleanImageUrl(body.image),
     };
     item.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
@@ -3634,6 +3644,7 @@ async function handleAPI(url, method, body, res) {
     const it     = STATE.items[idx];
     const before = { name: it.name, price: it.price, cat: it.cat, active: it.active };
     if (body.price !== undefined) body.price = Number(body.price);
+    if (body.image !== undefined) body.image = cleanImageUrl(body.image);
     Object.assign(it, body);
 
     // ختم: من غيّر ومتى — يظهر لكل الحسابات

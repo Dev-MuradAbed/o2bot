@@ -357,6 +357,29 @@ img,canvas,svg{max-width:100%;height:auto}
   /* الشريط الجانبي المنزلق يحتاج مساحة أسفله أيضاً */
   .sidebar{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
 }
+
+/* ══════════ صور الأصناف ══════════ */
+.imgrow{display:flex;gap:11px;align-items:flex-start}
+.imgprev{width:82px;height:62px;flex:0 0 auto;border-radius:9px;overflow:hidden;
+  border:1px dashed var(--border);background:var(--surface2);
+  display:flex;align-items:center;justify-content:center;position:relative}
+.imgprev.big{width:100%;height:190px;border-radius:12px}
+.imgprev span{font-size:11px;color:var(--muted);text-align:center;padding:4px}
+.imgprev img{width:100%;height:100%;object-fit:cover;display:block}
+.imgprev.ok{border-style:solid;border-color:var(--green)}
+.imgprev.bad{border-color:var(--red)}
+.imgprev.bad span{color:var(--red)}
+.imghint{font-size:11px;color:var(--muted);line-height:1.8;margin-top:6px}
+.imghint code{background:var(--surface3);border-radius:4px;padding:1px 5px;font-size:10.5px}
+.imghint b{color:var(--text)}
+
+/* الصورة على البطاقة قابلة للنقر */
+.mthumb.editable{cursor:pointer}
+.mcam{position:absolute;inset-block-end:6px;inset-inline-end:6px;font-size:10px;font-weight:700;
+  padding:3px 8px;border-radius:20px;background:rgba(10,14,26,.82);color:var(--text);
+  opacity:0;transition:opacity .15s;pointer-events:none}
+.mthumb.editable:hover .mcam{opacity:1}
+@media(pointer:coarse){ .mcam{opacity:1} }
 </style>
 </head>
 <body>
@@ -813,8 +836,19 @@ img,canvas,svg{max-width:100%;height:auto}
       <div class="form-group"><label>السعر (₪)</label><input id="mi-price" type="number" min="0"></div>
       <div class="form-group"><label>كلمات مفتاحية (بفاصلة)</label><input id="mi-keys" placeholder="شاورما, عربي"></div>
     </div>
-    <div class="form-group"><label>رابط صورة الصنف (اختياري)</label>
-      <input id="mi-image" placeholder="https://…  — اتركه فارغاً ليظهر رمز القسم" dir="ltr"></div>
+    <div class="form-group">
+      <label>رابط صورة الصنف (اختياري)</label>
+      <div class="imgrow">
+        <div class="imgprev" id="mi-prev"><span>لا صورة</span></div>
+        <div style="flex:1;min-width:0">
+          <input id="mi-image" placeholder="https://example.com/photo.jpg" dir="ltr"
+                 oninput="previewItemImage()">
+          <div class="imghint">الرابط يجب أن ينتهي بـ <code>.jpg</code> أو <code>.png</code> أو <code>.webp</code>.
+            من جوجل: اضغط على الصورة بزر الفأرة الأيمن ← <b>نسخ عنوان الصورة</b>.
+            اتركه فارغاً ليظهر رمز القسم.</div>
+        </div>
+      </div>
+    </div>
     <div style="display:flex;gap:10px;justify-content:flex-end">
       <button class="btn" onclick="closeModal('modal-item')">إلغاء</button>
       <button class="btn btn-green" onclick="saveItem()">💾 حفظ</button>
@@ -836,6 +870,29 @@ img,canvas,svg{max-width:100%;height:auto}
 </div>
 
 <!-- Modal: إضافة / تعديل حساب -->
+<!-- Modal: صورة الصنف -->
+<div class="modal-overlay" id="modal-img">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-head">
+      <h3 id="mim-title">صورة الصنف</h3>
+      <button class="modal-close" onclick="closeModal('modal-img')">✕</button>
+    </div>
+    <div class="imgprev big" id="mim-prev"><span>لا صورة</span></div>
+    <div class="form-group" style="margin-top:12px">
+      <label>رابط الصورة</label>
+      <input id="mim-url" placeholder="https://example.com/photo.jpg" dir="ltr" oninput="previewQuickImage()">
+      <div class="imghint">الصق رابطاً مباشراً للصورة. من جوجل: زر الفأرة الأيمن على الصورة ← <b>نسخ عنوان الصورة</b>.</div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:space-between;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-red" id="mim-clear">🗑️ إزالة الصورة</button>
+      <div style="display:flex;gap:8px">
+        <button class="btn" onclick="closeModal('modal-img')">إلغاء</button>
+        <button class="btn btn-green" id="mim-save">💾 حفظ الصورة</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-user">
   <div class="modal">
     <div class="modal-head">
@@ -1054,8 +1111,11 @@ function renderMenuTable() {
           + '<div class="mfallback" style="display:none;background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>'
         : '<div class="mfallback" style="background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>';
       return '<div class="mcard'+(i.active?'':' off')+'" id="mcard-'+i.id+'">'
-        + '<div class="mthumb">'+thumb
+        + '<div class="mthumb'+(canEdit?' editable':'')+'"'
+        +   (canEdit?' onclick="openImageModal('+i.id+')" title="اضغط لتغيير الصورة"':'')+'>'
+        +   thumb
         +   '<span class="mstate">'+(i.active?'متوفر':'مغلق')+'</span>'
+        +   (canEdit?'<span class="mcam">'+(i.image?'🖼️ تغيير':'📷 أضف صورة')+'</span>':'')
         + '</div>'
         + '<div class="mbody">'
         +   '<div class="mtitle">'+escH(i.name)+'</div>'
@@ -1074,6 +1134,93 @@ function renderMenuTable() {
         + '</div>';
     }).join('') + '</div>';
 }
+
+/* ══════════ صور الأصناف ══════════ */
+
+function isImageUrl(u){
+  return /^https?:\/\//i.test(String(u||'').trim());
+}
+
+/** يرسم معاينة داخل حاوية معطاة */
+function paintPreview(boxId, url){
+  var box = document.getElementById(boxId);
+  if(!box) return;
+  var u = String(url||'').trim();
+  if(!isImageUrl(u)){
+    box.className = box.className.replace(/\s*(ok|bad)\b/g,'');
+    box.innerHTML = '<span>'+(u ? 'رابط غير صالح' : 'لا صورة')+'</span>';
+    if(u) box.className += ' bad';
+    return;
+  }
+  box.className = box.className.replace(/\s*(ok|bad)\b/g,'');
+  box.innerHTML = '<span>جاري التحميل…</span>';
+  var img = new Image();
+  img.onload = function(){
+    box.innerHTML = '';
+    box.appendChild(img);
+    box.className += ' ok';
+  };
+  img.onerror = function(){
+    box.innerHTML = '<span>تعذّر تحميل الصورة</span>';
+    box.className += ' bad';
+  };
+  img.alt = '';
+  img.src = u;
+}
+
+var _prevTimer = null;
+function previewItemImage(){
+  clearTimeout(_prevTimer);
+  var v = (document.getElementById('mi-image')||{value:''}).value;
+  _prevTimer = setTimeout(function(){ paintPreview('mi-prev', v); }, 350);
+}
+
+var _quickTimer = null, quickImageId = null;
+function previewQuickImage(){
+  clearTimeout(_quickTimer);
+  var v = (document.getElementById('mim-url')||{value:''}).value;
+  _quickTimer = setTimeout(function(){ paintPreview('mim-prev', v); }, 350);
+}
+
+function openImageModal(id){
+  var item = (S.items||[]).find(function(i){ return i.id===id; });
+  if(!item) return;
+  quickImageId = id;
+  document.getElementById('mim-title').textContent = 'صورة: ' + item.name;
+  document.getElementById('mim-url').value = item.image || '';
+  paintPreview('mim-prev', item.image || '');
+  document.getElementById('modal-img').classList.add('open');
+  setTimeout(function(){ document.getElementById('mim-url').focus(); }, 60);
+}
+
+async function saveQuickImage(url){
+  if(quickImageId == null) return;
+  var val = String(url||'').trim();
+  if(val && !isImageUrl(val)){ toast('الرابط يجب أن يبدأ بـ http أو https', true); return; }
+  var btn = document.getElementById('mim-save');
+  btn.disabled = true;
+  try{
+    var res = await apiPut('/items/'+quickImageId, {image: val});
+    if(res && res.error){ toast(res.error, true); btn.disabled=false; return; }
+    var item = (S.items||[]).find(function(i){ return i.id===quickImageId; });
+    if(item){
+      item.image = (res && res.item) ? (res.item.image||'') : val;
+      if(res && res.item){ item.updatedBy=res.item.updatedBy; item.updatedAt=res.item.updatedAt; }
+    }
+    closeModal('modal-img');
+    toast(val ? '🖼️ تم حفظ الصورة' : '🗑️ أُزيلت الصورة');
+    renderMenuTable();
+  }catch(e){ toast('تعذّر الحفظ', true); }
+  btn.disabled = false;
+}
+
+document.addEventListener('click', function(e){
+  if(!e.target || typeof e.target.closest !== 'function') return;
+  if(e.target.closest('#mim-save'))  saveQuickImage(document.getElementById('mim-url').value);
+  if(e.target.closest('#mim-clear')){
+    if(confirm('إزالة صورة هذا الصنف؟')) saveQuickImage('');
+  }
+});
 
 async function toggleItem(id, val) {
   const card = document.getElementById('mcard-'+id);
@@ -1111,6 +1258,8 @@ function openAddItem() {
   document.getElementById('mi-name').value='';
   document.getElementById('mi-price').value='';
   document.getElementById('mi-keys').value='';
+  { const el=document.getElementById('mi-image'); if(el) el.value=''; }
+  previewItemImage();
   document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
   document.getElementById('modal-item').classList.add('open');
 }
@@ -1123,6 +1272,7 @@ function openEditItem(id) {
   document.getElementById('mi-price').value=item.price;
   document.getElementById('mi-keys').value=(item.keys||[]).join(', ');
   { const el=document.getElementById('mi-image'); if(el) el.value=(item.image||''); }
+  previewItemImage();
   document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}"${c.id===item.cat?' selected':''}>${c.label}</option>`).join('');
   document.getElementById('modal-item').classList.add('open');
 }
