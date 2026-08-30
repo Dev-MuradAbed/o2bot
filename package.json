@@ -1,11 +1,13 @@
 {
   "name": "o2-whatsapp-bot",
-  "version": "5.2.0",
+  "version": "5.4.0",
   "description": "بوت واتساب مطعم O2 — وضع تصفّح المنيو، صلاحيات، سجل تغييرات، لوحة بطاقات رسبونسف",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "test:local": "O2_TEST_MODE=1 SESSION_SECRET=test node index.js"
+    "test:local": "O2_TEST_MODE=1 SESSION_SECRET=test node index.js",
+    "test:firebase": "node test-firebase.js",
+    "check:secrets": "bash check-secrets.sh"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.9",
