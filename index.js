@@ -183,7 +183,22 @@ const { getFirestore }         = require('firebase-admin/firestore');
 
 // قراءة Service Account من متغير البيئة
 let STATE_DOC;
-if (process.env.O2_TEST_MODE === 'persist') {
+if (process.env.O2_TEST_MODE === 'failread') {
+  // وضع اختبار: يفشل أول قراءة لمحاكاة انقطاع لحظي مع Firebase
+  STATE_DOC = {
+    async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
+    async get(){
+      global.__FAKE_DB.gets++;
+      if (global.__FAKE_DB.failAlways) throw new Error('UNAVAILABLE: الخدمة غير متاحة');
+      if (global.__FAKE_DB.failNextGet) {
+        global.__FAKE_DB.failNextGet = false;
+        throw new Error('DEADLINE_EXCEEDED: فشل اتصال لحظي');
+      }
+      return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc };
+    },
+  };
+  console.log('🧪 وضع اختبار فشل القراءة');
+} else if (process.env.O2_TEST_MODE === 'persist') {
   // وضع اختبار يبقي المستند بين إعادات التشغيل (global)
   STATE_DOC = {
     async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
@@ -203,7 +218,16 @@ if (process.env.O2_TEST_MODE === 'persist') {
 
 // debounce — لا نكتب لـ Firebase أكثر من مرة كل 3 ثواني
 let saveTimer = null;
+// ══════════════════════════════════════════════════════════
+// قفل أمان: لا كتابة على Firebase قبل قراءة ناجحة مؤكَّدة.
+// بدونه، أي فشل قراءة لحظي يجعل الخدمة تعمل بالبيانات
+// الافتراضية ثم تكتبها فوق قاعدتك — فيضيع المنيو وكلمات المرور.
+// ══════════════════════════════════════════════════════════
+let stateLoaded = false;
+let loadError   = '';
+
 function saveState() {
+  if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return; }
   if (saveTimer) return;
   saveTimer = setTimeout(async () => {
     saveTimer = null;
@@ -211,10 +235,24 @@ function saveState() {
     catch(e) { console.log('⚠️ Firebase save:', e.message); }
   }, 3000);
 }
+
 async function saveStateNow() {
+  if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return false; }
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  try { await STATE_DOC.set(STATE); }
-  catch(e) { console.log('⚠️ Firebase saveNow:', e.message); }
+  try { await STATE_DOC.set(STATE); return true; }
+  catch(e) { console.log('⚠️ Firebase saveNow:', e.message); return false; }
+}
+
+/** يكتب أي حفظ مؤجّل فوراً — يُستدعى عند إيقاف الخدمة */
+async function flushState() {
+  if (!stateLoaded || !saveTimer) return;
+  clearTimeout(saveTimer); saveTimer = null;
+  try { await STATE_DOC.set(STATE); console.log('💾 حُفظت البيانات قبل الإغلاق'); }
+  catch(e) { console.log('⚠️ فشل الحفظ قبل الإغلاق:', e.message); }
+}
+
+for (const sig of ['SIGTERM', 'SIGINT']) {
+  process.on(sig, async () => { await flushState(); process.exit(0); });
 }
 
 async function loadState() {
@@ -222,8 +260,9 @@ async function loadState() {
     const snap = await STATE_DOC.get();
     if (!snap.exists) {
       console.log('📝 Firebase: أول تشغيل — حفظ البيانات الافتراضية');
+      stateLoaded = true;              // القراءة نجحت والمستند غير موجود فعلاً
       await saveStateNow();
-      return;
+      return true;
     }
     const saved = snap.data();
     STATE.settings     = { ...STATE.settings, ...(saved.settings || {}) };
@@ -266,7 +305,46 @@ async function loadState() {
       console.log(`✅ Firebase: ${STATE.items.length} صنف محمّل (${closed} مغلق)`);
     }
     console.log('✅ Firebase: state محمّل (' + STATE.orders.length + ' طلب)');
-  } catch(e) { console.log('⚠️ Firebase loadState:', e.message); }
+    stateLoaded = true;
+    loadError = '';
+    return true;
+  } catch(e) {
+    loadError = e.message;
+    console.log('⚠️ Firebase loadState:', e.message);
+    return false;
+  }
+}
+
+/**
+ * يحاول التحميل عدة مرات قبل الاستسلام، ولا يفتح قفل الكتابة إلا بنجاح.
+ * إن فشل الكل: الخدمة تبقى تعمل للاطلاع، الكتابة مقفلة، والبوت لا يبدأ،
+ * ومحاولات إعادة التحميل تستمر في الخلفية.
+ */
+async function loadStateWithRetry(attempts = 5) {
+  for (let i = 1; i <= attempts; i++) {
+    if (await loadState()) return true;
+    if (i < attempts) {
+      const delay = Math.min(1000 * 2 ** i, 15000);
+      console.log(`🔁 إعادة محاولة تحميل البيانات (${i}/${attempts}) بعد ${delay / 1000} ثانية…`);
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+  console.error('');
+  console.error('❌❌❌ تعذّر تحميل البيانات من Firebase بعد ' + attempts + ' محاولات');
+  console.error('   السبب: ' + loadError);
+  console.error('   ⛔ الكتابة مقفلة والبوت متوقف حتى لا تُمحى بياناتك.');
+  console.error('   ستستمر المحاولة كل 30 ثانية.');
+  console.error('');
+  const timer = setInterval(async () => {
+    if (await loadState()) {
+      clearInterval(timer);
+      console.log('✅ نجح التحميل — الكتابة مفتوحة الآن');
+      auth.init(STATE, saveState);
+      if (!waSocket) startBaileys();
+    }
+  }, 30000);
+  timer.unref?.();
+  return false;
 }
 
 // ترقيم يومي: يبدأ من 1 كل يوم جديد
@@ -3434,6 +3512,7 @@ async function handleAPI(url, method, body, res) {
   // ---- READ ----
   if (url === '/api/state'  && method === 'GET') return json(STATE);
   if (url === '/api/status' && method === 'GET') return json({
+      dbReady: stateLoaded, dbError: loadError,
     botConnected: STATE.botConnected,
     transferMode: STATE.settings.transferMode,
     botActive: STATE.settings.botActive,
@@ -4485,7 +4564,8 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
 // ============================================================
 (async () => {
   console.log('🚀 O2 Bot يبدأ...');
-  await loadState();
+  const ok = await loadStateWithRetry();
+  if (!ok) return;   // الكتابة مقفلة والبوت متوقف — تستمر المحاولة في الخلفية
   console.log('✅ state محمّل من Firebase');
   auth.init(STATE, saveState);
   startBaileys();

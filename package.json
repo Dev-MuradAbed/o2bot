@@ -1,6 +1,6 @@
 {
   "name": "o2-whatsapp-bot",
-  "version": "4.4.0",
+  "version": "4.5.0",
   "description": "بوت واتساب مطعم O2 — وضع تصفّح المنيو، صلاحيات، سجل تغييرات، لوحة بطاقات رسبونسف",
   "main": "index.js",
   "scripts": {

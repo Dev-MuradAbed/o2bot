@@ -391,6 +391,10 @@ img,canvas,svg{max-width:100%;height:auto}
 .behnote{margin-top:12px;background:var(--surface2);border:1px solid var(--border);
   border-radius:10px;padding:11px 13px;font-size:12.5px;line-height:1.8;color:var(--muted)}
 .behnote b{color:var(--green)}
+
+.dbalert{background:#3b1418;border-bottom:2px solid var(--red);color:#ffb4ad;
+  padding:12px 16px;font-size:12.5px;line-height:1.8;text-align:center}
+.dbalert b{color:#ff6b60;font-size:14px;display:block;margin-bottom:3px}
 </style>
 </head>
 <body>
@@ -416,6 +420,15 @@ img,canvas,svg{max-width:100%;height:auto}
   </div>
 </div>
 <div class="sidebar-backdrop" id="sb-backdrop" onclick="toggleSidebar()"></div>
+<div id="db-alert" style="display:none">
+  <div class="dbalert">
+    <div>
+      <b>⛔ تعذّر تحميل البيانات من Firebase</b>
+      <div id="db-alert-msg"></div>
+      <div style="margin-top:4px">الحفظ مقفل والبوت متوقف حتى لا تُمحى بياناتك. النظام يعيد المحاولة تلقائياً كل 30 ثانية.</div>
+    </div>
+  </div>
+</div>
 
 <div class="layout">
   <div class="sidebar">
@@ -1076,6 +1089,13 @@ async function pollStatus() {
       // ⏳ السيرفر شغال لكن البوت يتصل
       pill.innerHTML = `<div class="dot dot-yellow"></div><span>البوت يتصل بواتساب ⏳</span>`;
       pill.title = 'الاتصال قد يأخذ دقيقة - الصفحة ستتحدث تلقائياً';
+    }
+
+    var dbAlert = document.getElementById('db-alert');
+    if (dbAlert) {
+      var down = st.dbReady === false;
+      dbAlert.style.display = down ? '' : 'none';
+      if (down) document.getElementById('db-alert-msg').textContent = st.dbError || '';
     }
 
     tpill.style.display = st.transferMode ? 'flex' : 'none';
