@@ -3362,8 +3362,33 @@ button:disabled{opacity:.6}
   <label for="p">كلمة المرور</label>
   <input id="p" type="password" autocomplete="current-password" required>
   <button id="btn" type="submit">دخول</button>
+  <div id="dbwait" style="display:none;margin-top:14px;background:#3b2a08;border:1px solid #5b471f;
+       color:#ffd32a;padding:11px 13px;border-radius:10px;font-size:12.5px;line-height:1.8">
+    ⏳ <b>النظام يحمّل بياناته من Firebase…</b><br>
+    <span id="dbwait-msg"></span>
+    الدخول سيعمل تلقائياً بعد اكتمال التحميل.
+  </div>
 </form>
 <script>
+// يتابع جاهزية القاعدة — يمنع رسالة «كلمة مرور خاطئة» المضلّلة
+async function checkDb(){
+  try{
+    var r = await fetch('/api/dbstatus');
+    var d = await r.json();
+    var box = document.getElementById('dbwait');
+    var btn = document.getElementById('btn');
+    if(d.ready){
+      box.style.display='none';
+      btn.disabled=false; btn.textContent='دخول';
+    } else {
+      box.style.display='block';
+      document.getElementById('dbwait-msg').textContent = d.error ? ('السبب: '+d.error+' — ') : '';
+      btn.disabled=true; btn.textContent='بانتظار البيانات…';
+    }
+  }catch(_){}
+}
+checkDb(); setInterval(checkDb, 4000);
+
 async function go(e){
   e.preventDefault();
   var btn=document.getElementById('btn'), err=document.getElementById('err');
@@ -3374,6 +3399,7 @@ async function go(e){
     var d=await r.json();
     if(d.ok){ location.href='/'; return; }
     err.textContent=d.error||'تعذّر الدخول'; err.style.display='block';
+    if(d.dbNotReady) checkDb();
   }catch(_){ err.textContent='لا يوجد اتصال بالخادم'; err.style.display='block'; }
   btn.disabled=false; btn.textContent='دخول';
 }
@@ -3410,6 +3436,13 @@ const server = http.createServer((req, res) => {
       res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
       res.end(`<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="55"><style>body{font-family:Arial;text-align:center;padding:30px;background:#0a0e1a;color:#fff}img{border:6px solid #25D366;border-radius:12px;margin:20px}h2{color:#25D366}</style></head><body><h2>📱 امسح الكود بواتساب</h2><img src="${url2}" width="280"/><p>واتساب ← الأجهزة المرتبطة ← ربط جهاز</p></body></html>`);
     });
+    return;
+  }
+
+  // ─── حالة قاعدة البيانات (متاحة بلا دخول) ────────────────
+  if (url === '/api/dbstatus') {
+    res.writeHead(200, {'Content-Type':'application/json'});
+    res.end(JSON.stringify({ ready: stateLoaded, error: loadError || '' }));
     return;
   }
 
@@ -3468,6 +3501,16 @@ const server = http.createServer((req, res) => {
 
       // ─── تسجيل الدخول والخروج ───────────────────────────
       if (url === '/api/auth/login' && method === 'POST') {
+        // البيانات لم تُحمَّل ⇒ لا حسابات في الذاكرة. رسالة صادقة بدل
+        // «كلمة المرور غير صحيحة» التي كانت تُوهم أن الحساب ضاع.
+        if (!stateLoaded) {
+          res.writeHead(503, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({
+            error: 'النظام لم يُحمّل بياناته بعد من Firebase — انتظر ثوانٍ وأعد المحاولة.',
+            dbNotReady: true, detail: loadError || '',
+          }));
+          return;
+        }
         const u = auth.login(parsed.username, parsed.password);
         if (!u) {
           res.writeHead(401, {'Content-Type':'application/json'});

@@ -81,8 +81,33 @@ function init(state, saver) {
     created++;
   }
   if (created) { saveState(); console.log(`👥 أُنشئت ${created} حسابات افتراضية`); }
-  const weak = STATE.users.filter(u => u.usingDefaultPassword).map(u => u.username);
-  if (weak.length) console.log(`⚠️  حسابات ما زالت بكلمة المرور الافتراضية: ${weak.join('، ')}`);
+
+  // قائمة الحسابات الموجودة — تساعدك على معرفة بماذا تسجّل الدخول
+  console.log('👥 الحسابات: ' + STATE.users.map(u =>
+    `${u.username}(${roleLabel(u.role)}${u.usingDefaultPassword ? '، كلمة مرور افتراضية' : ''})`
+  ).join('، '));
+
+  // ── طريق استرجاع الطوارئ ──────────────────────────────
+  // اضبط RESET_ADMIN_PASSWORD في متغيرات البيئة، أعد النشر، ادخل،
+  // ثم احذف المتغيّر. RESET_ADMIN_USER اختياري (الافتراضي: murad).
+  const resetPw = process.env.RESET_ADMIN_PASSWORD;
+  if (resetPw && String(resetPw).length >= 6) {
+    const target = byUsername(process.env.RESET_ADMIN_USER || 'murad')
+      || STATE.users.find(u => u.role === 'super_admin');
+    if (target) {
+      const { salt, hash: h } = hash(String(resetPw));
+      target.salt = salt; target.hash = h;
+      target.usingDefaultPassword = false;
+      target.active = true;
+      saveState();
+      console.log('');
+      console.log('🔑 أُعيدت كلمة مرور الحساب «' + target.username + '» من RESET_ADMIN_PASSWORD');
+      console.log('   ⚠️ احذف المتغيّر من Render بعد الدخول.');
+      console.log('');
+    } else {
+      console.log('⚠️ RESET_ADMIN_PASSWORD مضبوط لكن لم يُعثر على الحساب المطلوب');
+    }
+  }
 }
 
 /* ============ العمليات ============ */
