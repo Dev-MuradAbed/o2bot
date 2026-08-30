@@ -122,7 +122,7 @@ if (process.env.O2_TEST_MODE === 'failread') {
     async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
     async get(){
       global.__FAKE_DB.gets++;
-      if (global.__FAKE_DB.failAlways) throw new Error('UNAVAILABLE: الخدمة غير متاحة');
+      if (global.__FAKE_DB.failAlways) throw new Error(global.__FAKE_DB.errMsg || 'UNAVAILABLE: الخدمة غير متاحة');
       if (global.__FAKE_DB.failNextGet) {
         global.__FAKE_DB.failNextGet = false;
         throw new Error('DEADLINE_EXCEEDED: فشل اتصال لحظي');
@@ -143,10 +143,92 @@ if (process.env.O2_TEST_MODE === 'failread') {
   STATE_DOC = { async set(d){ mem = JSON.parse(JSON.stringify(d)); }, async get(){ return { exists: !!mem, data: () => mem }; } };
   console.log('🧪 وضع الاختبار: Firebase معطّل');
 } else {
-  const _sa = process.env.FIREBASE_SERVICE_ACCOUNT;
-  if (!_sa) { console.error('❌ FIREBASE_SERVICE_ACCOUNT غير موجود!'); process.exit(1); }
-  initializeApp({ credential: cert(JSON.parse(_sa)) });
+  const sa = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT);
+  console.log(`🔑 مفتاح Firebase: ${sa.client_email}`);
+  console.log(`   المشروع: ${sa.project_id}`);
+  initializeApp({ credential: cert(sa) });
   STATE_DOC = getFirestore().collection('o2bot').doc('state');
+}
+
+/**
+ * يفحص مفتاح الخدمة قبل استخدامه ويشرح الخطأ بدقة.
+ * أغلب مشاكل الاتصال بـ Firebase سببها هذا المتغيّر لا الشبكة.
+ */
+function parseServiceAccount(raw) {
+  const die = (title, ...hints) => {
+    console.error('');
+    console.error('❌ ' + title);
+    hints.forEach(h => console.error('   ' + h));
+    console.error('');
+    process.exit(1);
+  };
+
+  if (!raw || !raw.trim()) {
+    die('متغيّر FIREBASE_SERVICE_ACCOUNT غير موجود',
+        'Render ← Environment ← أضف FIREBASE_SERVICE_ACCOUNT',
+        'قيمته: محتوى ملف JSON الذي نزّلته من Firebase كاملاً');
+  }
+
+  let sa;
+  try {
+    sa = JSON.parse(raw.trim());
+  } catch (e) {
+    die('محتوى FIREBASE_SERVICE_ACCOUNT ليس JSON صالحاً: ' + e.message,
+        'انسخ الملف كاملاً من { حتى } دون حذف أو إضافة',
+        'لا تضع علامات اقتباس حول المحتوى كله');
+  }
+
+  for (const f of ['project_id', 'client_email', 'private_key']) {
+    if (!sa[f]) die(`مفتاح الخدمة ناقص الحقل "${f}"`, 'نزّل ملفاً جديداً من Firebase ← Project Settings ← Service accounts');
+  }
+
+  // بعض لوحات الاستضافة تحوّل أسطر المفتاح إلى \n نصية — نصلحها
+  if (typeof sa.private_key === 'string' && sa.private_key.includes('\\n')) {
+    sa.private_key = sa.private_key.replace(/\\n/g, '\n');
+    console.log('ℹ️  صُحّحت أسطر private_key تلقائياً');
+  }
+  if (!/^-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(sa.private_key.trim())) {
+    die('حقل private_key تالف',
+        'يجب أن يبدأ بـ -----BEGIN PRIVATE KEY-----',
+        'أعد نسخ ملف JSON كاملاً من Firebase');
+  }
+  return sa;
+}
+
+/** يترجم أخطاء Firebase إلى سبب وحل واضحين */
+function explainFirebaseError(msg) {
+  const m = String(msg || '');
+  if (/UNAUTHENTICATED|invalid authentication|invalid_grant/i.test(m)) {
+    return {
+      fatal: true,
+      short: 'مفتاح Firebase غير صالح أو مُبطَل',
+      steps: [
+        'غالباً حذفت المفتاح القديم من Google Cloud ولم تضع الجديد في Render.',
+        '1) Firebase Console ← ⚙️ Project Settings ← Service accounts',
+        '2) Generate new private key ← نزّل ملف JSON',
+        '3) Render ← Environment ← FIREBASE_SERVICE_ACCOUNT ← الصق محتواه كاملاً',
+        '4) Save Changes — تُعاد الخدمة تلقائياً',
+      ],
+    };
+  }
+  if (/PERMISSION_DENIED|Missing or insufficient permissions/i.test(m)) {
+    return {
+      fatal: true,
+      short: 'المفتاح صالح لكن لا يملك صلاحية على Firestore',
+      steps: [
+        'Google Cloud ← IAM ← امنح حساب الخدمة دور "Cloud Datastore User"',
+        'أو تأكد أن قواعد Firestore ليست في وضع production مغلق',
+      ],
+    };
+  }
+  if (/NOT_FOUND|database.*does not exist/i.test(m)) {
+    return {
+      fatal: true,
+      short: 'قاعدة Firestore غير موجودة في هذا المشروع',
+      steps: ['Firebase Console ← Build ← Firestore Database ← Create database'],
+    };
+  }
+  return { fatal: false, short: 'انقطاع مؤقت في الاتصال بـ Firebase', steps: ['ستستمر إعادة المحاولة تلقائياً'] };
 }
 
 // debounce — لا نكتب لـ Firebase أكثر من مرة كل 3 ثواني
@@ -279,11 +361,14 @@ async function loadStateWithRetry(attempts = 5) {
       await new Promise(r => setTimeout(r, delay));
     }
   }
+  const why = explainFirebaseError(loadError);
   console.error('');
   console.error('❌❌❌ تعذّر تحميل البيانات من Firebase بعد ' + attempts + ' محاولات');
-  console.error('   السبب: ' + loadError);
+  console.error('   ' + why.short);
+  why.steps.forEach(x => console.error('   ' + x));
+  console.error('   الخطأ الأصلي: ' + loadError);
   console.error('   ⛔ الكتابة مقفلة والبوت متوقف حتى لا تُمحى بياناتك.');
-  console.error('   ستستمر المحاولة كل 30 ثانية.');
+  if (why.fatal) console.error('   ⚠️ هذا الخطأ لا يُصلحه الانتظار — يحتاج تدخلك.');
   console.error('');
   const timer = setInterval(async () => {
     if (await loadState()) {
@@ -3362,15 +3447,14 @@ button:disabled{opacity:.6}
   <label for="p">كلمة المرور</label>
   <input id="p" type="password" autocomplete="current-password" required>
   <button id="btn" type="submit">دخول</button>
-  <div id="dbwait" style="display:none;margin-top:14px;background:#3b2a08;border:1px solid #5b471f;
-       color:#ffd32a;padding:11px 13px;border-radius:10px;font-size:12.5px;line-height:1.8">
-    ⏳ <b>النظام يحمّل بياناته من Firebase…</b><br>
-    <span id="dbwait-msg"></span>
-    الدخول سيعمل تلقائياً بعد اكتمال التحميل.
-  </div>
+  <div id="dbwait" style="display:none;margin-top:14px;padding:12px 14px;border-radius:10px;
+       font-size:12.5px;line-height:1.9;text-align:start"></div>
 </form>
 <script>
 // يتابع جاهزية القاعدة — يمنع رسالة «كلمة مرور خاطئة» المضلّلة
+function esc(x){ return String(x==null?'':x).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+
 async function checkDb(){
   try{
     var r = await fetch('/api/dbstatus');
@@ -3380,10 +3464,19 @@ async function checkDb(){
     if(d.ready){
       box.style.display='none';
       btn.disabled=false; btn.textContent='دخول';
+      return;
+    }
+    btn.disabled=true; btn.textContent='بانتظار البيانات…';
+    box.style.display='block';
+    if(d.fatal){
+      box.style.background='#3b1418'; box.style.border='1px solid #5b1f24'; box.style.color='#ffb4ad';
+      box.innerHTML = '<b style="color:#ff6b60;font-size:13.5px">⛔ '+esc(d.short)+'</b>'
+        + '<div style="margin-top:8px">' + d.steps.map(function(x){return esc(x);}).join('<br>') + '</div>'
+        + '<div style="margin-top:8px;font-size:11px;opacity:.7">'+esc(d.error)+'</div>';
     } else {
-      box.style.display='block';
-      document.getElementById('dbwait-msg').textContent = d.error ? ('السبب: '+d.error+' — ') : '';
-      btn.disabled=true; btn.textContent='بانتظار البيانات…';
+      box.style.background='#3b2a08'; box.style.border='1px solid #5b471f'; box.style.color='#ffd32a';
+      box.innerHTML = '⏳ <b>النظام يحمّل بياناته من Firebase…</b><br>'
+        + 'الدخول سيعمل تلقائياً بعد اكتمال التحميل.';
     }
   }catch(_){}
 }
@@ -3441,8 +3534,15 @@ const server = http.createServer((req, res) => {
 
   // ─── حالة قاعدة البيانات (متاحة بلا دخول) ────────────────
   if (url === '/api/dbstatus') {
+    const why = stateLoaded ? null : explainFirebaseError(loadError);
     res.writeHead(200, {'Content-Type':'application/json'});
-    res.end(JSON.stringify({ ready: stateLoaded, error: loadError || '' }));
+    res.end(JSON.stringify({
+      ready: stateLoaded,
+      error: loadError || '',
+      short: why ? why.short : '',
+      steps: why ? why.steps : [],
+      fatal: why ? why.fatal : false,
+    }));
     return;
   }
 
