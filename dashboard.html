@@ -291,25 +291,57 @@ img,canvas,svg{max-width:100%;height:auto}
 .mtoggle:active{transform:scale(.97)}
 .mact .btn.btn-sm{min-height:38px;padding:0 10px}
 
-/* ══════════ بطاقات الحسابات ══════════ */
-.ugrid{display:grid;gap:12px;grid-template-columns:1fr}
-@media(min-width:640px){.ugrid{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}}
-.ucard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:14px}
-.ucard.me{border-color:var(--green)}
-.uhead{display:flex;align-items:center;gap:9px;margin-bottom:11px;flex-wrap:wrap}
-.uav{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;
-  font-size:17px;font-weight:800;color:#04150f;flex:0 0 auto}
-.uname{font-weight:800;font-size:14.5px;line-height:1.3;min-width:0;overflow-wrap:anywhere}
-.uname small{display:block;font-weight:600;font-size:11px;color:var(--muted)}
-.urole{font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:20px;color:#04150f;white-space:nowrap}
-.ucard label{display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin:9px 0 4px}
-.ucard input,.ucard select{width:100%;padding:9px 11px;font-size:16px;font-family:inherit;
-  border-radius:9px;border:1px solid var(--border);background:#0a0e1a;color:var(--text)}
-@media(min-width:700px){.ucard input,.ucard select{font-size:13.5px}}
-.ufoot{display:flex;gap:7px;margin-top:13px}
-.ufoot .btn{flex:1;min-height:40px}
-.uwarn{font-size:11px;color:#ffd32a;margin-top:8px;font-weight:600}
+/* ══════════ الحسابات — عرض مدمج ══════════ */
+.urow-tools{margin-bottom:10px}
+.urow-tools input{width:100%;padding:11px 13px;font-size:16px;font-family:inherit;
+  border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text)}
+@media(min-width:700px){.urow-tools input{font-size:14px}}
 
+.uchips{display:flex;gap:7px;overflow-x:auto;padding-bottom:11px;
+  scrollbar-width:none;-ms-overflow-style:none}
+.uchips::-webkit-scrollbar{display:none}
+.uchip{font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;
+  padding:7px 13px;border-radius:20px;border:1px solid var(--border);
+  background:var(--surface);color:var(--muted);min-height:34px}
+.uchip.on{background:var(--text);color:#0a0e1a;border-color:var(--text)}
+.uchip b{opacity:.65;margin-inline-start:4px;font-weight:700}
+
+.ulist{display:grid;gap:9px;grid-template-columns:1fr}
+@media(min-width:720px){.ulist{grid-template-columns:1fr 1fr}}
+@media(min-width:1200px){.ulist{grid-template-columns:repeat(3,1fr)}}
+
+.urow{background:var(--surface);border:1px solid var(--border);border-radius:13px;
+  padding:11px 12px;display:flex;align-items:center;gap:10px;min-width:0;
+  border-inline-start:4px solid transparent;transition:border-color .15s}
+.urow.me{border-inline-start-color:var(--green)}
+.urow:hover{border-color:var(--muted)}
+
+.uav{width:42px;height:42px;border-radius:12px;display:flex;align-items:center;justify-content:center;
+  font-size:17px;font-weight:800;color:#04150f;flex:0 0 auto}
+.uinfo{flex:1;min-width:0}
+.uname{font-weight:800;font-size:14px;line-height:1.35;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.uhandle{font-size:11.5px;color:var(--muted);direction:ltr;text-align:right;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.utags{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.utag{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px;white-space:nowrap}
+.utag.role{color:#04150f}
+.utag.warn{background:#3b2a08;color:#ffd32a}
+.utag.wa{background:#0f2f22;color:var(--green)}
+.utag.dim{background:var(--card);color:var(--muted)}
+
+.uacts{display:flex;flex-direction:column;gap:5px;flex:0 0 auto}
+.uacts button{width:36px;height:33px;padding:0;font-size:14px;border-radius:8px;
+  font-family:inherit;cursor:pointer;border:1px solid var(--border);
+  background:var(--card);color:var(--text)}
+.uacts button.del{color:#ff8a80;border-color:#5b1f2455}
+.uacts button:disabled{opacity:.3;cursor:not-allowed}
+
+.mu-perms{background:var(--card);border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;margin-top:12px;font-size:12px;color:var(--muted);line-height:1.9}
+.mu-perms b{color:var(--text)}
+.uwarn{font-size:12px;color:#ffd32a;font-weight:600;
+  background:#3b2a0833;border:1px solid #5b471f;padding:9px 12px;border-radius:9px}
 </style>
 </head>
 <body>
@@ -758,38 +790,51 @@ img,canvas,svg{max-width:100%;height:auto}
 <div class="toast" id="toast">
 <!-- ══════════ الحسابات ══════════ -->
 <div class="page" id="page-users">
-  <div class="page-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+  <div class="page-head" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px">
     <h2 style="flex:1">👥 الحسابات والصلاحيات</h2>
-    <button class="btn btn-green" onclick="openAddUser()">➕ حساب جديد</button>
+    <button class="btn btn-green" id="btn-add-user">➕ حساب جديد</button>
   </div>
-  <div class="ugrid" id="users-grid"></div>
+
+  <div class="urow-tools">
+    <input id="user-search" placeholder="🔍 ابحث بالاسم أو اسم المستخدم" autocomplete="off">
+  </div>
+  <div class="uchips" id="user-chips"></div>
+
+  <div class="ulist" id="users-grid"></div>
+  <div class="empty" id="users-empty" style="display:none"><div class="ico">👥</div>لا يوجد حساب مطابق</div>
 </div>
 
-<!-- Modal: حساب جديد -->
+<!-- Modal: إضافة / تعديل حساب -->
 <div class="modal-overlay" id="modal-user">
   <div class="modal">
-    <div class="modal-head"><h3>إضافة حساب جديد</h3>
-      <button class="modal-close" onclick="closeModal('modal-user')">✕</button></div>
+    <div class="modal-head">
+      <h3 id="mu-title">حساب جديد</h3>
+      <button class="modal-close" onclick="closeModal('modal-user')">✕</button>
+    </div>
+    <div id="mu-banner" class="uwarn" style="display:none;margin-bottom:10px"></div>
     <div class="form-row">
       <div class="form-group"><label>الاسم الظاهر في السجل</label>
-        <input id="nu-name" placeholder="أحمد سالم"></div>
+        <input id="mu-name" placeholder="أحمد سالم"></div>
       <div class="form-group"><label>اسم المستخدم (إنجليزي)</label>
-        <input id="nu-username" placeholder="ahmad" autocomplete="off"></div>
+        <input id="mu-username" placeholder="ahmad" dir="ltr" autocomplete="off"></div>
     </div>
     <div class="form-row">
       <div class="form-group"><label>الدور</label>
-        <select id="nu-role">
+        <select id="mu-role">
           <option value="cashier">كاشير</option>
           <option value="call_center">كول سنتر</option>
           <option value="customer_care">كاستمر كير</option>
           <option value="super_admin">سوبر أدمن</option>
         </select></div>
-      <div class="form-group"><label>كلمة المرور (6 أحرف فأكثر)</label>
-        <input id="nu-pass" type="password" autocomplete="new-password"></div>
+      <div class="form-group"><label id="mu-pass-label">كلمة المرور</label>
+        <input id="mu-pass" type="password" autocomplete="new-password"></div>
     </div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px">
+    <div class="form-group"><label>رقم واتساب للأوامر السريعة (اختياري)</label>
+      <input id="mu-wa" placeholder="9705XXXXXXXX" dir="ltr"></div>
+    <div class="mu-perms" id="mu-perms"></div>
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px">
       <button class="btn" onclick="closeModal('modal-user')">إلغاء</button>
-      <button class="btn btn-green" onclick="createUser()">💾 إنشاء</button>
+      <button class="btn btn-green" id="mu-save">💾 حفظ</button>
     </div>
   </div>
 </div>
@@ -2665,106 +2710,195 @@ var ROLE_OPTS = [
   ['cashier','كاشير'], ['call_center','كول سنتر'],
   ['customer_care','كاستمر كير'], ['super_admin','سوبر أدمن'],
 ];
+var ROLE_DESC = {
+  super_admin:   'كل الصفحات: المنيو، الطلبات، السائقون، الردود، الإعدادات، البوت، الحسابات، السجل.',
+  cashier:       'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
+  call_center:   'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
+  customer_care: 'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
+};
+
+var USERS = [];          // آخر قائمة من الخادم
+var uFilterRole = '';    // فلتر الدور النشط
+var editUserId = null;   // null = إضافة
 
 async function loadUsers(){
-  var r = await fetch('/api/users'); if(!r.ok) return;
-  var list = await r.json();
+  var r = await fetch('/api/users');
+  if(!r.ok){ toast('تعذّر تحميل الحسابات', true); return; }
+  USERS = await r.json();
+  renderUserChips();
+  renderUsers();
+}
+
+function renderUserChips(){
+  var counts = {};
+  USERS.forEach(function(u){ counts[u.role] = (counts[u.role]||0) + 1; });
+  var chips = '<button class="uchip'+(uFilterRole===''?' on':'')+'" data-role="">الكل<b>'+USERS.length+'</b></button>';
+  ROLE_OPTS.forEach(function(o){
+    if(!counts[o[0]]) return;
+    chips += '<button class="uchip'+(uFilterRole===o[0]?' on':'')+'" data-role="'+o[0]+'">'
+           + o[1]+'<b>'+counts[o[0]]+'</b></button>';
+  });
+  document.getElementById('user-chips').innerHTML = chips;
+}
+
+function renderUsers(){
+  var q = (document.getElementById('user-search')||{value:''}).value.trim().toLowerCase();
   var meId = (window.ME||{}).id;
+  var list = USERS.filter(function(u){
+    if(uFilterRole && u.role !== uFilterRole) return false;
+    if(!q) return true;
+    return (u.displayName||'').toLowerCase().indexOf(q) > -1
+        || (u.username||'').toLowerCase().indexOf(q) > -1;
+  });
 
+  document.getElementById('users-empty').style.display = list.length ? 'none' : '';
   document.getElementById('users-grid').innerHTML = list.map(function(u){
-    var isMe = u.id===meId;
+    var isMe = u.id === meId;
     var initial = (u.displayName||'?').trim().charAt(0);
-    var opts = ROLE_OPTS.map(function(o){
-      return '<option value="'+o[0]+'"'+(o[0]===u.role?' selected':'')+'>'+o[1]+'</option>';
-    }).join('');
-    return '<div class="ucard'+(isMe?' me':'')+'">'
-      + '<div class="uhead">'
-      +   '<div class="uav" style="background:'+u.color+'">'+esc(initial)+'</div>'
-      +   '<div class="uname" style="flex:1">'+esc(u.displayName)
-      +     '<small>@'+esc(u.username)+(isMe?' · أنت':'')+'</small></div>'
-      +   '<span class="urole" style="background:'+u.color+'">'+esc(u.roleLabel)+'</span>'
+    var tags = '<span class="utag role" style="background:'+u.color+'">'+esc(u.roleLabel)+'</span>';
+    if(u.usingDefaultPassword) tags += '<span class="utag warn">كلمة مرور افتراضية</span>';
+    if(u.whatsappNumber)       tags += '<span class="utag wa">📱 مربوط</span>';
+    tags += '<span class="utag dim">'+(u.lastLoginAt ? ago(u.lastLoginAt) : 'لم يدخل بعد')+'</span>';
+
+    return '<div class="urow'+(isMe?' me':'')+'">'
+      + '<div class="uav" style="background:'+u.color+'">'+esc(initial)+'</div>'
+      + '<div class="uinfo">'
+      +   '<div class="uname">'+esc(u.displayName)+(isMe?' <span style="color:var(--green);font-size:11px">· أنت</span>':'')+'</div>'
+      +   '<div class="uhandle">@'+esc(u.username)+'</div>'
+      +   '<div class="utags">'+tags+'</div>'
       + '</div>'
-
-      + '<label>الاسم الظاهر في السجل</label>'
-      + '<input id="un-'+u.id+'" value="'+esc(u.displayName)+'">'
-
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      +   '<div><label>اسم المستخدم</label><input id="uu-'+u.id+'" value="'+esc(u.username)+'"></div>'
-      +   '<div><label>الدور</label><select id="ur-'+u.id+'"'+(isMe?' disabled':'')+'>'+opts+'</select></div>'
-      + '</div>'
-
-      + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:9px">'
-      +   '<div><label>كلمة مرور جديدة</label>'
-      +     '<input id="up-'+u.id+'" type="password" placeholder="اتركه فارغاً" autocomplete="new-password"></div>'
-      +   '<div><label>رقم واتساب</label>'
-      +     '<input id="uw-'+u.id+'" value="'+esc(u.whatsappNumber)+'" placeholder="9705XXXXXXXX"></div>'
-      + '</div>'
-
-      + (u.usingDefaultPassword ? '<div class="uwarn">⚠️ ما زال على كلمة المرور الافتراضية</div>' : '')
-      + '<div class="uwarn" style="color:var(--muted);font-weight:500">'
-      +   'آخر دخول: '+(u.lastLoginAt?ago(u.lastLoginAt):'لم يدخل بعد')+'</div>'
-
-      + '<div class="ufoot">'
-      +   '<button class="btn btn-green" onclick="saveUser(\''+u.id+'\')">💾 حفظ</button>'
-      +   (isMe
-            ? '<button class="btn" disabled title="لا يمكنك حذف حسابك">🗑️</button>'
-            : '<button class="btn btn-red" onclick="removeUser(\''+u.id+'\',\''+esc(u.displayName).replace(/'/g,"\\\\'")+'\')">🗑️ حذف</button>')
+      + '<div class="uacts">'
+      +   '<button data-act="edit" data-id="'+u.id+'" title="تعديل">✏️</button>'
+      +   '<button class="del" data-act="del" data-id="'+u.id+'" title="حذف"'+(isMe?' disabled':'')+'>🗑️</button>'
       + '</div>'
       + '</div>';
   }).join('');
 }
 
+/* ── النافذة ─────────────────────────────────────────── */
+
+function refreshPermNote(){
+  var role = document.getElementById('mu-role').value;
+  document.getElementById('mu-perms').innerHTML =
+    '<b>صلاحيات هذا الدور:</b><br>' + (ROLE_DESC[role] || '');
+}
+
 function openAddUser(){
-  ['nu-name','nu-username','nu-pass'].forEach(function(id){ document.getElementById(id).value=''; });
-  document.getElementById('nu-role').value='cashier';
+  editUserId = null;
+  document.getElementById('mu-title').textContent = 'حساب جديد';
+  document.getElementById('mu-name').value = '';
+  document.getElementById('mu-username').value = '';
+  document.getElementById('mu-pass').value = '';
+  document.getElementById('mu-wa').value = '';
+  document.getElementById('mu-role').value = 'cashier';
+  document.getElementById('mu-role').disabled = false;
+  document.getElementById('mu-username').disabled = false;
+  document.getElementById('mu-pass-label').textContent = 'كلمة المرور (6 أحرف فأكثر)';
+  document.getElementById('mu-banner').style.display = 'none';
+  refreshPermNote();
+  document.getElementById('modal-user').classList.add('open');
+  setTimeout(function(){ document.getElementById('mu-name').focus(); }, 60);
+}
+
+function openEditUser(id){
+  var u = USERS.find(function(x){ return x.id === id; });
+  if(!u) return;
+  editUserId = id;
+  var isMe = id === (window.ME||{}).id;
+  document.getElementById('mu-title').textContent = 'تعديل: ' + u.displayName;
+  document.getElementById('mu-name').value = u.displayName;
+  document.getElementById('mu-username').value = u.username;
+  document.getElementById('mu-wa').value = u.whatsappNumber || '';
+  document.getElementById('mu-pass').value = '';
+  document.getElementById('mu-role').value = u.role;
+  document.getElementById('mu-role').disabled = isMe;
+  document.getElementById('mu-pass-label').textContent = 'كلمة مرور جديدة (اتركها فارغة لعدم التغيير)';
+  var b = document.getElementById('mu-banner');
+  if(isMe){ b.textContent = 'هذا حسابك — لا يمكنك تغيير دوره أو حذفه.'; b.style.display=''; }
+  else if(u.usingDefaultPassword){ b.textContent = '⚠️ هذا الحساب ما زال على كلمة المرور الافتراضية.'; b.style.display=''; }
+  else b.style.display='none';
+  refreshPermNote();
   document.getElementById('modal-user').classList.add('open');
 }
 
-async function createUser(){
-  var payload = {
-    displayName: document.getElementById('nu-name').value.trim(),
-    username:    document.getElementById('nu-username').value.trim(),
-    role:        document.getElementById('nu-role').value,
-    password:    document.getElementById('nu-pass').value,
-  };
-  if(!payload.displayName){ toast('أدخل الاسم الظاهر', true); return; }
-  var r = await fetch('/api/users',{method:'POST',headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(payload)});
-  var d = await r.json();
-  if(!d.ok){ toast(d.error||'تعذّر الإنشاء', true); return; }
-  closeModal('modal-user');
-  toast('تم إنشاء الحساب ✅');
-  loadUsers();
+async function submitUser(){
+  var name = document.getElementById('mu-name').value.trim();
+  var uname = document.getElementById('mu-username').value.trim();
+  var role = document.getElementById('mu-role').value;
+  var pass = document.getElementById('mu-pass').value;
+  var wa = document.getElementById('mu-wa').value.trim();
+
+  if(!name){ toast('أدخل الاسم الظاهر', true); return; }
+  if(!uname){ toast('أدخل اسم المستخدم', true); return; }
+  if(pass && pass.length < 6){ toast('كلمة المرور 6 أحرف على الأقل', true); return; }
+
+  var btn = document.getElementById('mu-save');
+  btn.disabled = true;
+  try{
+    var res, data;
+    if(editUserId){
+      var body = { displayName:name, username:uname, whatsappNumber:wa };
+      if(!document.getElementById('mu-role').disabled) body.role = role;
+      if(pass) body.password = pass;
+      res = await fetch('/api/users/'+editUserId,{method:'PUT',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    } else {
+      if(!pass){ toast('أدخل كلمة مرور للحساب الجديد', true); btn.disabled=false; return; }
+      res = await fetch('/api/users',{method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({displayName:name, username:uname, role:role, password:pass})});
+    }
+    data = await res.json();
+    if(!data.ok){ toast(data.error || 'تعذّر الحفظ', true); btn.disabled=false; return; }
+    if(!editUserId && wa){
+      await fetch('/api/users/'+data.user.id,{method:'PUT',
+        headers:{'Content-Type':'application/json'}, body:JSON.stringify({whatsappNumber:wa})});
+    }
+    closeModal('modal-user');
+    toast(editUserId ? 'تم الحفظ ✅' : 'تم إنشاء الحساب ✅');
+    loadUsers();
+  }catch(e){ toast('لا يوجد اتصال بالخادم', true); }
+  btn.disabled = false;
 }
 
-async function saveUser(id){
-  var pw = document.getElementById('up-'+id).value;
-  if(pw && pw.length < 6){ toast('كلمة المرور 6 أحرف على الأقل', true); return; }
-  var roleEl = document.getElementById('ur-'+id);
-  var body = {
-    displayName: document.getElementById('un-'+id).value,
-    username:    document.getElementById('uu-'+id).value,
-    whatsappNumber: document.getElementById('uw-'+id).value,
-  };
-  if(roleEl && !roleEl.disabled) body.role = roleEl.value;
-  if(pw) body.password = pw;
-
-  var r = await fetch('/api/users/'+id,{method:'PUT',headers:{'Content-Type':'application/json'},
-    body: JSON.stringify(body)});
-  var d = await r.json();
-  if(!d.ok){ toast(d.error||'تعذّر الحفظ', true); return; }
-  toast('تم الحفظ ✅');
-  loadUsers();
-}
-
-async function removeUser(id, name){
-  if(!confirm('حذف حساب "'+name+'" نهائياً؟')) return;
+async function removeUser(id){
+  var u = USERS.find(function(x){ return x.id === id; });
+  if(!u) return;
+  if(!confirm('حذف حساب "'+u.displayName+'" (@'+u.username+') نهائياً؟')) return;
   var r = await fetch('/api/users/'+id,{method:'DELETE',headers:{'Content-Type':'application/json'}});
   var d = await r.json();
-  if(!d.ok){ toast(d.error||'تعذّر الحذف', true); return; }
+  if(!d.ok){ toast(d.error || 'تعذّر الحذف', true); return; }
   toast('تم حذف الحساب 🗑️');
   loadUsers();
 }
+
+/* ── ربط الأحداث بالتفويض (لا onclick داخل HTML) ────── */
+document.addEventListener('click', function(e){
+  if(!e.target || typeof e.target.closest !== 'function') return; // نقر خارج العناصر
+  var grid = document.getElementById('users-grid');
+  var chips = document.getElementById('user-chips');
+
+  var chip = e.target.closest('.uchip');
+  if(chip && chips && chips.contains(chip)){
+    uFilterRole = chip.dataset.role || ''; renderUserChips(); renderUsers(); return;
+  }
+
+  var act = e.target.closest('[data-act]');
+  if(act && grid && grid.contains(act)){
+    if(act.dataset.act === 'edit') openEditUser(act.dataset.id);
+    if(act.dataset.act === 'del')  removeUser(act.dataset.id);
+    return;
+  }
+
+  if(e.target.closest('#btn-add-user')) openAddUser();
+  if(e.target.closest('#mu-save')) submitUser();
+});
+document.addEventListener('input', function(e){
+  if(e.target.id === 'user-search') renderUsers();
+});
+document.addEventListener('change', function(e){
+  if(e.target.id === 'mu-role') refreshPermNote();
+});
 
 var AUDIT = { entries: [], stats: {byUser:{}} };
 var ACT = {
