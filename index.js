@@ -3749,6 +3749,7 @@ async function handleAPI(url, method, body, res) {
   if (url === '/api/state'  && method === 'GET') return json(STATE);
   if (url === '/api/status' && method === 'GET') return json({
       dbReady: stateLoaded, dbError: loadError,
+    waStats: WA_STATS, waRetries,
     botConnected: STATE.botConnected,
     transferMode: STATE.settings.transferMode,
     botActive: STATE.settings.botActive,
@@ -4574,7 +4575,85 @@ const client = {
   },
 };
 
+// ══════════════════════════════════════════════════════════
+// حالة الاتصال بواتساب
+// بدون حارس، كل انقطاع كان ينشئ سوكيت جديداً دون إغلاق القديم،
+// فتتراكم اتصالات تتنافس على نفس الجلسة وتُنتج 408 متتالية.
+// ══════════════════════════════════════════════════════════
+let waConnecting   = false;   // محاولة اتصال جارية
+let waRetries      = 0;       // عدّاد المحاولات المتتالية
+let waRetryTimer   = null;    // مؤقّت إعادة المحاولة المعلّق
+const WA_STATS = {
+  disconnects: 0, reconnects: 0,
+  lastCode: null, lastAt: null, lastReason: '',
+  connectedSince: null,        // متى بدأ الاتصال الحالي
+  linkedAt: null,              // متى رُبط الجهاز أول مرة (لقاعدة الـ14 يوماً)
+  history: [],                 // آخر 20 انقطاعاً
+};
+
+/** يسجّل انقطاعاً في السجل الدوّار */
+function recordDisconnect(code, reason) {
+  WA_STATS.disconnects++;
+  WA_STATS.lastCode = code;
+  WA_STATS.lastReason = reason;
+  WA_STATS.lastAt = new Date().toISOString();
+  WA_STATS.connectedSince = null;
+  WA_STATS.history.unshift({ at: WA_STATS.lastAt, code, reason });
+  if (WA_STATS.history.length > 20) WA_STATS.history.length = 20;
+}
+
+/** يغلق السوكيت الحالي ويزيل مستمعيه — يمنع تراكم الاتصالات */
+function killSocket() {
+  if (!waSocket) return;
+  try { waSocket.ev.removeAllListeners(); } catch { /* تجاهل */ }
+  try { waSocket.end(undefined); } catch { /* تجاهل */ }
+  waSocket = null;
+}
+
+/** إعادة اتصال واحدة مجدولة بتراجع تدريجي: 5 ← 10 ← 20 ← 40 ← 60 ثانية */
+function scheduleReconnect(reason) {
+  if (waRetryTimer) return;              // محاولة مجدولة بالفعل
+  waRetries = Math.min(waRetries + 1, 5);
+  const delay = Math.min(5000 * 2 ** (waRetries - 1), 60000);
+  console.log(`🔄 إعادة اتصال بعد ${delay / 1000} ثانية (محاولة ${waRetries}) — ${reason}`);
+  waRetryTimer = setTimeout(() => {
+    waRetryTimer = null;
+    startBaileys();
+  }, delay);
+  waRetryTimer.unref?.();
+}
+
+/** مؤشر الكتابة — يُطلق ولا يُنتظَر، وفشله لا يعني شيئاً */
+function presence(jid, state) {
+  if (!waSocket) return;
+  try { waSocket.sendPresenceUpdate(state, jid).catch(() => {}); } catch { /* تجاهل */ }
+}
+
+/** إرسال رسالة مع محاولة ثانية — لا يضيع رد بسبب تعثّر لحظي */
+async function sendText(jid, text, attempt = 1) {
+  if (!waSocket) { console.log('⚠️ لا سوكيت — لم تُرسل الرسالة'); return false; }
+  try {
+    await waSocket.sendMessage(jid, { text });
+    return true;
+  } catch (e) {
+    if (attempt === 1) {
+      console.log(`⚠️ فشل الإرسال (${e.message}) — إعادة محاولة بعد ثانيتين`);
+      await new Promise(r => setTimeout(r, 2000));
+      return sendText(jid, text, 2);
+    }
+    console.error('❌ ضاع رد لـ ' + jid + ': ' + e.message);
+    addLog('❌ تعذّر إرسال رد — ' + e.message);
+    return false;
+  }
+}
+
 async function startBaileys() {
+  if (waConnecting) { console.log('⏭️  محاولة اتصال جارية — تُجوهلت'); return; }
+  if (!stateLoaded) { console.log('⏭️  البيانات لم تُحمّل — تأجّل الاتصال'); return; }
+  waConnecting = true;
+  if (waRetryTimer) { clearTimeout(waRetryTimer); waRetryTimer = null; }
+  killSocket();   // أغلق أي اتصال سابق قبل فتح جديد
+
   try {
     // حفظ جلسة واتساب في مجلد baileys_auth
     pairRequested = false; // كل محاولة اتصال جديدة تبدأ بعلم نظيف
@@ -4589,7 +4668,12 @@ async function startBaileys() {
       printQRInTerminal:     false,
       connectTimeoutMs:      60000,
       keepAliveIntervalMs:   25000,
-      retryRequestDelayMs:   500,
+      retryRequestDelayMs:   1000,
+      // بلا مهلة على الاستعلامات — المهلة القصيرة أشيع سبب لأخطاء 408
+      defaultQueryTimeoutMs: undefined,
+      markOnlineOnConnect:   false,  // لا تسحب كل إشعارات عدم الاتصال دفعة واحدة
+      syncFullHistory:       false,  // لا نحتاج تاريخ المحادثات — يوفّر ذاكرة ووقتاً
+      emitOwnEvents:         false,
     });
 
     // حفظ بيانات الجلسة عند كل تحديث
@@ -4652,6 +4736,15 @@ async function startBaileys() {
         currentQR = '';
         pairCode = '';
         pairRequested = false;
+        waConnecting = false;
+        WA_STATS.connectedSince = new Date().toISOString();
+        if (!WA_STATS.linkedAt) {
+          if (!STATE.waLinkedAt) { STATE.waLinkedAt = WA_STATS.connectedSince; saveState(); }
+          WA_STATS.linkedAt = STATE.waLinkedAt;
+        }
+        if (waRetries) { WA_STATS.reconnects++; console.log(`✅ عاد الاتصال بعد ${waRetries} محاولة`); }
+        waRetries = 0;
+        if (waRetryTimer) { clearTimeout(waRetryTimer); waRetryTimer = null; }
         STATE.botConnected = true;
         addLog('✅ البوت اتصل بواتساب (Baileys)');
         console.log('✅ Baileys متصل!');
@@ -4661,15 +4754,39 @@ async function startBaileys() {
         STATE.botConnected = false;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const loggedOut  = statusCode === DisconnectReason.loggedOut;
-        addLog(`⚠️ انقطع الاتصال (${statusCode})`);
-        console.log('⚠️ انقطع:', statusCode, loggedOut ? '— تسجيل خروج' : '— إعادة اتصال');
-        if (!loggedOut) {
-          // إعادة اتصال تلقائية بعد 5 ثواني
-          setTimeout(startBaileys, 5000);
-        } else {
-          addLog('❌ تسجيل خروج — احذف مجلد baileys_auth وأعد المسح');
-          console.log('❌ احذف مجلد baileys_auth من Render وأعد تشغيل السيرفر');
+        waConnecting = false;
+        const REASONS = {
+          408: 'انتهت مهلة الاتصال',
+          428: 'أُغلق الاتصال',
+          440: 'بدأت جلسة أخرى بنفس الرقم',
+          401: 'تسجيل خروج من الهاتف',
+          500: 'خطأ في خادم واتساب',
+          515: 'يحتاج إعادة تشغيل',
+        };
+        const why = REASONS[statusCode] || 'سبب غير معروف';
+        recordDisconnect(statusCode, why);
+        addLog(`⚠️ انقطع الاتصال (${statusCode}) — ${why}`);
+        console.log(`⚠️ انقطع: ${statusCode} — ${why}`);
+
+        if (loggedOut) {
+          STATE.waLinkedAt = null; saveState();
+          WA_STATS.linkedAt = null;
+          killSocket();
+          addLog('❌ تسجيل خروج — افتح /link وأعد الربط');
+          console.log('❌ الجلسة انتهت. افتح صفحة /link وأعد الربط بـ QR أو كود.');
+          return;
         }
+
+        if (statusCode === 440) {
+          // نفس الرقم مرتبط في مكان آخر — الإلحاح يطرد الجلستين
+          killSocket();
+          addLog('⚠️ الرقم مستخدم في جلسة أخرى — أوقف النسخة الثانية');
+          console.log('⚠️ نفس رقم واتساب مرتبط بخدمة أخرى. أوقف إحداهما وإلا تنقطعان معاً.');
+          scheduleReconnect('جلسة مزدوجة');
+          return;
+        }
+
+        scheduleReconnect(why);
       }
     });
 
@@ -4691,36 +4808,33 @@ async function startBaileys() {
             || '';
           if (!body.trim()) continue;
 
-          // typing indicator
-          await waSocket.sendPresenceUpdate('composing', jid);
+          // مؤشر الكتابة تجميلي — لا يُنتظَر ولا يُسمح له بإسقاط الرد
+          presence(jid, 'composing');
           await new Promise(r => setTimeout(r, 400 + Math.random() * 400));
 
           // بناء msgObj متوافق مع handleMessage
           const msgObj = {
             from:  jid,
             body:  body,
-            reply: async (text) => {
-              if (waSocket) await waSocket.sendMessage(jid, { text });
-            },
+            reply: (text) => sendText(jid, text),
           };
 
           const reply = await handleMessage(msgObj);
-          if (!reply) { await waSocket.sendPresenceUpdate('paused', jid); continue; }
-
-          await waSocket.sendPresenceUpdate('paused', jid);
+          presence(jid, 'paused');
+          if (!reply) continue;
 
           if (Array.isArray(reply)) {
             for (let i = 0; i < reply.length; i++) {
               if (i > 0) {
                 await new Promise(r => setTimeout(r, 700 + Math.random() * 400));
-                await waSocket.sendPresenceUpdate('composing', jid);
+                presence(jid, 'composing');
                 await new Promise(r => setTimeout(r, 400));
-                await waSocket.sendPresenceUpdate('paused', jid);
+                presence(jid, 'paused');
               }
-              await waSocket.sendMessage(jid, { text: reply[i] });
+              await sendText(jid, reply[i]);
             }
           } else {
-            await waSocket.sendMessage(jid, { text: reply });
+            await sendText(jid, reply);
           }
         } catch(err) {
           console.error('خطأ رسالة:', err.message, err.stack ? err.stack.split('\n')[1] : '');
@@ -4729,10 +4843,12 @@ async function startBaileys() {
     });
 
   } catch(err) {
+    waConnecting = false;
     console.error('❌ Baileys startError:', err.message);
-    setTimeout(startBaileys, 10000);
+    scheduleReconnect('فشل بدء الاتصال: ' + err.message);
   }
 }
+
 
 // ============================================================
 // AUTO-LEARNING CRON — كل ساعة يحلل unknowns بـ Groq
@@ -4805,14 +4921,32 @@ setInterval(autoLearnCron, 60 * 60 * 1000);
 // ============================================================
 // KEEP-ALIVE — يمنع Render من النوم كل 14 دقيقة
 // ============================================================
+// كان يستخدم http.get مع رابط https فيفشل صامتاً على Render،
+// فتنام الخدمة بعد 15 دقيقة وينقطع واتساب بخطأ 408 عند الإيقاظ.
 const SELF_URL = process.env.RENDER_EXTERNAL_URL
   ? process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '')
   : `http://localhost:${PORT}`;
 
-setInterval(() => {
-  http.get(SELF_URL + '/ping', res => res.resume()).on('error', () => {});
-  console.log('🏓 keep-alive ping');
-}, 14 * 60 * 1000);
+let pingFails = 0;
+function keepAlivePing() {
+  const lib = SELF_URL.startsWith('https:') ? https : http;   // ← الوحدة الصحيحة للبروتوكول
+  const req = lib.get(SELF_URL + '/ping', (res) => {
+    res.resume();
+    if (res.statusCode === 200) { pingFails = 0; }
+    else { pingFails++; console.log(`⚠️ نداء ذاتي: HTTP ${res.statusCode}`); }
+  });
+  req.setTimeout(15000, () => req.destroy(new Error('انتهت المهلة')));
+  req.on('error', (e) => {
+    pingFails++;
+    console.log(`⚠️ نداء ذاتي فشل (${pingFails}): ${e.message}`);
+    if (pingFails === 3) console.log('   ← إن تكرر، اضبط RENDER_EXTERNAL_URL يدوياً برابط خدمتك');
+  });
+}
+
+// 12 دقيقة — أقل من حد الـ15 دقيقة بهامش أمان
+setInterval(keepAlivePing, 12 * 60 * 1000);
+setTimeout(keepAlivePing, 60 * 1000);
+console.log('⏰ نداء ذاتي كل 12 دقيقة: ' + SELF_URL);
 
 // ============================================================
 // GRACEFUL SHUTDOWN

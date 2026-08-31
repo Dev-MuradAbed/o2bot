@@ -437,6 +437,23 @@ img,canvas,svg{max-width:100%;height:auto}
 .dropzone:hover{border-color:var(--green);color:var(--text)}
 .dropzone.busy{opacity:.6;pointer-events:none}
 .dropzone small{opacity:.7;font-size:11px}
+
+/* ══════════ صحة الاتصال ══════════ */
+.wagrid{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin-bottom:12px}
+.wagrid div{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.wagrid b{display:block;font-size:22px;font-weight:800;line-height:1.2}
+.wagrid span{font-size:11px;color:var(--muted)}
+.wahist{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 12px}
+.wahist-h{font-size:11px;color:var(--muted);font-weight:700;margin-bottom:6px}
+.wahist-r{display:flex;gap:10px;font-size:11.5px;padding:3px 0;color:var(--muted)}
+.wahist-r span:first-child{color:var(--red);font-weight:700;min-width:30px}
+.wanote{margin-top:12px;background:#0f2f2233;border:1px solid #0f5c3f;border-radius:10px;
+  padding:11px 13px;font-size:12px;line-height:1.9;color:var(--muted)}
+.wanote b{color:var(--text)}
+.wawarn{background:#3b2a0833;border:1px solid #5b471f;color:#ffd32a;border-radius:10px;
+  padding:11px 13px;font-size:12.5px;line-height:1.9;margin-bottom:12px}
+.wawarn b{color:#fff}
+@media(max-width:640px){.wagrid{grid-template-columns:1fr 1fr}.wagrid div:nth-child(3){grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -509,6 +526,12 @@ img,canvas,svg{max-width:100%;height:auto}
         <div class="stat-card"><div class="stat-icon">📦</div><div class="stat-val" id="s-orders" style="color:var(--blue)">—</div><div class="stat-lbl">إجمالي الطلبات</div></div>
         <div class="stat-card"><div class="stat-icon">👨‍💼</div><div class="stat-val" id="s-queue" style="color:var(--yellow)">—</div><div class="stat-lbl">انتظار موظف</div></div>
       </div>
+      <div class="card" id="wahealth-card">
+        <div class="card-head"><h3>📶 صحة اتصال واتساب</h3>
+          <button class="btn btn-sm" onclick="pollStatus()">🔄</button></div>
+        <div class="card-body" id="wahealth"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+
       <div class="card">
         <div class="card-head"><h3>📋 آخر الأحداث</h3><button class="btn btn-sm" onclick="loadDashboard()">🔄 تحديث</button></div>
         <div class="card-body" id="dash-logs"><div class="loading"><div class="spinner"></div>جاري التحميل...</div></div>
@@ -1201,6 +1224,7 @@ async function pollStatus() {
       if (down) document.getElementById('db-alert-msg').textContent = st.dbError || '';
     }
 
+    renderWaHealth(st);
     tpill.style.display = st.transferMode ? 'flex' : 'none';
     const badge = document.getElementById('badge');
     badge.textContent = st.queueCount;
@@ -1216,6 +1240,61 @@ async function pollStatus() {
       pill.title = 'تأكد إن node index.js شغال';
     }
   }
+}
+
+function durationText(fromIso){
+  if(!fromIso) return '—';
+  var sec = Math.floor((Date.now() - new Date(fromIso)) / 1000);
+  if(sec < 60) return sec + ' ثانية';
+  var m = Math.floor(sec/60); if(m < 60) return m + ' دقيقة';
+  var h = Math.floor(m/60); if(h < 24) return h + ' ساعة و' + (m%60) + ' دقيقة';
+  return Math.floor(h/24) + ' يوم و' + (h%24) + ' ساعة';
+}
+
+function renderWaHealth(st){
+  var el = document.getElementById('wahealth');
+  if(!el) return;
+  var w = st.waStats || {};
+  var hist = w.history || [];
+  var day = Date.now() - 24*3600*1000;
+  var last24 = hist.filter(function(h){ return new Date(h.at).getTime() >= day; });
+
+  var state = st.botConnected
+    ? '<span style="color:var(--green);font-weight:800">✅ متصل</span> منذ ' + durationText(w.connectedSince)
+    : (st.qrAvailable || w.lastCode === 401)
+      ? '<span style="color:var(--yellow);font-weight:800">⚠️ بانتظار الربط</span>'
+      : '<span style="color:var(--red);font-weight:800">❌ غير متصل</span>'
+        + (st.waRetries ? ' — محاولة إعادة اتصال ' + st.waRetries : '');
+
+  // قاعدة الـ14 يوماً: الهاتف يجب أن يتصل بالإنترنت مرة كل أسبوعين
+  var warn = '';
+  if(w.linkedAt){
+    var days = Math.floor((Date.now() - new Date(w.linkedAt)) / 86400000);
+    if(days >= 11){
+      warn = '<div class="wawarn">⚠️ مضى <b>' + days + ' يوماً</b> على ربط الجهاز. '
+           + 'واتساب يفصل الأجهزة المرتبطة إذا بقي الهاتف بلا إنترنت 14 يوماً. '
+           + '<b>افتح واتساب على هاتف المطعم مرة واحدة</b> ليُصفَّر العدّاد.</div>';
+    }
+  }
+
+  el.innerHTML = warn
+    + '<div style="font-size:14px;margin-bottom:12px">' + state + '</div>'
+    + '<div class="wagrid">'
+    +   '<div><b>' + last24.length + '</b><span>انقطاع خلال ٢٤ ساعة</span></div>'
+    +   '<div><b>' + (w.disconnects||0) + '</b><span>إجمالي الانقطاعات</span></div>'
+    +   '<div><b>' + (w.reconnects||0) + '</b><span>عاد تلقائياً</span></div>'
+    + '</div>'
+    + (hist.length
+        ? '<div class="wahist"><div class="wahist-h">آخر الانقطاعات</div>'
+          + hist.slice(0,5).map(function(h){
+              var t = new Date(h.at);
+              return '<div class="wahist-r"><span>' + h.code + '</span>'
+                   + '<span style="flex:1">' + h.reason + '</span>'
+                   + '<span>' + t.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'}) + '</span></div>';
+            }).join('') + '</div>'
+        : '<div style="font-size:12px;color:var(--muted);margin-top:10px">لا انقطاعات مسجّلة ✅</div>')
+    + '<div class="wanote">📱 <b>هاتفك لا يحتاج أن يبقى متصلاً.</b> واتساب متعدّد الأجهزة يجعل البوت '
+    + 'يعمل والهاتف مغلق أو بلا إنترنت — بشرط أن يتصل الهاتف بالإنترنت مرة كل 14 يوماً على الأقل.</div>';
 }
 
 // ============================================================
