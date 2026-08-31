@@ -2590,7 +2590,10 @@ async function handleMessage(msg) {
   session.history.push({ text: rawOriginal, time: Date.now() });
   if (session.history.length > 8) session.history = session.history.slice(-8);
 
-  if (!STATE.settings.botActive) return null;
+  if (!STATE.settings.botActive) {
+    return dropMsg(from, rawOriginal, 'البوت موقوف',
+      'زر «تشغيل البوت» في أعلى اللوحة، أو botActive في الإعدادات.');
+  }
 
   // ══════════════════════════════════════════════════════════
   // أوامر الطاقم — تعمل دائماً بغض النظر عن حالة التفعيل
@@ -2605,7 +2608,11 @@ async function handleMessage(msg) {
   // ══════════════════════════════════════════════════════════
   if (STATE.settings.requireTrigger) {
     if (!chatIsActive(from)) {
-      if (!isTriggered(rawOriginal)) return null; // صمت تام
+      if (!isTriggered(rawOriginal)) {
+        return dropMsg(from, rawOriginal, 'ليست كلمة تفعيل',
+          'الكلمات المقبولة: ' + (STATE.settings.triggerWords || []).join('، ')
+          + ' — أو أطفئ «يتطلب كلمة تفعيل» من الإعدادات.');
+      }
       touchChat(from);
       const fresh = resetSession(from);
       const sess = fresh && fresh.cart ? fresh : getSession(from);
@@ -3330,7 +3337,19 @@ input:focus{outline:2px solid #00d97e;outline-offset:-1px}
   padding:20px 10px;margin:6px 0 10px;direction:ltr;font-variant-numeric:tabular-nums;cursor:pointer}
 .hint{font-size:12.5px;color:#6b7a99;line-height:1.9}
 .hint b{color:#e6edf3}
-.state{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:12px}
+.state{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:10px}
+.steps{margin-bottom:14px}
+.step{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:5px 0;color:#3d4a5c}
+.step .ic{width:19px;height:19px;border-radius:50%;border:2px solid #1f2937;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;font-size:10px}
+.step.done{color:#6b7a99}
+.step.done .ic{background:#00d97e;border-color:#00d97e;color:#04150f}
+.step.now{color:#e6edf3;font-weight:700}
+.step.now .ic{border-color:#00d97e;animation:pulse 1.1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.step .t{margin-inline-start:auto;font-size:11px;color:#3d4a5c;font-variant-numeric:tabular-nums}
+.slow{background:#3b2a08;border:1px solid #5b471f;color:#ffd32a;padding:10px 12px;
+  border-radius:9px;font-size:12px;line-height:1.8;margin-bottom:12px}
 .dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto}
 .ok{background:#00d97e}.wait{background:#ffd32a}.off{background:#ff4757}
 img{display:block;margin:0 auto;border-radius:12px;border:6px solid #00d97e;max-width:100%}
@@ -3343,6 +3362,7 @@ ol{margin:8px 20px 0;font-size:13px;color:#6b7a99;line-height:2}
 
 <div class="card">
   <div class="state"><span class="dot wait" id="dot"></span><span id="stateTxt">جاري القراءة…</span></div>
+  <div class="steps" id="steps"></div>
   <div class="tabs">
     <button id="tab-pair" onclick="pick('pair')">🔢 كود من 8 خانات</button>
     <button id="tab-qr" onclick="pick('qr')">📷 رمز QR</button>
@@ -3424,6 +3444,40 @@ async function unlink(){
   await fetch('/api/bot/unlink',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
 }
 
+var PHASES = [
+  ['db',      'تحميل البيانات من Firebase'],
+  ['starting','قراءة جلسة واتساب'],
+  ['version', 'جلب نسخة واتساب ويب'],
+  ['socket',  'الاتصال بخوادم واتساب'],
+  ['ready',   'الرمز أو الكود جاهز'],
+  ['open',    'مرتبط ✅'],
+];
+
+function renderSteps(d){
+  var cur = d.connected ? 'open'
+    : (d.pairCode || d.qrAvailable) ? 'ready'
+    : !d.dbReady ? 'db'
+    : (d.phase === 'code' || d.phase === 'qr') ? 'ready'
+    : (d.phase || 'starting');
+  var idx = PHASES.findIndex(function(p){ return p[0] === cur; });
+  if(idx < 0) idx = 1;
+
+  var html = PHASES.map(function(p, i){
+    var cls = i < idx ? 'done' : (i === idx ? 'now' : '');
+    var ic  = i < idx ? '✓' : (i === idx ? '' : '');
+    var t   = (i === idx && d.phaseAgeSec) ? ('<span class="t">' + d.phaseAgeSec + 'ث</span>') : '';
+    return '<div class="step ' + cls + '"><span class="ic">' + ic + '</span>' + p[1] + t + '</div>';
+  }).join('');
+
+  // تنبيه إن طالت المرحلة الحالية
+  if(!d.connected && d.phaseAgeSec > 45){
+    html = '<div class="slow">⏳ <b>المرحلة الحالية تأخذ وقتاً أطول من المعتاد.</b><br>'
+      + 'الخطة المجانية في Render تحتاج حتى دقيقة للاستيقاظ بعد الخمول. '
+      + 'إن تجاوزت دقيقتين راجع سجل Render.</div>' + html;
+  }
+  document.getElementById('steps').innerHTML = html;
+}
+
 async function poll(){
   try{
     var r=await fetch('/api/bot/link');
@@ -3434,6 +3488,7 @@ async function poll(){
     else if(d.pairCode||d.qrAvailable){ dot.className='dot wait'; st.textContent='بانتظار إتمام الربط…'; }
     else { dot.className='dot off'; st.textContent='غير مرتبط'; }
 
+    renderSteps(d);
     if(!window.__picked){ pick(d.method||'qr'); if(d.phone) document.getElementById('ph').value=d.phone; window.__picked=true; }
 
     show('codeCard', !!d.pairCode);
@@ -3832,6 +3887,19 @@ async function handleAPI(url, method, body, res) {
     return json({ok:true, affected: affected.length});
   }
 
+  // ---- الرسائل المُهملة ولماذا ----
+  if (url === '/api/dropped' && method === 'GET') {
+    return json({
+      dropped: DROPPED.slice(0, 25),
+      settings: {
+        botActive:      STATE.settings.botActive,
+        requireTrigger: STATE.settings.requireTrigger,
+        browseOnly:     STATE.settings.browseOnly,
+        triggerWords:   STATE.settings.triggerWords || [],
+      },
+    });
+  }
+
   // ---- رفع صورة من الجهاز ----
   if (url === '/api/images' && method === 'POST') {
     if (!IMG_COL) return json({error:'تخزين الصور غير مهيأ'}, 503);
@@ -3876,6 +3944,11 @@ async function handleAPI(url, method, body, res) {
       qrAvailable: !!currentQR,
       pairCode: pairCode ? (pairCode.match(/.{1,4}/g) || [pairCode]).join('-') : '',
       pairCodeAgeSec: pairCode ? Math.floor((Date.now() - pairCodeAt) / 1000) : 0,
+      phase: WA_PHASE.name,
+      phaseLabel: WA_PHASE.label,
+      phaseAgeSec: Math.floor((Date.now() - WA_PHASE.at) / 1000),
+      elapsedSec: WA_PHASE.startedAt ? Math.floor((Date.now() - WA_PHASE.startedAt) / 1000) : 0,
+      dbReady: stateLoaded,
     });
   }
 
@@ -4580,6 +4653,16 @@ const client = {
 // بدون حارس، كل انقطاع كان ينشئ سوكيت جديداً دون إغلاق القديم،
 // فتتراكم اتصالات تتنافس على نفس الجلسة وتُنتج 408 متتالية.
 // ══════════════════════════════════════════════════════════
+// مراحل الاتصال — تُعرض في صفحة /link ليعرف المستخدم أين وصل
+const WA_PHASE = { name: 'idle', label: 'في الانتظار', at: Date.now(), startedAt: null };
+function setPhase(name, label) {
+  WA_PHASE.name = name;
+  WA_PHASE.label = label;
+  WA_PHASE.at = Date.now();
+  if (name === 'starting') WA_PHASE.startedAt = Date.now();
+  console.log(`   ⏱️  ${label}`);
+}
+
 let waConnecting   = false;   // محاولة اتصال جارية
 let waRetries      = 0;       // عدّاد المحاولات المتتالية
 let waRetryTimer   = null;    // مؤقّت إعادة المحاولة المعلّق
@@ -4623,6 +4706,53 @@ function scheduleReconnect(reason) {
   waRetryTimer.unref?.();
 }
 
+// ══════════════════════════════════════════════════════════
+// سجل الرسائل المُهملة — يجيب على «لماذا لم يرد البوت؟»
+// كل نقاط الإسقاط كانت صامتة، فيبدو البوت معطّلاً بلا تفسير.
+// ══════════════════════════════════════════════════════════
+const DROPPED = [];
+
+function dropMsg(from, text, reason, hint) {
+  const num = String(from || '').split('@')[0];
+  DROPPED.unshift({
+    at: new Date().toISOString(),
+    from: num.length > 6 ? num.slice(0, 5) + '***' + num.slice(-3) : num,
+    text: String(text || '').slice(0, 60),
+    reason, hint: hint || '',
+  });
+  if (DROPPED.length > 40) DROPPED.length = 40;
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════
+// نسخة واتساب ويب
+// fetchLatestBaileysVersion يطلبها من الإنترنت في كل اتصال.
+// كانت تُنتظَر بلا مهلة، فتؤخّر ظهور QR ثوانيَ أو تعلّق تماماً.
+// ══════════════════════════════════════════════════════════
+const WA_VERSION_FALLBACK = [2, 3000, 1015901307];
+let waVersionCache = null;   // { version, at }
+const WA_VERSION_TTL = 6 * 3600 * 1000;
+
+async function getWaVersion() {
+  if (waVersionCache && Date.now() - waVersionCache.at < WA_VERSION_TTL) {
+    return waVersionCache.version;
+  }
+  const t0 = Date.now();
+  try {
+    const res = await Promise.race([
+      fetchLatestBaileysVersion(),
+      new Promise((_, rej) => setTimeout(() => rej(new Error('مهلة 8 ثوانٍ')), 8000)),
+    ]);
+    waVersionCache = { version: res.version, at: Date.now() };
+    console.log(`   نسخة واتساب ${res.version.join('.')} (${Date.now() - t0}ms)`);
+    return res.version;
+  } catch (e) {
+    const v = (waVersionCache && waVersionCache.version) || WA_VERSION_FALLBACK;
+    console.log(`   ⚠️ تعذّر جلب نسخة واتساب (${e.message}) — استُخدمت ${v.join('.')}`);
+    return v;
+  }
+}
+
 /** مؤشر الكتابة — يُطلق ولا يُنتظَر، وفشله لا يعني شيئاً */
 function presence(jid, state) {
   if (!waSocket) return;
@@ -4653,12 +4783,15 @@ async function startBaileys() {
   waConnecting = true;
   if (waRetryTimer) { clearTimeout(waRetryTimer); waRetryTimer = null; }
   killSocket();   // أغلق أي اتصال سابق قبل فتح جديد
+  setPhase('starting', 'قراءة جلسة واتساب المحفوظة');
 
   try {
     // حفظ جلسة واتساب في مجلد baileys_auth
     pairRequested = false; // كل محاولة اتصال جديدة تبدأ بعلم نظيف
     const { state: authState, saveCreds } = await useMultiFileAuthState('./baileys_auth');
-    const { version } = await fetchLatestBaileysVersion();
+    setPhase('version', 'جلب نسخة واتساب ويب');
+    const version = await getWaVersion();
+    setPhase('socket', 'فتح الاتصال بخوادم واتساب');
 
     waSocket = makeWASocket({
       version,
@@ -4700,6 +4833,7 @@ async function startBaileys() {
             pairCode   = String(code || '').replace(/\W/g, '');
             pairCodeAt = Date.now();
             currentQR  = '';
+            setPhase('code', 'كود الربط جاهز');
             const pretty = pairCode.match(/.{1,4}/g)?.join('-') || pairCode;
             const issued = pairCode;
             // ينتهي الكود بعد 3 دقائق فتطلب الواجهة توليد غيره
@@ -4727,6 +4861,7 @@ async function startBaileys() {
         if (wantPair && pairCode) return;
 
         currentQR = qr;
+        setPhase('qr', 'الرمز جاهز — امسحه من هاتفك');
         console.log('📱 QR جاهز — افتح /qr في الداشبورد');
         // ينتهي QR بعد دقيقة
         setTimeout(() => { if (currentQR === qr) currentQR = ''; }, 60000);
@@ -4737,6 +4872,7 @@ async function startBaileys() {
         pairCode = '';
         pairRequested = false;
         waConnecting = false;
+        setPhase('open', 'متصل ✅');
         WA_STATS.connectedSince = new Date().toISOString();
         if (!WA_STATS.linkedAt) {
           if (!STATE.waLinkedAt) { STATE.waLinkedAt = WA_STATS.connectedSince; saveState(); }
@@ -4796,9 +4932,7 @@ async function startBaileys() {
 
       for (const msg of messages) {
         try {
-          if (msg.key.fromMe) continue;
           const jid = msg.key.remoteJid;
-          if (!jid || jid.endsWith('@g.us')) continue; // تجاهل المجموعات
 
           // استخراج النص من أنواع الرسائل المختلفة
           const body = msg.message?.conversation
@@ -4806,7 +4940,22 @@ async function startBaileys() {
             || msg.message?.buttonsResponseMessage?.selectedDisplayText
             || msg.message?.listResponseMessage?.title
             || '';
-          if (!body.trim()) continue;
+
+          if (msg.key.fromMe) {
+            dropMsg(jid, body, 'رسالة صادرة من الرقم المربوط نفسه',
+              'البوت لا يرد على رسائلك أنت. اختبره من هاتف آخر.');
+            continue;
+          }
+          if (!jid) { dropMsg('', body, 'بلا معرّف مرسل', ''); continue; }
+          if (jid.endsWith('@g.us')) {
+            dropMsg(jid, body, 'رسالة من مجموعة', 'البوت يتجاهل المجموعات عمداً.');
+            continue;
+          }
+          if (!body.trim()) {
+            dropMsg(jid, '', 'رسالة بلا نص',
+              'صورة أو صوت أو ملصق — البوت يقرأ النص فقط.');
+            continue;
+          }
 
           // مؤشر الكتابة تجميلي — لا يُنتظَر ولا يُسمح له بإسقاط الرد
           presence(jid, 'composing');
@@ -4967,10 +5116,20 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
 // ============================================================
 (async () => {
   console.log('🚀 O2 Bot يبدأ...');
+  const t0 = Date.now();
   const ok = await loadStateWithRetry();
   if (!ok) return;   // الكتابة مقفلة والبوت متوقف — تستمر المحاولة في الخلفية
-  if (migrationPending) { await saveStateNow(); migrationPending = false; console.log('💾 حُفظ المنيو الجديد'); }
-  console.log('✅ state محمّل من Firebase');
+  console.log(`✅ state محمّل من Firebase (${Date.now() - t0}ms)`);
+
   auth.init(STATE, saveState);
+
+  // البوت يبدأ فوراً؛ كتابة الترحيل تجري في الخلفية حتى لا تؤخّر ظهور QR
   startBaileys();
+
+  if (migrationPending) {
+    saveStateNow().then(() => {
+      migrationPending = false;
+      console.log('💾 حُفظ المنيو الجديد (في الخلفية)');
+    });
+  }
 })();

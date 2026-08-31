@@ -319,6 +319,7 @@ function permFor(url, method, body) {
   if (url.startsWith('/api/cats'))                        return method === 'GET' ? 'menu.view' : 'menu.edit';
   if (url.startsWith('/api/replies'))                     return 'replies.edit';
   if (url.startsWith('/api/settings'))                    return 'settings.edit';
+  if (url === '/api/dropped')                             return 'bot.manage';
   if (url.startsWith('/api/bot/'))                        return 'bot.manage'; // يشمل link و unlink
   if (url.startsWith('/api/drivers'))                     return method === 'GET' ? 'orders.view' : 'drivers.manage';
   if (url.startsWith('/api/orders'))                      return method === 'GET' ? 'orders.view' : 'orders.edit';

@@ -454,6 +454,20 @@ img,canvas,svg{max-width:100%;height:auto}
   padding:11px 13px;font-size:12.5px;line-height:1.9;margin-bottom:12px}
 .wawarn b{color:#fff}
 @media(max-width:640px){.wagrid{grid-template-columns:1fr 1fr}.wagrid div:nth-child(3){grid-column:1/-1}}
+
+/* ══════════ الرسائل المُهملة ══════════ */
+.droprow{border-inline-start:3px solid var(--red);background:var(--surface2);
+  border-radius:0 10px 10px 0;padding:9px 12px;margin-bottom:8px}
+.dropmeta{font-size:10.5px;color:var(--muted)}
+.droptxt{font-size:13px;font-weight:700;margin:3px 0;overflow-wrap:anywhere}
+.dropwhy{font-size:12px;color:var(--red);font-weight:700}
+.drophint{font-size:11.5px;color:var(--muted);margin-top:3px;line-height:1.8}
+.dropnote{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:10px 12px;font-size:12.5px;margin-bottom:12px;line-height:1.9;color:var(--muted)}
+.dropnote b{color:var(--green)}
+.dropwarn{background:#3b2a0833;border:1px solid #5b471f;color:#ffd32a;border-radius:10px;
+  padding:11px 13px;font-size:13px;margin-bottom:12px;font-weight:600}
+.dropwarn b{color:#fff}
 </style>
 </head>
 <body>
@@ -530,6 +544,12 @@ img,canvas,svg{max-width:100%;height:auto}
         <div class="card-head"><h3>📶 صحة اتصال واتساب</h3>
           <button class="btn btn-sm" onclick="pollStatus()">🔄</button></div>
         <div class="card-body" id="wahealth"><div class="loading"><div class="spinner"></div></div></div>
+      </div>
+
+      <div class="card" id="drop-card" style="display:none">
+        <div class="card-head"><h3>🔇 لماذا لم يرد البوت؟</h3>
+          <button class="btn btn-sm" onclick="loadDropped()">🔄</button></div>
+        <div class="card-body" id="drop-body"></div>
       </div>
 
       <div class="card">
@@ -1251,6 +1271,36 @@ function durationText(fromIso){
   return Math.floor(h/24) + ' يوم و' + (h%24) + ' ساعة';
 }
 
+async function loadDropped(){
+  var card = document.getElementById('drop-card');
+  var body = document.getElementById('drop-body');
+  if(!card || !hasPerm('bot.manage')) return;
+  try{
+    var r = await fetch('/api/dropped');
+    if(!r.ok) return;
+    var d = await r.json();
+    if(!d.dropped.length){ card.style.display='none'; return; }
+    card.style.display='';
+
+    var st = d.settings;
+    var flags = '';
+    if(!st.botActive) flags += '<div class="dropwarn">⏸️ <b>البوت موقوف حالياً</b> — شغّله من الزر أعلى اللوحة.</div>';
+    else if(st.requireTrigger) flags += '<div class="dropnote">🔑 البوت يتطلب كلمة تفعيل. المقبول: <b>'
+      + st.triggerWords.map(escH).join('</b> · <b>') + '</b></div>';
+
+    body.innerHTML = flags + d.dropped.map(function(x){
+      var t = new Date(x.at);
+      return '<div class="droprow">'
+        + '<div class="dropmeta">' + t.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'})
+        +   ' · <span dir="ltr">' + escH(x.from) + '</span></div>'
+        + '<div class="droptxt">« ' + escH(x.text || '—') + ' »</div>'
+        + '<div class="dropwhy">' + escH(x.reason) + '</div>'
+        + (x.hint ? '<div class="drophint">' + escH(x.hint) + '</div>' : '')
+        + '</div>';
+    }).join('');
+  }catch(e){ }
+}
+
 function renderWaHealth(st){
   var el = document.getElementById('wahealth');
   if(!el) return;
@@ -1312,6 +1362,7 @@ async function loadDashboard() {
       if (unk > 0) { learnBadge.textContent = unk; learnBadge.style.display = ''; }
       else learnBadge.style.display = 'none';
     }
+    loadDropped();
     document.getElementById('s-total').textContent = S.items.length;
     document.getElementById('s-active').textContent = S.items.filter(i=>i.active).length;
     document.getElementById('s-orders').textContent = S.orders.length;
