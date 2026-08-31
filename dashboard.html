@@ -33,7 +33,7 @@ body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellips
 .btn-primary{background:linear-gradient(135deg,var(--green),var(--green-dark));color:#000;border:none;padding:7px 18px;border-radius:8px;font-family:var(--font);font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;transition:all 0.2s}
 .btn-primary:hover{transform:translateY(-1px);box-shadow:0 4px 16px #00d97e30}
 
-.layout{display:grid;grid-template-columns:210px 1fr;min-height:calc(100vh - 62px);position:relative;z-index:1}
+.layout{display:grid;grid-template-columns:210px 1fr;min-height:calc(100vh - 62px);position:relative}
 .sidebar{background:var(--surface);border-left:1px solid var(--border);padding:16px 10px;position:sticky;top:62px;height:calc(100vh - 62px);overflow-y:auto}
 .nav-sec{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;padding:6px 12px 4px;margin-top:6px}
 .nav-item{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);transition:all 0.15s;margin-bottom:2px;border:1px solid transparent;user-select:none}
@@ -172,7 +172,7 @@ img,canvas,svg{max-width:100%;height:auto}
 /* زر القائمة الجانبية — يظهر على الجوال فقط */
 .menu-btn{display:none;background:var(--surface);border:1px solid var(--border);color:var(--text);
   font-size:19px;width:42px;height:42px;border-radius:10px;cursor:pointer;flex:0 0 auto;align-items:center;justify-content:center}
-.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:98}
+.sidebar-backdrop{display:none;position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:90}
 .sidebar-backdrop.show{display:block}
 
 /* بطاقة المستخدم في الشريط العلوي */
@@ -193,7 +193,7 @@ img,canvas,svg{max-width:100%;height:auto}
   .header-right .pill{padding:6px 9px}
   #bot-toggle-label,#bot-toggle-btn+.btn{display:none}
   .layout{grid-template-columns:1fr}
-  .sidebar{position:fixed;inset-inline-start:0;top:58px;bottom:0;width:250px;z-index:99;
+  .sidebar{position:fixed;inset-inline-start:0;top:58px;bottom:0;width:250px;z-index:95;
     height:auto;transform:translateX(110%);transition:transform .25s ease;
     box-shadow:-8px 0 30px rgba(0,0,0,.5);overflow-y:auto;padding-bottom:40px}
   .sidebar.open{transform:translateX(0)}
@@ -411,6 +411,32 @@ img,canvas,svg{max-width:100%;height:auto}
   display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .mbranch{font-size:10px;color:var(--muted);margin-top:4px;font-weight:700}
 .price small{font-size:9.5px;opacity:.8}
+
+.imgtest{margin-top:10px;padding:12px 14px;border-radius:10px;font-size:12.5px;line-height:1.9;
+  background:var(--surface2);border:1px solid var(--border);overflow-wrap:anywhere}
+.imgtest.ok{border-color:var(--green);background:#0f2f2233}
+.imgtest.bad{border-color:var(--red);background:#3b141833}
+.imgtest code{background:var(--surface3);padding:2px 6px;border-radius:5px;font-size:11px}
+.imgtest b{color:var(--text)}
+
+.imgtest{margin-top:10px;padding:12px 14px;border-radius:10px;font-size:12.5px;line-height:1.9;
+  background:var(--surface2);border:1px solid var(--border);overflow-wrap:anywhere}
+.imgtest.ok{border-color:var(--green);background:#0f2f2233}
+.imgtest.bad{border-color:var(--red);background:#3b141833}
+.imgtest code{background:var(--surface3);padding:2px 6px;border-radius:5px;font-size:11px}
+.imgtest b{color:var(--text)}
+
+/* ══════════ رفع الصور ══════════ */
+.imgtabs{display:flex;gap:7px;margin:12px 0 10px}
+.imgtab{flex:1;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;min-height:40px;
+  border-radius:9px;border:1px solid var(--border);background:var(--surface2);color:var(--muted)}
+.imgtab.on{background:var(--green);color:#04150f;border-color:var(--green)}
+.dropzone{display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;
+  min-height:88px;padding:14px;border:2px dashed var(--border);border-radius:12px;
+  background:var(--surface2);color:var(--muted);font-size:12.5px;line-height:1.8;transition:.15s}
+.dropzone:hover{border-color:var(--green);color:var(--text)}
+.dropzone.busy{opacity:.6;pointer-events:none}
+.dropzone small{opacity:.7;font-size:11px}
 </style>
 </head>
 <body>
@@ -856,7 +882,12 @@ img,canvas,svg{max-width:100%;height:auto}
 
           <div class="form-group">
             <label>نطاق صور المنيو</label>
-            <input id="set-imagebase" dir="ltr" placeholder="https://o2restaurant.com" onchange="saveBotBehavior()">
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <input id="set-imagebase" dir="ltr" style="flex:1;min-width:180px"
+                     placeholder="https://o2bot-b7a51.web.app" onchange="saveBotBehavior()">
+              <button class="btn btn-green" onclick="testImages()" style="white-space:nowrap">🔍 اختبر</button>
+            </div>
+            <div id="img-test" class="imgtest" style="display:none"></div>
             <div class="imghint">صور المنيو مسارات نسبية مثل <code>/menu/shawarma/48.jpg</code>.
               ضع هنا نطاق موقعكم لتظهر في البطاقات. اتركه فارغاً ليظهر رمز القسم.</div>
           </div>
@@ -1009,10 +1040,27 @@ img,canvas,svg{max-width:100%;height:auto}
       <button class="modal-close" onclick="closeModal('modal-img')">✕</button>
     </div>
     <div class="imgprev big" id="mim-prev"><span>لا صورة</span></div>
-    <div class="form-group" style="margin-top:12px">
-      <label>رابط الصورة</label>
-      <input id="mim-url" placeholder="https://example.com/photo.jpg" dir="ltr" oninput="previewQuickImage()">
-      <div class="imghint">الصق رابطاً مباشراً للصورة. من جوجل: زر الفأرة الأيمن على الصورة ← <b>نسخ عنوان الصورة</b>.</div>
+
+    <div class="imgtabs">
+      <button class="imgtab on" data-imgtab="file" onclick="imgTab('file')">📁 من الجهاز</button>
+      <button class="imgtab" data-imgtab="url" onclick="imgTab('url')">🔗 رابط</button>
+    </div>
+
+    <div id="imgpane-file">
+      <label class="dropzone" id="mim-drop">
+        <input type="file" id="mim-file" accept="image/jpeg,image/png,image/webp" hidden
+               onchange="pickImageFile(this.files[0])">
+        <span id="mim-dropmsg">اضغط لاختيار صورة من جهازك<br><small>JPG أو PNG أو WebP</small></span>
+      </label>
+      <div class="imghint">الصورة تُصغَّر تلقائياً إلى 800px قبل الرفع، وتُحفظ في Firebase — لا تحتاج أي خدمة أخرى.</div>
+    </div>
+
+    <div id="imgpane-url" style="display:none">
+      <div class="form-group">
+        <label>رابط الصورة</label>
+        <input id="mim-url" placeholder="https://example.com/photo.jpg" dir="ltr" oninput="previewQuickImage()">
+        <div class="imghint">الصق رابطاً مباشراً للصورة. من جوجل: زر الفأرة الأيمن على الصورة ← <b>نسخ عنوان الصورة</b>.</div>
+      </div>
     </div>
     <div style="display:flex;gap:8px;justify-content:space-between;margin-top:14px;flex-wrap:wrap">
       <button class="btn btn-red" id="mim-clear">🗑️ إزالة الصورة</button>
@@ -1276,11 +1324,22 @@ function priceLabel(i){
   return i.price+' ₪';
 }
 
+/** يصلح أي مسار مشوّه: public/menu/… أو menu/… ← /menu/… */
+function normImagePath(raw){
+  const p = String(raw||'').trim();
+  if(!p) return '';
+  if(/^https?:\/\//i.test(p)) return p;
+  if(p.startsWith('/api/img/')) return p;        // صورة مرفوعة — تُخدَم من الخادم نفسه
+  const m = p.match(/\/?menu\/.*$/i);
+  return m ? '/' + m[0].replace(/^\/+/,'') : p;
+}
+
 /** يبني رابط الصورة: النسبي يُسبق بالنطاق من الإعدادات */
 function imageUrl(i){
-  const raw = i.image || '';
+  const raw = normImagePath(i.image);
   if(!raw) return '';
   if(/^https?:\/\//i.test(raw)) return raw;
+  if(raw.startsWith('/api/img/')) return raw;    // نفس الخادم — لا يُسبق بنطاق
   const base = ((S.settings||{}).imageBaseUrl||'').replace(/\/+$/,'');
   return base ? base + (raw.startsWith('/')?'':'/') + raw : '';
 }
@@ -1403,13 +1462,86 @@ function previewQuickImage(){
   _quickTimer = setTimeout(function(){ paintPreview('mim-prev', v); }, 350);
 }
 
+/* ── رفع صورة من الجهاز ── */
+
+function imgTab(which){
+  document.querySelectorAll('.imgtab').forEach(function(b){
+    b.classList.toggle('on', b.dataset.imgtab === which);
+  });
+  document.getElementById('imgpane-file').style.display = which==='file' ? '' : 'none';
+  document.getElementById('imgpane-url').style.display  = which==='url'  ? '' : 'none';
+}
+
+/** يصغّر الصورة في المتصفح قبل الرفع — أسرع وأخف على القاعدة */
+function shrinkImage(file, maxW, quality){
+  return new Promise(function(resolve, reject){
+    var reader = new FileReader();
+    reader.onerror = function(){ reject(new Error('تعذّر قراءة الملف')); };
+    reader.onload = function(){
+      var img = new Image();
+      img.onerror = function(){ reject(new Error('الملف ليس صورة صالحة')); };
+      img.onload = function(){
+        var w = img.width, h = img.height;
+        if(w > maxW){ h = Math.round(h * maxW / w); w = maxW; }
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        var ctx = c.getContext('2d');
+        ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,w,h);   // شفافية PNG → أبيض
+        ctx.drawImage(img, 0, 0, w, h);
+        resolve({ dataUrl: c.toDataURL('image/jpeg', quality), w: w, h: h });
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function pickImageFile(file){
+  if(!file) return;
+  var msg = document.getElementById('mim-dropmsg');
+  var drop = document.getElementById('mim-drop');
+
+  if(!/^image\/(jpeg|png|webp)$/.test(file.type)){
+    toast('الصيغة غير مدعومة — JPG أو PNG أو WebP', true); return;
+  }
+
+  drop.classList.add('busy');
+  msg.innerHTML = '⏳ جاري التصغير…';
+  try{
+    var out = await shrinkImage(file, 800, 0.8);
+    var kb = Math.round((out.dataUrl.length * 3/4) / 1024);
+    paintPreview('mim-prev', out.dataUrl);
+    msg.innerHTML = '⬆️ جاري الرفع… <small>' + kb + ' ك.ب</small>';
+
+    var r = await fetch('/api/images', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ dataUrl: out.dataUrl, name: file.name })
+    });
+    var d = await r.json();
+    if(!d.ok){ throw new Error(d.error || 'تعذّر الرفع'); }
+
+    document.getElementById('mim-url').value = d.url;
+    msg.innerHTML = '✅ رُفعت (' + Math.round(d.size/1024) + ' ك.ب · ' + out.w + '×' + out.h + ')'
+      + '<br><small>اضغط «حفظ الصورة» لربطها بالصنف</small>';
+    toast('تم رفع الصورة — اضغط حفظ');
+  }catch(e){
+    msg.innerHTML = '❌ ' + e.message + '<br><small>اضغط للمحاولة من جديد</small>';
+    toast(e.message, true);
+  }
+  drop.classList.remove('busy');
+}
+
 function openImageModal(id){
   var item = (S.items||[]).find(function(i){ return i.id===id; });
   if(!item) return;
   quickImageId = id;
   document.getElementById('mim-title').textContent = 'صورة: ' + item.name;
   document.getElementById('mim-url').value = item.image || '';
-  paintPreview('mim-prev', item.image || '');
+  document.getElementById('mim-file').value = '';
+  document.getElementById('mim-dropmsg').innerHTML =
+    'اضغط لاختيار صورة من جهازك<br><small>JPG أو PNG أو WebP</small>';
+  imgTab('file');
+  paintPreview('mim-prev', imageUrl(item));
   document.getElementById('modal-img').classList.add('open');
   setTimeout(function(){ document.getElementById('mim-url').focus(); }, 60);
 }
@@ -1730,6 +1862,67 @@ function renderBehaviorNote(){
     ? '<br>🏬 يسأل الزبون عن فرعه أولاً، ثم يعرض منيو ذلك الفرع.'
     : '<br>🏬 يخدم <b>' + (document.getElementById('set-activebranch').selectedOptions[0]||{text:''}).text + '</b> فقط.';
   document.getElementById('bot-behavior-note').innerHTML = t;
+}
+
+/** يبني الرابط فعلياً ويحمّل صورة نموذجية ويقول أين الخلل */
+async function testImages(){
+  var box = document.getElementById('img-test');
+  box.style.display = '';
+  var base = document.getElementById('set-imagebase').value.trim().replace(/\/+$/,'');
+
+  if(!base){
+    box.className = 'imgtest bad';
+    box.innerHTML = '<b>لم تضع نطاقاً</b><br>بدونه تظهر رموز الأقسام بدل الصور.'
+      + '<br>بعد <code>firebase deploy</code> ضع هنا الرابط الذي طبعه، مثل <code>https://o2bot-b7a51.web.app</code>';
+    return;
+  }
+  if(!S || !S.items || !S.items.length){
+    box.className='imgtest bad';
+    box.innerHTML='<b>المنيو غير محمّل</b><br>افتح صفحة المنيو أولاً ثم أعد المحاولة.';
+    return;
+  }
+  var withImg = S.items.filter(function(i){ return i.image; });
+  if(!withImg.length){
+    box.className='imgtest bad';
+    box.innerHTML='<b>لا صنف يحمل مسار صورة</b><br>المنيو في قاعدة البيانات بلا صور.';
+    return;
+  }
+
+  var sample = withImg[0];
+  var stored = sample.image;
+  var fixed  = normImagePath(stored);
+  var url    = base + fixed;
+  var dirty  = (stored !== fixed);
+
+  box.className = 'imgtest';
+  box.innerHTML = '⏳ جاري الاختبار…';
+
+  var img = new Image(), done = false;
+  var finish = function(okLoad){
+    if(done) return; done = true;
+    var html = '<b>' + escH(sample.name) + '</b><br>'
+      + 'المسار المحفوظ: <code dir="ltr">' + escH(stored) + '</code><br>'
+      + (dirty ? '<span style="color:var(--yellow)">⚠️ مسار مشوّه — صُحّح للعرض إلى <code dir="ltr">'
+                 + escH(fixed) + '</code><br>حدّث كود Render ليُصلَح في قاعدة البيانات أيضاً.</span><br>' : '')
+      + 'الرابط النهائي: <code dir="ltr">' + escH(url) + '</code><br><br>';
+    if(okLoad){
+      box.className = 'imgtest ok';
+      box.innerHTML = html + '<b style="color:var(--green)">✅ الصورة تُحمَّل بنجاح</b>'
+        + '<div style="margin-top:8px"><img src="'+escH(url)+'" style="max-width:150px;border-radius:8px"></div>'
+        + '<div style="margin-top:8px">إن لم تظهر في البطاقات فاضغط <b>🔄 تحديث</b> في صفحة المنيو.</div>';
+    } else {
+      box.className = 'imgtest bad';
+      box.innerHTML = html + '<b style="color:var(--red)">❌ تعذّر تحميل الصورة</b><br>'
+        + 'افتح الرابط أعلاه في تبويب جديد لترى السبب:<br>'
+        + '• <b>404</b> ← الصورة غير موجودة، أو المسار فيه <code>public/</code> زائدة ← حدّث كود Render<br>'
+        + '• <b>صفحة HTML</b> ← النطاق خاطئ<br>'
+        + '• لا شيء ← <code>firebase deploy</code> لم يُنفَّذ';
+    }
+  };
+  img.onload = function(){ finish(true); };
+  img.onerror = function(){ finish(false); };
+  img.src = url;
+  setTimeout(function(){ finish(false); }, 9000);
 }
 
 async function saveBotBehavior(){

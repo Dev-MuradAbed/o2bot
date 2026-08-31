@@ -312,6 +312,7 @@ function permFor(url, method, body) {
     const onlyActive = keys.length > 0 && keys.every(k => k === 'active' || k === 'id');
     return onlyActive ? 'menu.toggle' : 'menu.edit';
   }
+  if (url === '/api/images' && method === 'POST')          return 'menu.edit';
   if (url === '/api/items' && method === 'POST')          return 'menu.edit';
   if (/^\/api\/items\/\d+$/.test(url) && method === 'DELETE') return 'menu.edit';
   if (url === '/api/cats/toggle')                          return 'menu.toggle'; // إغلاق/تفعيل قسم كامل

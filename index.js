@@ -116,6 +116,23 @@ const { getFirestore }         = require('firebase-admin/firestore');
 
 // قراءة Service Account من متغير البيئة
 let STATE_DOC;
+let IMG_COL;   // مجموعة الصور المرفوعة من الجهاز
+
+/** مخزن صور في الذاكرة لأوضاع الاختبار */
+function memImageCollection() {
+  const mem = new Map();
+  return {
+    doc(id) {
+      return {
+        id,
+        async set(d) { mem.set(id, d); },
+        async get() { return { exists: mem.has(id), id, data: () => mem.get(id) }; },
+        async delete() { mem.delete(id); },
+      };
+    },
+  };
+}
+
 if (process.env.O2_TEST_MODE === 'failread') {
   // وضع اختبار: يفشل أول قراءة لمحاكاة انقطاع لحظي مع Firebase
   STATE_DOC = {
@@ -130,6 +147,7 @@ if (process.env.O2_TEST_MODE === 'failread') {
       return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc };
     },
   };
+  IMG_COL = memImageCollection();
   console.log('🧪 وضع اختبار فشل القراءة');
 } else if (process.env.O2_TEST_MODE === 'persist') {
   // وضع اختبار يبقي المستند بين إعادات التشغيل (global)
@@ -137,17 +155,21 @@ if (process.env.O2_TEST_MODE === 'failread') {
     async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
     async get(){ return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc }; },
   };
+  IMG_COL = memImageCollection();
   console.log('🧪 وضع اختبار الاستمرارية');
 } else if (process.env.O2_TEST_MODE === '1') {
   let mem = null;
   STATE_DOC = { async set(d){ mem = JSON.parse(JSON.stringify(d)); }, async get(){ return { exists: !!mem, data: () => mem }; } };
+  IMG_COL = memImageCollection();
   console.log('🧪 وضع الاختبار: Firebase معطّل');
 } else {
   const sa = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT);
   console.log(`🔑 مفتاح Firebase: ${sa.client_email}`);
   console.log(`   المشروع: ${sa.project_id}`);
   initializeApp({ credential: cert(sa) });
-  STATE_DOC = getFirestore().collection('o2bot').doc('state');
+  const _db = getFirestore();
+  STATE_DOC = _db.collection('o2bot').doc('state');
+  IMG_COL   = _db.collection('o2bot_images');   // صورة لكل مستند
 }
 
 /**
@@ -3547,6 +3569,25 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ─── عرض صورة مرفوعة ─────────────────────────────────────
+  const imgMatch = url.match(/^\/api\/img\/([A-Za-z0-9_-]{6,40})(?:\.\w+)?$/);
+  if (imgMatch && method === 'GET') {
+    if (!IMG_COL) { res.writeHead(503); res.end(); return; }
+    IMG_COL.doc(imgMatch[1]).get().then((snap) => {
+      if (!snap.exists) { res.writeHead(404, {'Content-Type':'text/plain'}); res.end('not found'); return; }
+      const d = snap.data();
+      const buf = Buffer.from(d.data, 'base64');
+      res.writeHead(200, {
+        'Content-Type': d.contentType || 'image/jpeg',
+        'Content-Length': buf.length,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Access-Control-Allow-Origin': '*',
+      });
+      res.end(buf);
+    }).catch((e) => { console.log('⚠️ img:', e.message); res.writeHead(500); res.end(); });
+    return;
+  }
+
   // ─── حالة قاعدة البيانات (متاحة بلا دخول) ────────────────
   if (url === '/api/dbstatus') {
     const why = stateLoaded ? null : explainFirebaseError(loadError);
@@ -3604,8 +3645,20 @@ const server = http.createServer((req, res) => {
 
   if (url.startsWith('/api')) {
     let body = '';
-    req.on('data', chunk => body += chunk);
+    let tooBig = false;
+    req.on('data', chunk => {
+      if (tooBig) return;
+      body += chunk;
+      // 1.5 ميغابايت يكفي لأكبر صورة مسموحة (600 ك.ب + ترميز base64)
+      if (body.length > 1.5 * 1024 * 1024) {
+        tooBig = true;
+        res.writeHead(413, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'حجم الطلب كبير جداً'}));
+        req.destroy();
+      }
+    });
     req.on('end', () => {
+      if (tooBig) return;
       let parsed;
       try { parsed = body ? JSON.parse(body) : {}; }
       catch(e) {
@@ -3776,6 +3829,39 @@ async function handleAPI(url, method, body, res) {
       addLog(`${active ? '✅' : '🚫'} ${cat}: ${affected.length} صنف — ${stamp}`);
     }
     return json({ok:true, affected: affected.length});
+  }
+
+  // ---- رفع صورة من الجهاز ----
+  if (url === '/api/images' && method === 'POST') {
+    if (!IMG_COL) return json({error:'تخزين الصور غير مهيأ'}, 503);
+    const raw = String(body.dataUrl || '');
+    const m = raw.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
+    if (!m) return json({error:'صيغة غير مدعومة — استخدم JPG أو PNG أو WebP'}, 400);
+
+    const bytes = Buffer.from(m[2], 'base64');
+    const MAX = 600 * 1024;   // مستند Firestore حده 1 ميغابايت، وbase64 يضخّم 33%
+    if (bytes.length > MAX) {
+      return json({error:`الصورة كبيرة (${(bytes.length/1024).toFixed(0)} ك.ب). الحد ${MAX/1024} ك.ب`}, 413);
+    }
+
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    try {
+      await IMG_COL.doc(id).set({
+        data: m[2],
+        contentType: m[1],
+        size: bytes.length,
+        name: String(body.name || '').slice(0, 80),
+        at: new Date().toISOString(),
+        by: CURRENT_USER ? CURRENT_USER.displayName : 'النظام',
+      });
+    } catch (e) {
+      console.log('⚠️ رفع صورة:', e.message);
+      return json({error:'تعذّر الحفظ: ' + e.message}, 500);
+    }
+
+    auth.audit(CURRENT_USER, 'image.upload', body.name || 'صورة', `${(bytes.length/1024).toFixed(0)} ك.ب`);
+    addLog(`🖼️ رُفعت صورة (${(bytes.length/1024).toFixed(0)} ك.ب) — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
+    return json({ ok: true, id, url: '/api/img/' + id, size: bytes.length });
   }
 
   // ---- ربط واتساب: QR أو كود ----
