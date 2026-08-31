@@ -336,6 +336,21 @@ async function loadState() {
       migrationPending = true;
     }
 
+    // ══ إصلاح مسارات الصور المحفوظة ══
+    // بعض النسخ حفظت المسار كـ public/menu/… بدل /menu/… فيصير الرابط
+    // https://…/public/menu/… ويرجع 404. الإصلاح آمن ويتكرر بلا ضرر.
+    let fixedImgs = 0;
+    for (const it of STATE.items) {
+      if (!it.image || /^https?:\/\//i.test(it.image)) continue;
+      const m = String(it.image).match(/\/?menu\/.*$/i);
+      const clean = m ? '/' + m[0].replace(/^\/+/, '') : it.image;
+      if (clean !== it.image) { it.image = clean; fixedImgs++; }
+    }
+    if (fixedImgs) {
+      console.log(`🖼️  صُحّح ${fixedImgs} مسار صورة (public/menu/… ← /menu/…)`);
+      migrationPending = true;
+    }
+
     console.log('✅ Firebase: state محمّل (' + STATE.orders.length + ' طلب)');
     stateLoaded = true;
     loadError = '';
