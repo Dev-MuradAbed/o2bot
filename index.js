@@ -3626,6 +3626,58 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ─── المنيو العام للموقع الإلكتروني (بلا دخول، مع CORS) ──
+  if (url.startsWith('/api/public/menu')) {
+    if (method === 'OPTIONS') {
+      res.writeHead(204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Max-Age': '86400',
+      });
+      res.end();
+      return;
+    }
+    if (!stateLoaded) {
+      res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
+      res.end(JSON.stringify({ ok: false, error: 'البيانات غير محمّلة' }));
+      return;
+    }
+
+    // url مقطوع عند '?' في أعلى المعالج — نقرأ المعامل من req.url
+    const q = new URL(req.url, 'http://x').searchParams;
+    const branch = q.get('branch') || '';
+
+    const items = STATE.items
+      .filter(i => !branch || !i.branch || i.branch === branch)
+      .map(i => ({
+        id: i.id,
+        branch: i.branch || '',
+        cat: i.cat,
+        name: i.name,
+        active: i.active !== false,
+        price: i.price,
+        ...(i.pricePerKg ? { pricePerKg: i.pricePerKg } : {}),
+        ...(i.variants ? { variants: i.variants } : {}),
+      }));
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      // 30 ثانية عند الحافة — تغيير الكاشير يظهر بسرعة دون إثقال الخادم
+      'Cache-Control': 'public, max-age=30, stale-while-revalidate=120',
+    });
+    res.end(JSON.stringify({
+      ok: true,
+      updatedAt: new Date().toISOString(),
+      counts: { total: items.length, active: items.filter(i => i.active).length },
+      categories: STATE.categories
+        .filter(c => c.active !== false)
+        .map(c => ({ id: c.id, name: c.name || c.label, label: c.label })),
+      items,
+    }));
+    return;
+  }
+
   // ─── حالة قاعدة البيانات (متاحة بلا دخول) ────────────────
   if (url === '/api/dbstatus') {
     const why = stateLoaded ? null : explainFirebaseError(loadError);
