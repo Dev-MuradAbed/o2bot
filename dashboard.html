@@ -468,6 +468,12 @@ img,canvas,svg{max-width:100%;height:auto}
 .dropwarn{background:#3b2a0833;border:1px solid #5b471f;color:#ffd32a;border-radius:10px;
   padding:11px 13px;font-size:13px;margin-bottom:12px;font-weight:600}
 .dropwarn b{color:#fff}
+
+.imgbanner{background:#3b2a0833;border:1px solid #5b471f;border-radius:12px;
+  padding:13px 15px;margin-bottom:14px;font-size:12.5px;line-height:1.9;color:#ffd32a}
+.imgbanner b{display:block;color:#fff;font-size:13.5px;margin-bottom:5px}
+.imgbanner div{color:var(--muted)}
+.imgbanner code{background:var(--surface3);padding:2px 6px;border-radius:5px;font-size:11px}
 </style>
 </head>
 <body>
@@ -1244,6 +1250,7 @@ async function pollStatus() {
       if (down) document.getElementById('db-alert-msg').textContent = st.dbError || '';
     }
 
+    if(st.fbProject) window.__fbProject = st.fbProject;
     renderWaHealth(st);
     tpill.style.display = st.transferMode ? 'flex' : 'none';
     const badge = document.getElementById('badge');
@@ -1454,6 +1461,36 @@ function priceLabel(i){
   return i.price+' ₪';
 }
 
+/** تنبيه فوق المنيو إن كانت الصور بلا نطاق — مع زر ضبط بضغطة */
+function imageBanner(){
+  var base = ((S.settings||{}).imageBaseUrl||'').trim();
+  if(base) return '';
+  var rel = (S.items||[]).filter(function(i){
+    return i.image && !/^https?:\/\//i.test(i.image) && !i.image.startsWith('/api/img/');
+  }).length;
+  if(!rel) return '';
+  var guess = window.__fbProject ? 'https://' + window.__fbProject + '.web.app' : '';
+  return '<div class="imgbanner">'
+    + '<b>🖼️ الصور لا تظهر — «نطاق صور المنيو» فارغ</b>'
+    + '<div>' + rel + ' صنفاً يحمل مساراً نسبياً مثل <code dir="ltr">/menu/shawarma/48.jpg</code>، '
+    + 'ويحتاج نطاقاً قبله ليصبح رابطاً كاملاً.</div>'
+    + (guess
+        ? '<button class="btn btn-green" style="margin-top:9px" onclick="setImageBase(\''+guess+'\')">'
+          + '⚡ اضبطه على ' + guess + '</button>'
+        : '<div style="margin-top:6px">اذهب إلى الإعدادات ← نطاق صور المنيو</div>')
+    + '</div>';
+}
+
+async function setImageBase(url){
+  try{
+    var r = await apiPost('/settings', { imageBaseUrl: url });
+    if(r && r.error){ toast(r.error, true); return; }
+    if(S) S.settings.imageBaseUrl = url;
+    toast('✅ ضُبط النطاق — جاري تحديث الصور');
+    await loadMenu();
+  }catch(e){ toast('تعذّر الحفظ', true); }
+}
+
 /** يصلح أي مسار مشوّه: public/menu/… أو menu/… ← /menu/… */
 function normImagePath(raw){
   const p = String(raw||'').trim();
@@ -1510,7 +1547,8 @@ function renderMenuTable() {
   const canEdit = hasPerm('menu.edit');
 
   wrap.innerHTML =
-    '<div class="mcount">'+items.length+' صنف'+(closed?' · <b style="color:var(--red)">'+closed+' مغلق</b>':'')+'</div>'
+    imageBanner()
+    + '<div class="mcount">'+items.length+' صنف'+(closed?' · <b style="color:var(--red)">'+closed+' مغلق</b>':'')+'</div>'
     + '<div class="mgrid">' + items.map(function(i){
       const art = catArt(i.cat);
       const src = imageUrl(i);

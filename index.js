@@ -116,7 +116,12 @@ const { getFirestore }         = require('firebase-admin/firestore');
 
 // قراءة Service Account من متغير البيئة
 let STATE_DOC;
-let IMG_COL;   // مجموعة الصور المرفوعة من الجهاز
+let IMG_COL;              // مجموعة الصور المرفوعة من الجهاز
+let FB_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || '';   // لاستنتاج نطاق الصور
+if (!FB_PROJECT_ID && process.env.FIREBASE_SERVICE_ACCOUNT) {
+  try { FB_PROJECT_ID = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT).project_id || ''; }
+  catch { /* يُفحص لاحقاً في parseServiceAccount */ }
+}
 
 /** مخزن صور في الذاكرة لأوضاع الاختبار */
 function memImageCollection() {
@@ -164,6 +169,7 @@ if (process.env.O2_TEST_MODE === 'failread') {
   console.log('🧪 وضع الاختبار: Firebase معطّل');
 } else {
   const sa = parseServiceAccount(process.env.FIREBASE_SERVICE_ACCOUNT);
+  FB_PROJECT_ID = sa.project_id;
   console.log(`🔑 مفتاح Firebase: ${sa.client_email}`);
   console.log(`   المشروع: ${sa.project_id}`);
   initializeApp({ credential: cert(sa) });
@@ -545,32 +551,8 @@ setInterval(() => {
   if (cleaned > 0) saveState();
 }, 60 * 60 * 1000);
 
-// ============================================================
-// إعادة الاتصال — الطريقة الصحيحة
-// ============================================================
-let isRestarting = false;
-let reconnectAttempts = 0;
-
-function scheduleReconnect(delayMs = 5000) {
-  if (isRestarting) return;
-  isRestarting = true;
-  reconnectAttempts++;
-  const delay = Math.min(delayMs * reconnectAttempts, 60000); // max دقيقة
-  console.log(`🔄 إعادة الاتصال خلال ${delay / 1000}s (محاولة ${reconnectAttempts})`);
-  setTimeout(async () => {
-    isRestarting = false;
-    try {
-      await client.destroy();
-    } catch(e) {}
-    try {
-      await client.initialize();
-    } catch(e) {
-      console.log('فشلت إعادة الاتصال:', e.message);
-      scheduleReconnect(10000);
-    }
-  }, delay);
-}
-
+// ملاحظة: كانت هنا دالة scheduleReconnect قديمة تشير إلى `client`
+// (بقايا whatsapp-web.js) وتحجب نسخة Baileys الصحيحة. حُذفت.
 // ============================================================
 // قاموس الأعداد والمساعدات
 // ============================================================
@@ -2281,7 +2263,8 @@ async function sendToGroup(text) {
     const chatId = STATE.settings.groupId.trim().includes('@g.us')
       ? STATE.settings.groupId.trim()
       : STATE.settings.groupId.trim() + '@g.us';
-    return await client.sendMessage(chatId, text);
+    if (!waSocket) { console.log('⚠️ لا اتصال — لم يُرسل إشعار القروب'); return null; }
+    return await waSocket.sendMessage(chatId, { text });
   } catch(e) {
     console.log('خطأ في القروب:', e.message);
     return null;
@@ -3805,6 +3788,8 @@ async function handleAPI(url, method, body, res) {
   if (url === '/api/status' && method === 'GET') return json({
       dbReady: stateLoaded, dbError: loadError,
     waStats: WA_STATS, waRetries,
+    fbProject: FB_PROJECT_ID,
+    imageBaseUrl: STATE.settings.imageBaseUrl || '',
     botConnected: STATE.botConnected,
     transferMode: STATE.settings.transferMode,
     botActive: STATE.settings.botActive,
@@ -3969,7 +3954,7 @@ async function handleAPI(url, method, body, res) {
     pairCode = ''; currentQR = ''; pairRequested = false;
     STATE.botConnected = false;
     addLog(`🔗 إعادة ربط بطريقة ${wanted === 'pair' ? 'الكود' : 'QR'}${cleared ? ' (مُسحت الجلسة السابقة)' : ''}`);
-    setTimeout(() => { try { startBaileys(); } catch(e){ console.log(e.message); } }, 1200);
+    setTimeout(() => { try { startBaileys({force:true}); } catch(e){ console.log(e.message); } }, 1200);
     return json({ok: true, method: wanted, phone, cleared});
   }
 
@@ -3981,7 +3966,7 @@ async function handleAPI(url, method, body, res) {
     STATE.botConnected = false;
     auth.audit(CURRENT_USER, 'settings.edit', 'ربط واتساب', 'فك الربط ومسح الجلسة');
     addLog('🔌 فُك الربط ومُسحت الجلسة');
-    setTimeout(() => { try { startBaileys(); } catch(e){ console.log(e.message); } }, 1500);
+    setTimeout(() => { try { startBaileys({force:true}); } catch(e){ console.log(e.message); } }, 1500);
     return json({ok: true, cleared});
   }
 
@@ -3989,14 +3974,16 @@ async function handleAPI(url, method, body, res) {
   if (url === '/api/bot/restart' && method === 'POST') {
     addLog('🔄 إعادة تشغيل من الداشبورد');
     STATE.botConnected = false;
-    reconnectAttempts = 0;
-    scheduleReconnect(1000);
+    // كان يمرّر رقماً لدالة تتوقّع نصاً، فلا يُعاد الاتصال فعلياً
+    setTimeout(() => { try { startBaileys({force:true}); } catch(e){ console.log(e.message); } }, 800);
     return json({ok: true});
   }
   if (url === '/api/bot/disconnect' && method === 'POST') {
     addLog('⏹️ قطع الاتصال من الداشبورد');
     STATE.botConnected = false;
-    try { client.destroy(); } catch(e) {}
+    killSocket();
+    if (waRetryTimer) { clearTimeout(waRetryTimer); waRetryTimer = null; }
+    waConnecting = false;
     return json({ok: true});
   }
 
@@ -4033,7 +4020,8 @@ async function handleAPI(url, method, body, res) {
   if (orderMsgMatch && method === 'POST') {
     const order = STATE.orders.find(o => o.id === parseInt(orderMsgMatch[1]));
     if (!order) return json({error: 'not found'}, 404);
-    client.sendMessage(order.customerPhone, body.text || '').then(() => {
+    if (!waSocket) return json({error:'البوت غير متصل بواتساب'}, 503);
+    waSocket.sendMessage(order.customerPhone, { text: body.text || '' }).then(() => {
       json({ok: true});
     }).catch(e => {
       json({error: e.message}, 500);
@@ -4176,7 +4164,8 @@ async function handleAPI(url, method, body, res) {
   if (qMsgMatch && method === 'POST') {
     const q = STATE.queue[parseInt(qMsgMatch[1])];
     if (!q) return json({error: 'not found'}, 404);
-    client.sendMessage(q.phone, body.text || '').then(() => {
+    if (!waSocket) return json({error:'البوت غير متصل بواتساب'}, 503);
+    waSocket.sendMessage(q.phone, { text: body.text || '' }).then(() => {
       json({ok: true});
     }).catch(e => json({error: e.message}, 500));
     return;
@@ -4642,9 +4631,18 @@ let waSocket = null;
 // client.sendMessage — متوافق مع بقية الكود
 const client = {
   sendMessage: async (to, text) => {
-    if (!waSocket) return;
+    if (!waSocket) {
+      console.log('⚠️ لا اتصال بواتساب — لم تُرسل رسالة إلى ' + to);
+      addLog('⚠️ رسالة لم تُرسل (البوت غير متصل)');
+      return false;
+    }
     const jid = to.includes('@') ? to : to.replace(/\D/g,'') + '@s.whatsapp.net';
-    try { await waSocket.sendMessage(jid, { text }); } catch(e) {}
+    try { await waSocket.sendMessage(jid, { text }); return true; }
+    catch(e) {
+      console.log('⚠️ فشل إرسال إلى ' + jid + ': ' + e.message);
+      addLog('⚠️ فشل إرسال رسالة: ' + e.message);
+      return false;
+    }
   },
 };
 
@@ -4664,6 +4662,19 @@ function setPhase(name, label) {
 }
 
 let waConnecting   = false;   // محاولة اتصال جارية
+let waConnectingAt = 0;       // متى رُفع الحارس — لكشف العلوق
+const WA_CONNECT_TIMEOUT = 75000;   // بعدها نعتبر المحاولة ميتة
+
+/** يفك الحارس إن علق — بدونه يستحيل الربط بعد محاولة صامتة */
+function guardStuck() {
+  if (!waConnecting) return false;
+  if (Date.now() - waConnectingAt < WA_CONNECT_TIMEOUT) return false;
+  console.log('🔓 محاولة اتصال عالقة منذ ' +
+    Math.round((Date.now() - waConnectingAt) / 1000) + 'ث — فُكّ الحارس');
+  waConnecting = false;
+  return true;
+}
+setInterval(() => { if (guardStuck()) startBaileys(); }, 30000).unref?.();
 let waRetries      = 0;       // عدّاد المحاولات المتتالية
 let waRetryTimer   = null;    // مؤقّت إعادة المحاولة المعلّق
 const WA_STATS = {
@@ -4777,10 +4788,23 @@ async function sendText(jid, text, attempt = 1) {
   }
 }
 
-async function startBaileys() {
-  if (waConnecting) { console.log('⏭️  محاولة اتصال جارية — تُجوهلت'); return; }
+async function startBaileys(opts = {}) {
+  if (opts.force) {
+    // طلب صريح من المستخدم — يتجاوز أي محاولة جارية
+    waConnecting = false;
+    if (waRetryTimer) { clearTimeout(waRetryTimer); waRetryTimer = null; }
+    waRetries = 0;
+  } else {
+    guardStuck();
+    if (waConnecting) {
+      console.log('⏭️  محاولة اتصال جارية منذ ' +
+        Math.round((Date.now() - waConnectingAt) / 1000) + 'ث — تُجوهلت');
+      return;
+    }
+  }
   if (!stateLoaded) { console.log('⏭️  البيانات لم تُحمّل — تأجّل الاتصال'); return; }
   waConnecting = true;
+  waConnectingAt = Date.now();
   if (waRetryTimer) { clearTimeout(waRetryTimer); waRetryTimer = null; }
   killSocket();   // أغلق أي اتصال سابق قبل فتح جديد
   setPhase('starting', 'قراءة جلسة واتساب المحفوظة');
@@ -5120,6 +5144,17 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
   const ok = await loadStateWithRetry();
   if (!ok) return;   // الكتابة مقفلة والبوت متوقف — تستمر المحاولة في الخلفية
   console.log(`✅ state محمّل من Firebase (${Date.now() - t0}ms)`);
+
+  // ══ نطاق الصور: يُستنتج تلقائياً من مشروع Firebase ══
+  // المسارات نسبية (/menu/…) ولا تظهر بلا نطاق، واستضافة Firebase
+  // تكون دائماً على <project_id>.web.app.
+  // يُضبط هنا لا داخل loadState لأن مسار «أول تشغيل» يعود مبكراً.
+  if (!STATE.settings.imageBaseUrl && FB_PROJECT_ID) {
+    STATE.settings.imageBaseUrl = `https://${FB_PROJECT_ID}.web.app`;
+    console.log(`🖼️  نطاق الصور ضُبط تلقائياً: ${STATE.settings.imageBaseUrl}`);
+    console.log('   (غيّره من الإعدادات إن كانت صورك في مكان آخر)');
+    saveState();
+  }
 
   auth.init(STATE, saveState);
 
