@@ -1463,6 +1463,9 @@ function priceLabel(i){
 
 /** تنبيه فوق المنيو إن كانت الصور بلا نطاق — مع زر ضبط بضغطة */
 function imageBanner(){
+  // الصور تُخدَم من البوت مباشرة، فلا حاجة لنطاق. الشريط يظهر فقط
+  // إن فشل تحميل صورة فعلياً — يُضبط من فحص الصورة أدناه.
+  if(!window.__imgProbeFailed) return '';
   var base = ((S.settings||{}).imageBaseUrl||'').trim();
   if(base) return '';
   var rel = (S.items||[]).filter(function(i){
@@ -1506,9 +1509,10 @@ function imageUrl(i){
   const raw = normImagePath(i.image);
   if(!raw) return '';
   if(/^https?:\/\//i.test(raw)) return raw;
-  if(raw.startsWith('/api/img/')) return raw;    // نفس الخادم — لا يُسبق بنطاق
+  if(raw.startsWith('/api/img/')) return raw;    // صورة مرفوعة — نفس الخادم
   const base = ((S.settings||{}).imageBaseUrl||'').replace(/\/+$/,'');
-  return base ? base + (raw.startsWith('/')?'':'/') + raw : '';
+  // بلا نطاق: البوت نفسه يقدّم /menu/… فنستخدم المسار كما هو
+  return base ? base + (raw.startsWith('/')?'':'/') + raw : raw;
 }
 
 function setMenuCat(cat){activeCat=cat;renderMenuCatTabs();renderMenuTable();}
@@ -1537,7 +1541,22 @@ function itemAgo(iso){
   return 'قبل '+Math.floor(h/24)+' يوم';
 }
 
+/** يتحقق مرة واحدة أن الصور تُحمَّل فعلاً */
+function probeImage(){
+  if(window.__imgProbeDone) return;
+  var sample = (S.items||[]).find(function(i){
+    return i.image && !i.image.startsWith('/api/img/');
+  });
+  if(!sample) return;
+  window.__imgProbeDone = true;
+  var img = new Image();
+  img.onload  = function(){ window.__imgProbeFailed = false; };
+  img.onerror = function(){ window.__imgProbeFailed = true; renderMenuTable(); };
+  img.src = imageUrl(sample);
+}
+
 function renderMenuTable() {
+  probeImage();
   const search = (document.getElementById('menu-search')||{value:''}).value.toLowerCase();
   let items = itemsOfBranch().filter(i=>(activeCat==='الكل'||i.cat===activeCat)&&i.name.toLowerCase().includes(search));
   const wrap = document.getElementById('menu-table-wrap');

@@ -1,0 +1,16 @@
+# إعدادات خدمة البوت على Render
+# هذا الملف مرجعي — يمكنك ضبط نفس القيم يدوياً من لوحة Render.
+services:
+  - type: web
+    name: o2bot
+    runtime: node
+    plan: free
+    # ⚠️ البوت يستخدم npm لا pnpm، ولا يحتاج خطوة build
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /ping
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false          # الصقه يدوياً في لوحة Render

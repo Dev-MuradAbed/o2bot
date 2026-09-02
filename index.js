@@ -3626,6 +3626,38 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // ─── صور المنيو من مجلد public (بلا إعداد ولا نطاق) ──────
+  // البوت يقدّم صوره بنفسه، فالمسار /menu/… يعمل مباشرة على
+  // نفس نطاق اللوحة دون الحاجة لضبط «نطاق صور المنيو».
+  if (url.startsWith('/menu/') && method === 'GET') {
+    const rel = decodeURIComponent(url.slice(1));
+    // منع الخروج من المجلد
+    const full = path.resolve(__dirname, 'public', rel);
+    const root = path.resolve(__dirname, 'public', 'menu');
+    if (!full.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }
+
+    const TYPES = { '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png',
+                    '.webp':'image/webp', '.gif':'image/gif', '.ico':'image/x-icon' };
+    const type = TYPES[path.extname(full).toLowerCase()];
+    if (!type) { res.writeHead(404); res.end(); return; }
+
+    fs.stat(full, (err, st) => {
+      if (err || !st.isFile()) {
+        res.writeHead(404, {'Content-Type':'text/plain; charset=utf-8'});
+        res.end('الصورة غير موجودة');
+        return;
+      }
+      res.writeHead(200, {
+        'Content-Type': type,
+        'Content-Length': st.size,
+        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Access-Control-Allow-Origin': '*',
+      });
+      fs.createReadStream(full).pipe(res);
+    });
+    return;
+  }
+
   // ─── المنيو العام للموقع الإلكتروني (بلا دخول، مع CORS) ──
   if (url.startsWith('/api/public/menu')) {
     if (method === 'OPTIONS') {
@@ -5201,12 +5233,23 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
   // المسارات نسبية (/menu/…) ولا تظهر بلا نطاق، واستضافة Firebase
   // تكون دائماً على <project_id>.web.app.
   // يُضبط هنا لا داخل loadState لأن مسار «أول تشغيل» يعود مبكراً.
-  if (!STATE.settings.imageBaseUrl && FB_PROJECT_ID) {
-    STATE.settings.imageBaseUrl = `https://${FB_PROJECT_ID}.web.app`;
-    console.log(`🖼️  نطاق الصور ضُبط تلقائياً: ${STATE.settings.imageBaseUrl}`);
-    console.log('   (غيّره من الإعدادات إن كانت صورك في مكان آخر)');
-    saveState();
-  }
+  // الصور تُخدَم من البوت نفسه على /menu/… فلا نحتاج نطاقاً.
+  // نُبقي الحقل فارغاً عمداً؛ اضبطه يدوياً فقط إن أردت شبكة توزيع خارجية.
+  try {
+    const imgDir = path.join(__dirname, 'public', 'menu');
+    if (fs.existsSync(imgDir)) {
+      let n = 0;
+      (function count(d) {
+        for (const f of fs.readdirSync(d, { withFileTypes: true })) {
+          if (f.isDirectory()) count(path.join(d, f.name)); else n++;
+        }
+      })(imgDir);
+      console.log(`🖼️  ${n} صورة تُخدَم من /menu/ مباشرة` +
+        (STATE.settings.imageBaseUrl ? ` (لكن النطاق مضبوط على ${STATE.settings.imageBaseUrl})` : ''));
+    } else {
+      console.log('⚠️  مجلد public/menu غير موجود — الصور لن تظهر إلا بضبط نطاق خارجي');
+    }
+  } catch (e) { /* غير حرج */ }
 
   auth.init(STATE, saveState);
 

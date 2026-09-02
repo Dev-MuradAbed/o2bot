@@ -156,8 +156,16 @@ function req(path, { method = 'GET', body = null, cookie = '' } = {}) {
     if (dirty.length) bad(`${dirty.length} مسار مشوّه مثل: ${dirty[0].image}`, 'أعد نشر أحدث كود — الإصلاح تلقائي عند التحميل');
 
     if (relative && !base) {
-      bad('يوجد مسارات نسبية لكن «نطاق صور المنيو» فارغ',
-        'اللوحة ← الإعدادات ← نطاق صور المنيو ← https://o2bot-b7a51.web.app');
+      // البوت يقدّم /menu/… بنفسه — نختبر ذلك فعلياً
+      const sample = withImg.find((i) => i.image.startsWith('/menu/'));
+      if (sample) {
+        const r = await req(sample.image);
+        if (r.status === 200) ok('الصور تُخدَم من البوت مباشرة: ' + sample.image);
+        else {
+          bad(`الصور لا تُخدَم من البوت (HTTP ${r.status || r.err})`,
+            'تأكد أن مجلد public/menu مرفوع مع الكود، أو اضبط نطاقاً خارجياً في الإعدادات');
+        }
+      }
     } else if (base) {
       ok('نطاق الصور: ' + base);
       const sample = withImg.find((i) => i.image.startsWith('/menu/'));
