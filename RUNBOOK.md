@@ -209,3 +209,33 @@ Netlify: Deploys ← **Trigger deploy** ← **Clear cache and deploy site**
 ```
 
 المرحلة ٣ تعتمد على ٢، والمرحلة ٢ تعتمد على ٠. لا تقفز.
+
+
+---
+
+# ⚠️ الخدمتان متشابهتان — لا تخلط بينهما
+
+أشيع سبب لفشل النشر هو ضبط أمر خدمة على الأخرى. ميّزهما هكذا:
+
+| | **خدمة البوت** | **خدمة المنيو** |
+|---|---|---|
+| المستودع | `Dev-MuradAbed/o2bot` | مشروع الموقع |
+| اسم الخدمة | `o2bot` | `o2menu` |
+| **Build Command** | `npm install` | `npm ci && npm run build` |
+| **Start Command** | `node index.js` | `npm start` |
+| Health Check | `/ping` | `/` |
+| المتغيرات | `FIREBASE_SERVICE_ACCOUNT` · `SESSION_SECRET` | `BOT_ORIGIN` · `NEXT_PUBLIC_USE_BOT_PROXY` |
+
+**كيف تعرف أيّهما تنظر إليه:** انظر سطر `Cloning from` في أعلى السجل.
+
+- `Cloning from …/o2bot` ← هذه **خدمة البوت** → استخدم `npm install` و`node index.js`
+- أي مستودع آخر ← خدمة المنيو
+
+## رسائل الفشل ومعناها
+
+| الرسالة | معناها |
+|---|---|
+| `ERR_PNPM_NO_LOCKFILE` أو `Missing script: build` | أمر بناء الموقع على خدمة البوت (نسخة قديمة) |
+| `npm ci ... requires package-lock.json` | نفس السبب — حُلّ بإضافة القفل |
+| `Cannot find module 'server.js'` | خدمة المنيو بلا `server.js` — فُك حزمة الموقع |
+| `FIREBASE_SERVICE_ACCOUNT غير موجود` | متغيّر ناقص على خدمة البوت |

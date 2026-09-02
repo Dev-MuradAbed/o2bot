@@ -1,6 +1,6 @@
 {
   "name": "o2-whatsapp-bot",
-  "version": "6.8.1",
+  "version": "6.8.2",
   "description": "بوت واتساب مطعم O2 — وضع تصفّح المنيو، صلاحيات، سجل تغييرات، لوحة بطاقات رسبونسف",
   "main": "index.js",
   "scripts": {
@@ -10,7 +10,8 @@
     "check:secrets": "bash check-secrets.sh",
     "check:images": "node check-images.js",
     "doctor": "node doctor.js",
-    "preflight": "bash preflight.sh"
+    "preflight": "bash preflight.sh",
+    "build": "node -e \"console.log('ℹ️  البوت لا يحتاج بناء — هذا السكربت موجود ليصمد أمام أوامر البناء الخاطئة')\""
   },
   "dependencies": {
     "@whiskeysockets/baileys": "^6.7.9",
