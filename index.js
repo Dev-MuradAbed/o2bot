@@ -75,7 +75,9 @@ let STATE = {
     { id:3, keys:['دوام','ساعات','مفتوح','متى'],                     text:'احنا مفتوحين من 11 الصبح لـ11 الليل كل أيام الأسبوع 🕛', active:true },
     { id:4, keys:['موقع','عنوان','وين','فين'],                       text:'موجودين في النصيرات — شارع أبو صرار 📍', active:true },
     { id:5, keys:['توصيل','ديليفري','رسوم'],                         text:'رسوم التوصيل 🚚\nالنصيرات (العودة): 5 ₪\nالنصيرات: 10 ₪\nالسوارحة/البريج: 15 ₪\nالزوايدة/المغازي: 20 ₪\ndير البلح: 35 ₪', active:true },
-    { id:6, keys:['تحويل','دفع','بنك','حساب'],                       text:'💳 فادي أبو شرخ — بنك فلسطين\nجوال: 0567743979\nIBAN: PS43PALS045411071670993000000', active:true },
+    // الرد 6 معطّل عمداً: بيانات الدفع تُولَّد حيّاً من paymentAccounts
+    // عبر paymentMessage()، فلا تُكتب ثابتة هنا وإلا تجاوزت الإعدادات.
+    { id:6, keys:['تحويل','دفع','بنك','حساب'], text:'', active:false },
     { id:7, keys:['شكرا','شكراً','يسلمو','ممتاز','مشكور'],           text:'يسلمو! نتشرف فيك دايماً ❤️', active:true },
     { id:8, keys:['موظف','بشري','شخص','انسان'],                      text:'تمام! سيتواصل معك أحد موظفينا قريباً 👨‍💼', active:true },
   ],
@@ -102,6 +104,20 @@ let STATE = {
   driverDailyDate: '', // تاريخ آخر reset للعدادات
 
   deletedItemIds: [], // شواهد الحذف — تمنع عودة صنف حذفه المستخدم
+
+  // ── حسابات استلام الأموال ──
+  // كل حساب يُفعَّل أو يُغلق مستقلاً؛ البوت يعرض المفعّلة فقط.
+  paymentAccounts: [
+    { id: 'pa-bank-1', type: 'bank', label: 'بنك فلسطين',
+      holder: 'فادي أبو شرخ', phone: '0567743979',
+      iban: 'PS43PALS045411071670993000000', note: '',
+      active: true, order: 1, updatedBy: 'النظام', updatedAt: null },
+  ],
+  paymentConfig: {
+    onlineEnabled: true,   // إظهار خيار الدفع/التحويل للزبون
+    cashEnabled: true,     // الدفع عند الاستلام
+    requireProof: true,    // مطالبة الزبون باسم المحوِّل بعد التحويل
+  },
 
   // ── الحسابات وسجل التغييرات ──
   users: [],   // تُنشأ تلقائياً عند أول تشغيل (auth.init)
@@ -324,6 +340,8 @@ async function loadState() {
     if (saved.unknowns)         STATE.unknowns         = saved.unknowns;
     if (saved.runtimeAliases)   STATE.runtimeAliases   = saved.runtimeAliases;
     if (saved.learnedAliases)   STATE.learnedAliases   = saved.learnedAliases;
+    if (saved.paymentAccounts) STATE.paymentAccounts = saved.paymentAccounts;
+    if (saved.paymentConfig)   STATE.paymentConfig = { ...STATE.paymentConfig, ...saved.paymentConfig };
     if (saved.users && saved.users.length) STATE.users = saved.users;
     if (saved.audit)                       STATE.audit = saved.audit;
     if (saved.categories    && saved.categories.length)    STATE.categories    = saved.categories;
@@ -2665,6 +2683,11 @@ async function handleMessage(msg) {
   // كلمة التفعيل تعرض الأقسام دائماً، حتى في الوضع الكامل
   if (isTriggered(rawOriginal)) return categoriesMessage(sessionBranch(session));
 
+  // بيانات الدفع تُولَّد حيّاً من الحسابات المفعّلة في اللوحة
+  if (/^(تحويل|دفع|بنك|حساب|حسابك|ادفع|الدفع|وسائل الدفع)$/.test(normalize(rawOriginal))) {
+    return paymentMessage();
+  }
+
   const raw = fixSpelling(translateEN(rawOriginal));
   const text = raw.toLowerCase();
 
@@ -3181,7 +3204,7 @@ async function handleMessage(msg) {
         note: session.note,
         orderNum: session.orderNum,
       });
-      return `ممتاز! 🎉\n\nالدفع عبر التطبيق البنكي 💳\n\nبيانات التحويل:\nالاسم: *${STATE.settings.bankName}*\nالبنك: *${STATE.settings.bank}*\nجوال: *${STATE.settings.bankPhone}*\nIBAN: *${STATE.settings.iban}*\n\nبعد التحويل، أرسلي *الاسم اللي حوّلت منه* 👇`;
+      return `ممتاز! 🎉\n\n${paymentMessage()}`;
     }
     if (/تعديل|غير/.test(text)) {
       session.state = 'ordering';
@@ -3852,12 +3875,23 @@ const server = http.createServer((req, res) => {
 });
 
 /** يقبل روابط http/https فقط — يمنع javascript: و data: */
+/**
+ * يقبل ثلاثة أشكال ويرفض ما عداها:
+ *   https://…            رابط خارجي
+ *   /api/img/<id>        صورة مرفوعة من الجهاز
+ *   /menu/…              صورة من مجلد المشروع
+ * كان يرفض الشكلين الأخيرين فتضيع كل صورة تُرفع من اللوحة.
+ */
 function cleanImageUrl(raw) {
-  const u = String(raw || '').trim();
+  let u = String(raw || '').trim();
   if (!u) return '';
-  if (!/^https?:\/\//i.test(u)) return '';
   if (u.length > 500) return '';
-  return u;
+  if (/^https?:\/\//i.test(u)) return u;
+  if (/^\/api\/img\/[A-Za-z0-9_-]{6,40}$/.test(u)) return u;
+  // يصلح public/menu/… و menu/… إلى /menu/…
+  const m = u.match(/\/?menu\/[^\s]*$/i);
+  if (m) return '/' + m[0].replace(/^\/+/, '');
+  return '';
 }
 
 async function handleAPI(url, method, body, res) {
@@ -3888,6 +3922,168 @@ async function handleAPI(url, method, body, res) {
   if (url === '/api/orders' && method === 'GET') return json(STATE.orders);
   if (url === '/api/logs'   && method === 'GET') return json(STATE.logs);
   if (url === '/api/queue'  && method === 'GET') return json(STATE.queue);
+
+  // ---- حسابات استلام الأموال ----
+  if (url === '/api/payments' && method === 'GET') {
+    return json({
+      accounts: STATE.paymentAccounts || [],
+      config: STATE.paymentConfig || {},
+      preview: paymentMessage(),
+    });
+  }
+
+  if (url === '/api/payments/config' && method === 'POST') {
+    const before = { ...STATE.paymentConfig };
+    STATE.paymentConfig = {
+      onlineEnabled: !!body.onlineEnabled,
+      cashEnabled:   !!body.cashEnabled,
+      requireProof:  !!body.requireProof,
+    };
+    await saveStateNow();
+    const ch = Object.keys(STATE.paymentConfig)
+      .filter(k => before[k] !== STATE.paymentConfig[k])
+      .map(k => `${k}: ${before[k]} ← ${STATE.paymentConfig[k]}`);
+    if (ch.length) {
+      auth.audit(CURRENT_USER, 'payment.config', 'إعدادات الدفع', ch.join(' | '));
+      addLog(`💳 إعدادات الدفع: ${ch.join('، ')}`);
+    }
+    return json({ ok: true, config: STATE.paymentConfig, preview: paymentMessage() });
+  }
+
+  if (url === '/api/payments' && method === 'POST') {
+    const label = String(body.label || '').trim();
+    if (!label) return json({error:'أدخل اسم الوسيلة'}, 400);
+    const acc = {
+      id: 'pa-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
+      type: ['bank','wallet','gateway','other'].includes(body.type) ? body.type : 'bank',
+      label,
+      holder: String(body.holder || '').trim(),
+      phone:  String(body.phone  || '').trim(),
+      iban:   String(body.iban   || '').trim().toUpperCase().replace(/\s+/g, ''),
+      note:   String(body.note   || '').trim(),
+      active: body.active !== false,
+      order:  (STATE.paymentAccounts || []).reduce((m,a)=>Math.max(m,a.order||0),0) + 1,
+      updatedBy: CURRENT_USER ? CURRENT_USER.displayName : 'النظام',
+      updatedAt: new Date().toISOString(),
+    };
+    if (!STATE.paymentAccounts) STATE.paymentAccounts = [];
+    STATE.paymentAccounts.push(acc);
+    await saveStateNow();
+    auth.audit(CURRENT_USER, 'payment.create', acc.label,
+      `${acc.type} · ${acc.holder || ''} ${acc.iban || acc.phone || ''}`.trim());
+    addLog(`💳 وسيلة دفع جديدة: ${acc.label} — ${acc.updatedBy}`);
+    return json({ ok: true, account: acc });
+  }
+
+  const payMatch = url.match(/^\/api\/payments\/([\w-]+)$/);
+  if (payMatch && method === 'PUT') {
+    const acc = (STATE.paymentAccounts || []).find(a => a.id === payMatch[1]);
+    if (!acc) return json({error:'not found'}, 404);
+    const before = { ...acc };
+    for (const f of ['type','label','holder','phone','note']) {
+      if (body[f] !== undefined) acc[f] = String(body[f]).trim();
+    }
+    if (body.iban   !== undefined) acc.iban = String(body.iban).trim().toUpperCase().replace(/\s+/g, '');
+    if (body.active !== undefined) acc.active = !!body.active;
+    if (body.order  !== undefined) acc.order = Number(body.order) || acc.order;
+    acc.updatedBy = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
+    acc.updatedAt = new Date().toISOString();
+    await saveStateNow();
+
+    if (before.active !== acc.active) {
+      auth.audit(CURRENT_USER, acc.active ? 'payment.enable' : 'payment.disable', acc.label,
+        acc.active ? 'تفعيل استقبال الحوالات' : 'إيقاف استقبال الحوالات');
+      addLog(`${acc.active ? '✅' : '🚫'} ${acc.label}: ${acc.active ? 'يستقبل' : 'لا يستقبل'} — ${acc.updatedBy}`);
+    } else {
+      const ch = ['label','holder','phone','iban','type','note']
+        .filter(f => before[f] !== acc[f])
+        .map(f => `${f}: ${before[f] || '—'} ← ${acc[f] || '—'}`);
+      auth.audit(CURRENT_USER, 'payment.edit', acc.label, ch.join(' | ') || 'تحديث');
+      if (ch.length) addLog(`✏️ ${acc.label}: ${ch.join('، ')} — ${acc.updatedBy}`);
+    }
+    return json({ ok: true, account: acc, preview: paymentMessage() });
+  }
+
+  if (payMatch && method === 'DELETE') {
+    const idx = (STATE.paymentAccounts || []).findIndex(a => a.id === payMatch[1]);
+    if (idx === -1) return json({error:'not found'}, 404);
+    const [rm] = STATE.paymentAccounts.splice(idx, 1);
+    await saveStateNow();
+    auth.audit(CURRENT_USER, 'payment.delete', rm.label, 'حذف وسيلة الدفع');
+    addLog(`🗑️ حُذفت وسيلة دفع: ${rm.label} — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
+    return json({ ok: true });
+  }
+
+  // ---- الأقسام ----
+  if (url === '/api/cats' && method === 'GET') return json(STATE.categories);
+
+  if (url === '/api/cats' && method === 'POST') {
+    const name = String(body.name || '').trim();
+    if (!name) return json({error:'أدخل اسم القسم'}, 400);
+    const emoji = String(body.emoji || '🍽️').trim().slice(0, 4);
+    // معرّف إنجليزي مستقر — يُستخدم في الروابط والمطابقة
+    let id = String(body.id || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
+    if (!id) id = 'cat-' + Date.now().toString(36);
+    if (STATE.categories.some(c => c.id === id)) return json({error:'معرّف القسم مستخدم بالفعل'}, 400);
+
+    const cat = {
+      id, name, emoji,
+      label: `${emoji} ${name}`,
+      byWeight: !!body.byWeight,
+      order: STATE.categories.reduce((m, c) => Math.max(m, c.order || 0), 0) + 1,
+      active: body.active !== false,
+    };
+    STATE.categories.push(cat);
+    await saveStateNow();
+    auth.audit(CURRENT_USER, 'category.create', cat.name, `قسم جديد (${cat.id})`);
+    addLog(`➕ قسم جديد: ${cat.label} — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
+    return json({ ok: true, category: cat });
+  }
+
+  const catMatch = url.match(/^\/api\/cats\/([\w-]+)$/);
+  if (catMatch && method === 'PUT') {
+    const cat = STATE.categories.find(c => c.id === catMatch[1]);
+    if (!cat) return json({error:'القسم غير موجود'}, 404);
+    const before = { ...cat };
+    if (body.name     !== undefined) cat.name  = String(body.name).trim();
+    if (body.emoji    !== undefined) cat.emoji = String(body.emoji).trim().slice(0, 4);
+    if (body.active   !== undefined) cat.active = !!body.active;
+    if (body.order    !== undefined) cat.order = Number(body.order) || cat.order;
+    if (body.byWeight !== undefined) cat.byWeight = !!body.byWeight;
+    cat.label = `${cat.emoji || '🍽️'} ${cat.name}`;
+    await saveStateNow();
+    if (before.active !== cat.active) {
+      auth.audit(CURRENT_USER, cat.active ? 'category.show' : 'category.hide', cat.name,
+        cat.active ? 'إظهار القسم للزبائن' : 'إخفاء القسم');
+    } else {
+      auth.audit(CURRENT_USER, 'category.edit', cat.name, 'تحديث بيانات القسم');
+    }
+    return json({ ok: true, category: cat });
+  }
+
+  if (catMatch && method === 'DELETE') {
+    const cat = STATE.categories.find(c => c.id === catMatch[1]);
+    if (!cat) return json({error:'القسم غير موجود'}, 404);
+    const inside = STATE.items.filter(i => i.cat === cat.id);
+    if (inside.length && !body.force) {
+      return json({
+        error: `القسم يحتوي ${inside.length} صنفاً`,
+        needsConfirm: true, itemCount: inside.length,
+      }, 409);
+    }
+    if (body.moveTo && STATE.categories.some(c => c.id === body.moveTo)) {
+      for (const i of inside) i.cat = body.moveTo;
+      auth.audit(CURRENT_USER, 'category.edit', cat.name, `نقل ${inside.length} صنفاً إلى ${body.moveTo}`);
+    } else {
+      for (const i of inside) i.active = false;   // لا تُحذف الأصناف، تُغلق فقط
+      if (inside.length) auth.audit(CURRENT_USER, 'menu.close', cat.name, `إغلاق ${inside.length} صنفاً مع حذف القسم`);
+    }
+    STATE.categories = STATE.categories.filter(c => c.id !== cat.id);
+    await saveStateNow();
+    auth.audit(CURRENT_USER, 'category.delete', cat.name, 'حذف القسم');
+    addLog(`🗑️ حُذف قسم: ${cat.label} — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
+    return json({ ok: true });
+  }
 
   // ---- الحسابات ----
   if (url === '/api/users' && method === 'GET')
@@ -4120,9 +4316,11 @@ async function handleAPI(url, method, body, res) {
       id: STATE.nextId++,
       name: body.name,
       cat: body.cat,
+      branch: ['gaza','middle'].includes(body.branch) ? body.branch : (body.branch === '' ? '' : undefined),
       price: Number(body.price),
       active: true,
       keys: body.keys || [body.name.toLowerCase()],
+      desc: String(body.desc || '').trim().slice(0, 300),   // المكونات
       image: cleanImageUrl(body.image),
     };
     item.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
@@ -4139,9 +4337,10 @@ async function handleAPI(url, method, body, res) {
     const idx = STATE.items.findIndex(i => i.id === parseInt(itemMatch[1]));
     if (idx === -1) return json({error: 'not found'}, 404);
     const it     = STATE.items[idx];
-    const before = { name: it.name, price: it.price, cat: it.cat, active: it.active };
+    const before = { name: it.name, price: it.price, cat: it.cat, active: it.active, desc: it.desc };
     if (body.price !== undefined) body.price = Number(body.price);
     if (body.image !== undefined) body.image = cleanImageUrl(body.image);
+    if (body.desc  !== undefined) body.desc  = String(body.desc).trim().slice(0, 300);
     Object.assign(it, body);
 
     // ختم: من غيّر ومتى — يظهر لكل الحسابات
@@ -4162,6 +4361,7 @@ async function handleAPI(url, method, body, res) {
       if (before.name  !== it.name)  ch.push(`الاسم: ${before.name} ← ${it.name}`);
       if (before.price !== it.price) ch.push(`السعر: ${before.price} ← ${it.price} ₪`);
       if (before.cat   !== it.cat)   ch.push(`القسم: ${before.cat} ← ${it.cat}`);
+      if (before.desc  !== it.desc)  ch.push('تعديل المكونات');
       auth.audit(CURRENT_USER, 'item.edit', it.name, ch.join(' | ') || 'تحديث بيانات');
       addLog(`✏️ عُدّل: ${it.name} — ${it.updatedBy}`);
     }
@@ -4210,15 +4410,8 @@ async function handleAPI(url, method, body, res) {
     return json({ok: true});
   }
 
-  // ---- CATEGORIES ----
-  const catMatch = url.match(/^\/api\/categories\/(.+)$/);
-  if (catMatch && method === 'PUT') {
-    const cat = STATE.categories.find(c => c.id === catMatch[1]);
-    if (!cat) return json({error: 'not found'}, 404);
-    Object.assign(cat, body);
-    saveState();
-    return json({ok: true});
-  }
+  // نقطة /api/categories القديمة حُذفت: كانت Object.assign أعمى
+  // بلا تحديث label ولا تسجيل تدقيق. البديل /api/cats أعلاه.
 
   // ---- DELIVERY ZONES ----
   const delMatch = url.match(/^\/api\/delivery\/(\d+)$/);
@@ -4846,6 +5039,49 @@ async function getWaVersion() {
     console.log(`   ⚠️ تعذّر جلب نسخة واتساب (${e.message}) — استُخدمت ${v.join('.')}`);
     return v;
   }
+}
+
+// ══════════════════════════════════════════════════════════
+// حسابات استلام الأموال
+// ══════════════════════════════════════════════════════════
+
+const PAY_ICON = { bank: '🏦', wallet: '📱', gateway: '💳', other: '💰' };
+
+function activePaymentAccounts() {
+  return (STATE.paymentAccounts || [])
+    .filter(a => a.active !== false)
+    .sort((a, b) => (a.order || 0) - (b.order || 0));
+}
+
+/** نص بيانات التحويل كما يراه الزبون — من الحسابات المفعّلة فقط */
+function paymentMessage() {
+  const cfg = STATE.paymentConfig || {};
+  if (!cfg.onlineEnabled) {
+    return cfg.cashEnabled
+      ? '💵 الدفع عند الاستلام فقط حالياً.'
+      : '⚠️ الدفع غير متاح حالياً، تواصل معنا.';
+  }
+
+  const accs = activePaymentAccounts();
+  if (!accs.length) {
+    return cfg.cashEnabled
+      ? '💵 الدفع عند الاستلام فقط حالياً.'
+      : '⚠️ لا توجد وسيلة دفع مفعّلة، تواصل معنا.';
+  }
+
+  const blocks = accs.map((a) => {
+    const lines = [`${PAY_ICON[a.type] || '💰'} *${a.label}*`];
+    if (a.holder) lines.push(`الاسم: ${a.holder}`);
+    if (a.phone)  lines.push(`جوال: ${a.phone}`);
+    if (a.iban)   lines.push(`IBAN: ${a.iban}`);
+    if (a.note)   lines.push(`_${a.note}_`);
+    return lines.join('\n');
+  });
+
+  const out = ['💳 *وسائل الدفع المتاحة*', SEP, blocks.join('\n' + SEP + '\n'), SEP];
+  if (cfg.cashEnabled) out.push('💵 أو الدفع عند الاستلام');
+  if (cfg.requireProof) out.push('', 'بعد التحويل أرسل *اسم المحوِّل* لتأكيد طلبك 👇');
+  return out.join('\n');
 }
 
 /** مؤشر الكتابة — يُطلق ولا يُنتظَر، وفشله لا يعني شيئاً */

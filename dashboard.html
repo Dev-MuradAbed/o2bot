@@ -358,6 +358,87 @@ img,canvas,svg{max-width:100%;height:auto}
   .sidebar{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
 }
 
+/* ══════════ إدارة الأقسام ══════════ */
+
+function openCats(){
+  renderCats();
+  document.getElementById('modal-cats').classList.add('open');
+}
+
+function renderCats(){
+  const cats = (S.categories||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0)});
+  document.getElementById('cats-list').innerHTML = cats.map(function(c){
+    const n = (S.items||[]).filter(function(i){return i.cat===c.id}).length;
+    return '<div class="catrow'+(c.active===false?' off':'')+'">'
+      + '<span class="catemoji">'+escH(c.emoji||'🍽️')+'</span>'
+      + '<div class="catinfo">'
+      +   '<input class="catname" value="'+escH(c.name||c.label||'')+'" data-id="'+c.id+'"'
+      +     ' onchange="renameCat(\''+c.id+'\',this.value)">'
+      +   '<div class="catmeta">'+escH(c.id)+' · '+n+' صنف'+(c.byWeight?' · بالكيلو':'')+'</div>'
+      + '</div>'
+      + '<label class="sw" title="'+(c.active===false?'إظهار':'إخفاء')+' للزبائن">'
+      +   '<input type="checkbox" '+(c.active===false?'':'checked')+' onchange="toggleCat(\''+c.id+'\',this.checked)"><i></i>'
+      + '</label>'
+      + '<button class="btn btn-sm btn-red" onclick="removeCat(\''+c.id+'\')" title="حذف">🗑️</button>'
+      + '</div>';
+  }).join('') || '<div class="empty">لا أقسام</div>';
+}
+
+async function createCat(){
+  const name  = document.getElementById('nc-name').value.trim();
+  const emoji = document.getElementById('nc-emoji').value.trim() || '🍽️';
+  const id    = document.getElementById('nc-id').value.trim();
+  const byWeight = document.getElementById('nc-byweight').checked;
+  if(!name){ toast('أدخل اسم القسم', true); return; }
+  const r = await apiPost('/cats', {name, emoji, id, byWeight});
+  if(r && r.error){ toast(r.error, true); return; }
+  document.getElementById('nc-name').value = '';
+  document.getElementById('nc-id').value = '';
+  document.getElementById('nc-emoji').value = '🍽️';
+  document.getElementById('nc-byweight').checked = false;
+  toast('تمت إضافة القسم ✅');
+  await loadMenu();
+  renderCats();
+}
+
+async function toggleCat(id, active){
+  const r = await apiPut('/cats/'+id, {active});
+  if(r && r.error){ toast(r.error, true); return; }
+  const c = (S.categories||[]).find(function(x){return x.id===id});
+  if(c) c.active = active;
+  toast(active ? 'القسم ظاهر للزبائن' : 'القسم مخفي');
+  renderCats(); renderMenuCatTabs(); renderMenuTable();
+}
+
+async function renameCat(id, name){
+  if(!name.trim()) return;
+  const r = await apiPut('/cats/'+id, {name: name.trim()});
+  if(r && r.error){ toast(r.error, true); return; }
+  await loadMenu(); renderCats();
+  toast('تم تغيير الاسم');
+}
+
+async function removeCat(id){
+  const c = (S.categories||[]).find(function(x){return x.id===id});
+  const n = (S.items||[]).filter(function(i){return i.cat===id}).length;
+  if(!confirm('حذف قسم "'+(c?c.name||c.label:id)+'"؟')) return;
+
+  let body = {};
+  if(n){
+    const others = (S.categories||[]).filter(function(x){return x.id!==id});
+    const target = prompt(
+      'القسم فيه '+n+' صنفاً.\n\n'
+      + 'اكتب معرّف قسم لنقلها إليه، أو اترك فارغاً لإغلاقها (لا تُحذف):\n\n'
+      + others.map(function(x){return x.id+'  ('+(x.name||x.label)+')'}).join('\n'), '');
+    if(target === null) return;
+    body = { force: true, moveTo: target.trim() };
+  }
+  const r = await apiDelete('/cats/'+id, body);
+  if(r && r.error){ toast(r.error, true); return; }
+  toast('حُذف القسم 🗑️');
+  await loadMenu(); renderCats();
+}
+
 /* ══════════ صور الأصناف ══════════ */
 .imgrow{display:flex;gap:11px;align-items:flex-start}
 .imgprev{width:82px;height:62px;flex:0 0 auto;border-radius:9px;overflow:hidden;
@@ -474,6 +555,28 @@ img,canvas,svg{max-width:100%;height:auto}
 .imgbanner b{display:block;color:#fff;font-size:13.5px;margin-bottom:5px}
 .imgbanner div{color:var(--muted)}
 .imgbanner code{background:var(--surface3);padding:2px 6px;border-radius:5px;font-size:11px}
+
+/* ══════════ إدارة الأقسام ══════════ */
+.catrow{display:flex;align-items:center;gap:10px;padding:9px 11px;margin-bottom:7px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:11px}
+.catrow.off{opacity:.55;border-color:var(--red)}
+.catemoji{font-size:21px;flex:0 0 auto}
+.catinfo{flex:1;min-width:0}
+.catname{width:100%;background:none;border:0;color:var(--text);font-family:inherit;
+  font-size:14px;font-weight:700;padding:2px 0}
+.catname:focus{outline:0;border-bottom:1px solid var(--green)}
+.catmeta{font-size:11px;color:var(--muted);direction:ltr;text-align:right}
+
+/* ══════════ محرّر المكونات ══════════ */
+.chipbox{display:flex;flex-wrap:wrap;gap:6px;min-height:36px;padding:7px;margin-bottom:8px;
+  background:var(--surface2);border:1px solid var(--border);border-radius:10px}
+.chip{display:inline-flex;align-items:center;gap:5px;background:var(--surface3);
+  border:1px solid var(--border);border-radius:20px;padding:4px 6px 4px 11px;
+  font-size:12.5px;font-weight:600;color:var(--text)}
+.chip button{background:none;border:0;color:var(--muted);cursor:pointer;font-size:12px;
+  padding:0 3px;line-height:1;font-family:inherit}
+.chip button:hover{color:var(--red)}
+.chipempty{font-size:12px;color:var(--muted);padding:4px 6px}
 </style>
 </head>
 <body>
@@ -588,6 +691,7 @@ img,canvas,svg{max-width:100%;height:auto}
           <h3>الأصناف <span id="menu-stamp" style="font-size:11px;font-weight:500;color:var(--muted);margin-inline-start:8px"></span></h3>
           <div style="display:flex;gap:8px">
             <button class="btn btn-sm" onclick="loadMenu()" title="جلب أحدث نسخة">🔄 تحديث</button>
+            <button class="btn btn-sm" onclick="openCats()">🗂️ الأقسام</button>
             <button class="btn btn-green" onclick="openAddItem()">+ إضافة صنف</button>
           </div>
         </div>
@@ -1045,8 +1149,25 @@ img,canvas,svg{max-width:100%;height:auto}
     </div>
     <div class="form-row">
       <div class="form-group"><label>السعر (₪)</label><input id="mi-price" type="number" min="0"></div>
-      <div class="form-group"><label>كلمات مفتاحية (بفاصلة)</label><input id="mi-keys" placeholder="شاورما, عربي"></div>
+      <div class="form-group"><label>الفرع</label>
+        <select id="mi-branch">
+          <option value="gaza">فرع غزة</option>
+          <option value="middle">الفرع الأوسط</option>
+          <option value="">الفرعان معاً</option>
+        </select></div>
     </div>
+    <div class="form-group">
+      <label>🧾 المكونات</label>
+      <div class="chipbox" id="mi-chips"></div>
+      <input id="mi-desc-add" placeholder="اكتب مكوّناً واضغط Enter — مثال: جبنة"
+             onkeydown="descKey(event)">
+      <input type="hidden" id="mi-desc">
+      <div class="imghint">تظهر للزبون تحت اسم الصنف في المنيو والبوت.
+        يمكنك لصق سطر كامل مثل <code>شاورما - جبنة - زيتون</code> وسيُقسَّم تلقائياً.</div>
+    </div>
+
+    <div class="form-group"><label>كلمات مفتاحية للبحث (بفاصلة)</label>
+      <input id="mi-keys" placeholder="شاورما, عربي"></div>
     <div class="form-group">
       <label>رابط صورة الصنف (اختياري)</label>
       <div class="imgrow">
@@ -1082,6 +1203,34 @@ img,canvas,svg{max-width:100%;height:auto}
 
 <!-- Modal: إضافة / تعديل حساب -->
 <!-- Modal: صورة الصنف -->
+<!-- Modal: إدارة الأقسام -->
+<div class="modal-overlay" id="modal-cats">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-head"><h3>🗂️ إدارة الأقسام</h3>
+      <button class="modal-close" onclick="closeModal('modal-cats')">✕</button></div>
+
+    <div id="cats-list"></div>
+
+    <div class="card" style="margin-top:14px;background:var(--surface2)">
+      <h3 style="font-size:14px;font-weight:800;margin-bottom:10px">➕ قسم جديد</h3>
+      <div class="form-row">
+        <div class="form-group"><label>الاسم بالعربية</label>
+          <input id="nc-name" placeholder="الفطور"></div>
+        <div class="form-group"><label>الرمز</label>
+          <input id="nc-emoji" value="🍽️" maxlength="4" style="text-align:center"></div>
+      </div>
+      <div class="form-group"><label>المعرّف (إنجليزي، بلا مسافات)</label>
+        <input id="nc-id" dir="ltr" placeholder="breakfast">
+        <div class="imghint">يُستخدم داخلياً ولا يظهر للزبون. اتركه فارغاً ليُولَّد تلقائياً.</div></div>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="nc-byweight" style="width:auto">
+        <span style="font-weight:600">الأسعار بالكيلو (مثل الحلويات الشرقية)</span>
+      </label>
+      <button class="btn btn-green" style="margin-top:12px" onclick="createCat()">إضافة القسم</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-img">
   <div class="modal" style="max-width:440px">
     <div class="modal-head">
@@ -1178,8 +1327,12 @@ async function apiPut(path, data) {
   const r = await fetch(API + '/api' + path, {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(data)});
   return r.json();
 }
-async function apiDelete(path) {
-  const r = await fetch(API + '/api' + path, {method:'DELETE'});
+async function apiDelete(path, body) {
+  const r = await fetch(API + '/api' + path, {
+    method: 'DELETE',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(body || {}),
+  });
   return r.json();
 }
 
@@ -1792,8 +1945,60 @@ async function deleteItem(id) {
   loadDashboard();
 }
 
+/* ══════════ محرّر المكونات ══════════ */
+
+var DESC_PARTS = [];
+
+function splitDesc(text){
+  return String(text || '').split(/[-–—،,+/]|\s{2,}/)
+    .map(function(x){ return x.trim(); })
+    .filter(function(x){ return x.length > 0 && x.length < 40; });
+}
+
+function setDesc(text){
+  DESC_PARTS = splitDesc(text);
+  renderChips();
+}
+
+function renderChips(){
+  document.getElementById('mi-chips').innerHTML = DESC_PARTS.map(function(p, i){
+    return '<span class="chip">' + escH(p)
+         + '<button type="button" onclick="removeChip(' + i + ')" title="حذف">✕</button></span>';
+  }).join('') || '<span class="chipempty">لا مكونات — اكتب في الحقل تحت</span>';
+  document.getElementById('mi-desc').value = DESC_PARTS.join(' - ');
+}
+
+function removeChip(i){ DESC_PARTS.splice(i, 1); renderChips(); }
+
+function descKey(e){
+  if(e.key === 'Enter' || e.key === ','){
+    e.preventDefault();
+    var v = e.target.value.trim();
+    if(!v) return;
+    splitDesc(v).forEach(function(p){
+      if(DESC_PARTS.indexOf(p) === -1) DESC_PARTS.push(p);
+    });
+    e.target.value = '';
+    renderChips();
+  } else if(e.key === 'Backspace' && !e.target.value && DESC_PARTS.length){
+    DESC_PARTS.pop();
+    renderChips();
+  }
+}
+
+function fillCatSelect(selected){
+  const sel = document.getElementById('mi-cat');
+  sel.innerHTML = (S.categories||[]).map(function(c){
+    return '<option value="'+c.id+'"'+(c.id===selected?' selected':'')+'>'+escH(c.label||c.name||c.id)+'</option>';
+  }).join('');
+}
+
 function openAddItem() {
   editItemId = null;
+  fillCatSelect(activeCat !== 'الكل' ? activeCat : '');
+  document.getElementById('mi-branch').value = activeBranch || 'gaza';
+  document.getElementById('mi-desc-add').value = '';
+  setDesc('');
   document.getElementById('mi-title').textContent='إضافة صنف جديد';
   document.getElementById('mi-name').value='';
   document.getElementById('mi-price').value='';
@@ -1811,6 +2016,10 @@ function openEditItem(id) {
   document.getElementById('mi-name').value=item.name;
   document.getElementById('mi-price').value=item.price;
   document.getElementById('mi-keys').value=(item.keys||[]).join(', ');
+  fillCatSelect(item.cat);
+  document.getElementById('mi-desc-add').value = '';
+  setDesc(item.desc || '');
+  { const b=document.getElementById('mi-branch'); if(b) b.value = item.branch || ''; }
   { const el=document.getElementById('mi-image'); if(el) el.value=(item.image||''); }
   previewItemImage();
   document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}"${c.id===item.cat?' selected':''}>${c.label}</option>`).join('');
@@ -1825,12 +2034,16 @@ async function saveItem() {
   const image=(document.getElementById('mi-image')||{value:''}).value.trim();
   if(!name){toast('أدخل اسم الصنف',true);return;}
   if(editItemId) {
-    await apiPut('/items/'+editItemId, {name,cat,price,image,keys:keys.length?keys:[name]});
+    const branch = document.getElementById('mi-branch').value;
+    const desc = document.getElementById('mi-desc').value;
+    await apiPut('/items/'+editItemId, {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
     const idx=S.items.findIndex(i=>i.id===editItemId);
-    if(idx>=0) Object.assign(S.items[idx],{name,cat,price,image,keys:keys.length?keys:[name]});
+    if(idx>=0) Object.assign(S.items[idx],{name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
     toast('تم التعديل ✅');
   } else {
-    const res = await apiPost('/items', {name,cat,price,image,keys:keys.length?keys:[name]});
+    const branch = document.getElementById('mi-branch').value;
+    const desc = document.getElementById('mi-desc').value;
+    const res = await apiPost('/items', {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
     if(res.item) S.items.push(res.item);
     toast('تمت الإضافة ✅');
   }

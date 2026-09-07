@@ -21,7 +21,8 @@ const ROLES = {
     label: 'سوبر أدمن', color: '#00d97e',
     perms: ['menu.view', 'menu.toggle', 'menu.edit', 'orders.view', 'orders.edit',
       'drivers.manage', 'replies.edit', 'settings.edit', 'bot.manage',
-      'users.manage', 'audit.view', 'learn.manage', 'transfer.manage'],
+      'users.manage', 'audit.view', 'learn.manage', 'transfer.manage',
+      'payments.manage'],
   },
   cashier:       { label: 'كاشير',      color: '#f5a623', perms: ['menu.view', 'menu.toggle'] },
   call_center:   { label: 'كول سنتر',   color: '#4a9eff', perms: ['menu.view', 'menu.toggle'] },
@@ -316,6 +317,7 @@ function permFor(url, method, body) {
   if (url === '/api/items' && method === 'POST')          return 'menu.edit';
   if (/^\/api\/items\/\d+$/.test(url) && method === 'DELETE') return 'menu.edit';
   if (url === '/api/cats/toggle')                          return 'menu.toggle'; // إغلاق/تفعيل قسم كامل
+  if (url === '/api/cats' && method === 'GET')            return 'menu.view';
   if (url.startsWith('/api/cats'))                        return method === 'GET' ? 'menu.view' : 'menu.edit';
   if (url.startsWith('/api/replies'))                     return 'replies.edit';
   if (url.startsWith('/api/settings'))                    return 'settings.edit';
@@ -327,6 +329,8 @@ function permFor(url, method, body) {
   if (url.startsWith('/api/send'))                        return 'transfer.manage';
   if (url.startsWith('/api/learn') || url.startsWith('/api/unknown') || url.startsWith('/api/alias')
       || url.startsWith('/api/analyz'))                   return 'learn.manage';
+  // حسابات استلام الأموال — سوبر أدمن فقط. الكاشير لا يغيّر وجهة المال.
+  if (url.startsWith('/api/payments'))                    return 'payments.manage';
   if (url.startsWith('/api/users'))                       return 'users.manage';
   if (url.startsWith('/api/audit'))                       return 'audit.view';
   if (url.startsWith('/api/simulate'))                    return 'bot.manage';
