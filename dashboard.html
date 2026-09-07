@@ -358,87 +358,6 @@ img,canvas,svg{max-width:100%;height:auto}
   .sidebar{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
 }
 
-/* ══════════ إدارة الأقسام ══════════ */
-
-function openCats(){
-  renderCats();
-  document.getElementById('modal-cats').classList.add('open');
-}
-
-function renderCats(){
-  const cats = (S.categories||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0)});
-  document.getElementById('cats-list').innerHTML = cats.map(function(c){
-    const n = (S.items||[]).filter(function(i){return i.cat===c.id}).length;
-    return '<div class="catrow'+(c.active===false?' off':'')+'">'
-      + '<span class="catemoji">'+escH(c.emoji||'🍽️')+'</span>'
-      + '<div class="catinfo">'
-      +   '<input class="catname" value="'+escH(c.name||c.label||'')+'" data-id="'+c.id+'"'
-      +     ' onchange="renameCat(\''+c.id+'\',this.value)">'
-      +   '<div class="catmeta">'+escH(c.id)+' · '+n+' صنف'+(c.byWeight?' · بالكيلو':'')+'</div>'
-      + '</div>'
-      + '<label class="sw" title="'+(c.active===false?'إظهار':'إخفاء')+' للزبائن">'
-      +   '<input type="checkbox" '+(c.active===false?'':'checked')+' onchange="toggleCat(\''+c.id+'\',this.checked)"><i></i>'
-      + '</label>'
-      + '<button class="btn btn-sm btn-red" onclick="removeCat(\''+c.id+'\')" title="حذف">🗑️</button>'
-      + '</div>';
-  }).join('') || '<div class="empty">لا أقسام</div>';
-}
-
-async function createCat(){
-  const name  = document.getElementById('nc-name').value.trim();
-  const emoji = document.getElementById('nc-emoji').value.trim() || '🍽️';
-  const id    = document.getElementById('nc-id').value.trim();
-  const byWeight = document.getElementById('nc-byweight').checked;
-  if(!name){ toast('أدخل اسم القسم', true); return; }
-  const r = await apiPost('/cats', {name, emoji, id, byWeight});
-  if(r && r.error){ toast(r.error, true); return; }
-  document.getElementById('nc-name').value = '';
-  document.getElementById('nc-id').value = '';
-  document.getElementById('nc-emoji').value = '🍽️';
-  document.getElementById('nc-byweight').checked = false;
-  toast('تمت إضافة القسم ✅');
-  await loadMenu();
-  renderCats();
-}
-
-async function toggleCat(id, active){
-  const r = await apiPut('/cats/'+id, {active});
-  if(r && r.error){ toast(r.error, true); return; }
-  const c = (S.categories||[]).find(function(x){return x.id===id});
-  if(c) c.active = active;
-  toast(active ? 'القسم ظاهر للزبائن' : 'القسم مخفي');
-  renderCats(); renderMenuCatTabs(); renderMenuTable();
-}
-
-async function renameCat(id, name){
-  if(!name.trim()) return;
-  const r = await apiPut('/cats/'+id, {name: name.trim()});
-  if(r && r.error){ toast(r.error, true); return; }
-  await loadMenu(); renderCats();
-  toast('تم تغيير الاسم');
-}
-
-async function removeCat(id){
-  const c = (S.categories||[]).find(function(x){return x.id===id});
-  const n = (S.items||[]).filter(function(i){return i.cat===id}).length;
-  if(!confirm('حذف قسم "'+(c?c.name||c.label:id)+'"؟')) return;
-
-  let body = {};
-  if(n){
-    const others = (S.categories||[]).filter(function(x){return x.id!==id});
-    const target = prompt(
-      'القسم فيه '+n+' صنفاً.\n\n'
-      + 'اكتب معرّف قسم لنقلها إليه، أو اترك فارغاً لإغلاقها (لا تُحذف):\n\n'
-      + others.map(function(x){return x.id+'  ('+(x.name||x.label)+')'}).join('\n'), '');
-    if(target === null) return;
-    body = { force: true, moveTo: target.trim() };
-  }
-  const r = await apiDelete('/cats/'+id, body);
-  if(r && r.error){ toast(r.error, true); return; }
-  toast('حُذف القسم 🗑️');
-  await loadMenu(); renderCats();
-}
-
 /* ══════════ صور الأصناف ══════════ */
 .imgrow{display:flex;gap:11px;align-items:flex-start}
 .imgprev{width:82px;height:62px;flex:0 0 auto;border-radius:9px;overflow:hidden;
@@ -1620,6 +1539,87 @@ function priceLabel(i){
   if(Array.isArray(i.variants) && i.variants.length)
     return i.variants.map(function(v){return v.name+' '+v.price;}).join(' · ')+' ₪';
   return i.price+' ₪';
+}
+
+/* ══════════ إدارة الأقسام ══════════ */
+
+function openCats(){
+  renderCats();
+  document.getElementById('modal-cats').classList.add('open');
+}
+
+function renderCats(){
+  const cats = (S.categories||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0)});
+  document.getElementById('cats-list').innerHTML = cats.map(function(c){
+    const n = (S.items||[]).filter(function(i){return i.cat===c.id}).length;
+    return '<div class="catrow'+(c.active===false?' off':'')+'">'
+      + '<span class="catemoji">'+escH(c.emoji||'🍽️')+'</span>'
+      + '<div class="catinfo">'
+      +   '<input class="catname" value="'+escH(c.name||c.label||'')+'" data-id="'+c.id+'"'
+      +     ' onchange="renameCat(\''+c.id+'\',this.value)">'
+      +   '<div class="catmeta">'+escH(c.id)+' · '+n+' صنف'+(c.byWeight?' · بالكيلو':'')+'</div>'
+      + '</div>'
+      + '<label class="sw" title="'+(c.active===false?'إظهار':'إخفاء')+' للزبائن">'
+      +   '<input type="checkbox" '+(c.active===false?'':'checked')+' onchange="toggleCat(\''+c.id+'\',this.checked)"><i></i>'
+      + '</label>'
+      + '<button class="btn btn-sm btn-red" onclick="removeCat(\''+c.id+'\')" title="حذف">🗑️</button>'
+      + '</div>';
+  }).join('') || '<div class="empty">لا أقسام</div>';
+}
+
+async function createCat(){
+  const name  = document.getElementById('nc-name').value.trim();
+  const emoji = document.getElementById('nc-emoji').value.trim() || '🍽️';
+  const id    = document.getElementById('nc-id').value.trim();
+  const byWeight = document.getElementById('nc-byweight').checked;
+  if(!name){ toast('أدخل اسم القسم', true); return; }
+  const r = await apiPost('/cats', {name, emoji, id, byWeight});
+  if(r && r.error){ toast(r.error, true); return; }
+  document.getElementById('nc-name').value = '';
+  document.getElementById('nc-id').value = '';
+  document.getElementById('nc-emoji').value = '🍽️';
+  document.getElementById('nc-byweight').checked = false;
+  toast('تمت إضافة القسم ✅');
+  await loadMenu();
+  renderCats();
+}
+
+async function toggleCat(id, active){
+  const r = await apiPut('/cats/'+id, {active});
+  if(r && r.error){ toast(r.error, true); return; }
+  const c = (S.categories||[]).find(function(x){return x.id===id});
+  if(c) c.active = active;
+  toast(active ? 'القسم ظاهر للزبائن' : 'القسم مخفي');
+  renderCats(); renderMenuCatTabs(); renderMenuTable();
+}
+
+async function renameCat(id, name){
+  if(!name.trim()) return;
+  const r = await apiPut('/cats/'+id, {name: name.trim()});
+  if(r && r.error){ toast(r.error, true); return; }
+  await loadMenu(); renderCats();
+  toast('تم تغيير الاسم');
+}
+
+async function removeCat(id){
+  const c = (S.categories||[]).find(function(x){return x.id===id});
+  const n = (S.items||[]).filter(function(i){return i.cat===id}).length;
+  if(!confirm('حذف قسم "'+(c?c.name||c.label:id)+'"؟')) return;
+
+  let body = {};
+  if(n){
+    const others = (S.categories||[]).filter(function(x){return x.id!==id});
+    const target = prompt(
+      'القسم فيه '+n+' صنفاً.\n\n'
+      + 'اكتب معرّف قسم لنقلها إليه، أو اترك فارغاً لإغلاقها (لا تُحذف):\n\n'
+      + others.map(function(x){return x.id+'  ('+(x.name||x.label)+')'}).join('\n'), '');
+    if(target === null) return;
+    body = { force: true, moveTo: target.trim() };
+  }
+  const r = await apiDelete('/cats/'+id, body);
+  if(r && r.error){ toast(r.error, true); return; }
+  toast('حُذف القسم 🗑️');
+  await loadMenu(); renderCats();
 }
 
 /** تنبيه فوق المنيو إن كانت الصور بلا نطاق — مع زر ضبط بضغطة */
