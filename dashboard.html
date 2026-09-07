@@ -1494,7 +1494,10 @@ var BRANCHES = [{id:'gaza',label:'فرع غزة'},{id:'middle',label:'الفرع
 function branchOf(i){ return i.branch || ''; }
 function itemsOfBranch(){
   const all = S.items || [];
-  return activeBranch ? all.filter(i=>branchOf(i)===activeBranch) : all;
+  if(!activeBranch) return all;
+  // الصنف بلا فرع = متاح في الفرعين (نفس منطق البوت في branchItems).
+  // الشرط السابق كان يُخفيه عند اختيار أي فرع، فيبدو أن الصنف لم يُضف.
+  return all.filter(function(i){ return !i.branch || i.branch === activeBranch; });
 }
 
 function renderBranchTabs(){
@@ -1505,9 +1508,10 @@ function renderBranchTabs(){
   el.innerHTML = '<button class="branch-tab'+(activeBranch===''?' on':'')+'" onclick="setBranch(\'\')">كل الفروع'
     + '<b>'+(S.items||[]).length+'</b></button>'
     + BRANCHES.map(function(b){
-        const n = (S.items||[]).filter(i=>i.branch===b.id).length;
+        const pool = (S.items||[]).filter(function(i){ return !i.branch || i.branch===b.id; });
+        const n = pool.length;
         if(!n) return '';
-        const off = (S.items||[]).filter(i=>i.branch===b.id && !i.active).length;
+        const off = pool.filter(function(i){ return !i.active; }).length;
         return '<button class="branch-tab'+(activeBranch===b.id?' on':'')+'" onclick="setBranch(\''+b.id+'\')">'
              + b.label+'<b>'+n+'</b>'+(off?'<i class="offdot" title="'+off+' مغلق"></i>':'')+'</button>';
       }).join('');
