@@ -1757,8 +1757,19 @@ function renderMenuTable() {
 
 /* ══════════ صور الأصناف ══════════ */
 
+/**
+ * الأشكال المقبولة — نفس ما يقبله الخادم في cleanImageUrl:
+ *   https://…        رابط خارجي
+ *   /api/img/<id>    مرفوعة من الجهاز
+ *   /menu/…          من مجلد المشروع
+ * كان يقبل الأول فقط، فيرفض الرابط الذي ينتجه الرفع نفسه.
+ */
 function isImageUrl(u){
-  return /^https?:\/\//i.test(String(u||'').trim());
+  const v = String(u||'').trim();
+  if(!v) return false;
+  return /^https?:\/\//i.test(v)
+      || /^\/api\/img\/[A-Za-z0-9_-]{6,40}$/.test(v)
+      || /^\/menu\//.test(v);
 }
 
 /** يرسم معاينة داخل حاوية معطاة */
@@ -1862,8 +1873,10 @@ async function pickImageFile(file){
 
     document.getElementById('mim-url').value = d.url;
     msg.innerHTML = '✅ رُفعت (' + Math.round(d.size/1024) + ' ك.ب · ' + out.w + '×' + out.h + ')'
-      + '<br><small>اضغط «حفظ الصورة» لربطها بالصنف</small>';
-    toast('تم رفع الصورة — اضغط حفظ');
+      + '<br><small>جاري الربط بالصنف…</small>';
+    // ربط تلقائي — لا معنى لرفع صورة ثم نسيان الضغط على «حفظ»
+    drop.classList.remove('busy');
+    await saveQuickImage(d.url);
   }catch(e){
     msg.innerHTML = '❌ ' + e.message + '<br><small>اضغط للمحاولة من جديد</small>';
     toast(e.message, true);
@@ -1889,7 +1902,10 @@ function openImageModal(id){
 async function saveQuickImage(url){
   if(quickImageId == null) return;
   var val = String(url||'').trim();
-  if(val && !isImageUrl(val)){ toast('الرابط يجب أن يبدأ بـ http أو https', true); return; }
+  if(val && !isImageUrl(val)){
+    toast('رابط غير صالح — استخدم رابطاً يبدأ بـ https أو ارفع صورة من جهازك', true);
+    return;
+  }
   var btn = document.getElementById('mim-save');
   btn.disabled = true;
   try{
@@ -1902,6 +1918,7 @@ async function saveQuickImage(url){
     }
     closeModal('modal-img');
     toast(val ? '🖼️ تم حفظ الصورة' : '🗑️ أُزيلت الصورة');
+    window.__imgProbeDone = false;   // أعد فحص تحميل الصور
     renderMenuTable();
   }catch(e){ toast('تعذّر الحفظ', true); }
   btn.disabled = false;
