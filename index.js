@@ -3711,6 +3711,8 @@ const server = http.createServer((req, res) => {
         name: i.name,
         active: i.active !== false,
         price: i.price,
+        desc: i.desc || '',
+        image: i.image || '',
         ...(i.pricePerKg ? { pricePerKg: i.pricePerKg } : {}),
         ...(i.variants ? { variants: i.variants } : {}),
       }));
@@ -3727,7 +3729,14 @@ const server = http.createServer((req, res) => {
       counts: { total: items.length, active: items.filter(i => i.active).length },
       categories: STATE.categories
         .filter(c => c.active !== false)
-        .map(c => ({ id: c.id, name: c.name || c.label, label: c.label })),
+        .map(c => ({
+          id: c.id,
+          name: c.name || String(c.label || '').replace(/^\S+\s/, ''),
+          label: c.label,
+          emoji: c.emoji || '',
+          byWeight: !!c.byWeight,
+          order: c.order || 0,
+        })),
       items,
     }));
     return;
