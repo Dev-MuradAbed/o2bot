@@ -1173,7 +1173,15 @@ async function removeCat(id){
       <div class="imgrow">
         <div class="imgprev" id="mi-prev"><span>لا صورة</span></div>
         <div style="flex:1;min-width:0">
-          <input id="mi-image" placeholder="https://example.com/photo.jpg" dir="ltr"
+          <div style="display:flex;gap:7px;margin-bottom:6px">
+            <label class="btn btn-sm btn-green" style="cursor:pointer;white-space:nowrap">
+              📁 من الجهاز
+              <input type="file" accept="image/jpeg,image/png,image/webp" hidden
+                     onchange="pickItemFile(this.files[0], this)">
+            </label>
+            <span id="mi-upmsg" style="font-size:11.5px;color:var(--muted);align-self:center"></span>
+          </div>
+          <input id="mi-image" placeholder="أو الصق رابطاً: https://…" dir="ltr"
                  oninput="previewItemImage()">
           <div class="imghint">الرابط يجب أن ينتهي بـ <code>.jpg</code> أو <code>.png</code> أو <code>.webp</code>.
             من جوجل: اضغط على الصورة بزر الفأرة الأيمن ← <b>نسخ عنوان الصورة</b>.
@@ -1673,6 +1681,18 @@ function setMenuCat(cat){activeCat=cat;renderMenuCatTabs();renderMenuTable();}
 function filterMenu(){renderMenuTable();}
 
 // رموز احتياطية حسب القسم — تُستخدم حين لا صورة للصنف
+/**
+ * صلاحيات المستخدم الحالي.
+ * كانت تُعرَّف في كتلة سكربت لاحقة، فعند أول رسم للمنيو تكون
+ * window.ME فارغة ⇒ canEdit=false ⇒ يختفي زر رفع الصورة وأزرار التعديل.
+ * التعريف هنا يسبق كل استخدام، والرسم يُعاد بعد وصول الهوية.
+ */
+if (typeof window.hasPerm !== 'function') {
+  window.hasPerm = function(p){
+    return !!(window.ME && window.ME.perms && window.ME.perms.indexOf(p) > -1);
+  };
+}
+
 var CAT_ART = {
   shawarma:['🥙','#f5a623'], italian:['🍕','#ff6b35'], sandwiches:['🍔','#e8543f'],
   salads:['🥗','#2ecc71'],   barSweets:['🧇','#c77dff'], westernSweets:['🍰','#e84393'],
@@ -1797,6 +1817,34 @@ function paintPreview(boxId, url){
   };
   img.alt = '';
   img.src = u;
+}
+
+/** رفع صورة من داخل نافذة تعديل الصنف */
+async function pickItemFile(file, input){
+  if(!file) return;
+  var msg = document.getElementById('mi-upmsg');
+  if(!/^image\/(jpeg|png|webp)$/.test(file.type)){
+    toast('الصيغة غير مدعومة — JPG أو PNG أو WebP', true); return;
+  }
+  msg.textContent = '⏳ جاري التصغير…';
+  try{
+    var out = await shrinkImage(file, 800, 0.8);
+    msg.textContent = '⬆️ جاري الرفع…';
+    var r = await fetch('/api/images', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ dataUrl: out.dataUrl, name: file.name })
+    });
+    var d = await r.json();
+    if(!d.ok) throw new Error(d.error || 'تعذّر الرفع');
+    document.getElementById('mi-image').value = d.url;
+    previewItemImage();
+    msg.textContent = '✅ ' + Math.round(d.size/1024) + ' ك.ب · ' + out.w + '×' + out.h;
+    toast('رُفعت الصورة — اضغط حفظ لإتمام الصنف');
+  }catch(e){
+    msg.textContent = '❌ ' + e.message;
+    toast(e.message, true);
+  }
+  if(input) input.value = '';
 }
 
 var _prevTimer = null;
@@ -2015,6 +2063,7 @@ function openAddItem() {
   fillCatSelect(activeCat !== 'الكل' ? activeCat : '');
   document.getElementById('mi-branch').value = activeBranch || 'gaza';
   document.getElementById('mi-desc-add').value = '';
+  { const m=document.getElementById('mi-upmsg'); if(m) m.textContent=''; }
   setDesc('');
   document.getElementById('mi-title').textContent='إضافة صنف جديد';
   document.getElementById('mi-name').value='';
@@ -2035,6 +2084,7 @@ function openEditItem(id) {
   document.getElementById('mi-keys').value=(item.keys||[]).join(', ');
   fillCatSelect(item.cat);
   document.getElementById('mi-desc-add').value = '';
+  { const m=document.getElementById('mi-upmsg'); if(m) m.textContent=''; }
   setDesc(item.desc || '');
   { const b=document.getElementById('mi-branch'); if(b) b.value = item.branch || ''; }
   { const el=document.getElementById('mi-image'); if(el) el.value=(item.image||''); }
@@ -3676,7 +3726,10 @@ var NAV_PERM = {
   users:'users.manage', audit:'audit.view'
 };
 
-function hasPerm(p){ return !!(window.ME && window.ME.perms && window.ME.perms.indexOf(p) > -1); }
+// معرّفة أصلاً في الكتلة الأولى — نبقيها مرجعاً واحداً
+window.hasPerm = window.hasPerm || function(p){
+  return !!(window.ME && window.ME.perms && window.ME.perms.indexOf(p) > -1);
+};
 
 function applyRole(){
   var u = window.ME; if(!u) return;
@@ -3740,6 +3793,11 @@ function applyRole(){
     var d = await r.json();
     window.ME = d.user;
     applyRole();
+    // الصلاحيات وصلت الآن — أعد رسم المنيو ليظهر ما يعتمد عليها
+    // (زر رفع الصورة، أزرار التعديل والحذف، أزرار الإغلاق الجماعي)
+    if (typeof renderMenuTable === 'function' && S && S.items) {
+      try { renderMenuCatTabs(); renderMenuTable(); } catch(e){}
+    }
   }catch(_){ /* الاستطلاع الدوري سيتكفّل */ }
 })();
 </script>
