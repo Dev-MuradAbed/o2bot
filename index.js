@@ -3726,17 +3726,35 @@ const server = http.createServer((req, res) => {
     res.end(JSON.stringify({
       ok: true,
       updatedAt: new Date().toISOString(),
+      // بصمة تتغيّر مع أي تعديل على المنيو — الموقع يقارنها
+      // بنسخته المحفوظة ليعرف أنها قديمة دون انتظار
+      rev: STATE.items.reduce((a, i) =>
+        a + i.id + (i.active ? 1 : 0) + Number(i.price || 0), 0) + STATE.categories.length,
       counts: { total: items.length, active: items.filter(i => i.active).length },
       categories: STATE.categories
         .filter(c => c.active !== false)
-        .map(c => ({
-          id: c.id,
-          name: c.name || String(c.label || '').replace(/^\S+\s/, ''),
-          label: c.label,
-          emoji: c.emoji || '',
-          byWeight: !!c.byWeight,
-          order: c.order || 0,
-        })),
+        .map(c => {
+          // عدد الأصناف المتوفرة في كل فرع — يسمح للموقع بإخفاء
+          // القسم الفارغ، أو إخبار الزبون أنه متوفر في الفرع الآخر
+          const per = {};
+          for (const b of branchList()) {
+            per[b.id] = STATE.items.filter(i =>
+              i.cat === c.id && i.active !== false && (!i.branch || i.branch === b.id)
+            ).length;
+          }
+          return {
+            id: c.id,
+            name: c.name || String(c.label || '').replace(/^\S+\s/, ''),
+            label: c.label,
+            emoji: c.emoji || '',
+            byWeight: !!c.byWeight,
+            order: c.order || 0,
+            counts: per,
+            count: per[branch] !== undefined
+              ? per[branch]
+              : Object.values(per).reduce((a, b2) => a + b2, 0),
+          };
+        }),
       items,
     }));
     return;
