@@ -14,7 +14,7 @@
     "build": "node -e \"console.log('ℹ️  البوت لا يحتاج بناء — هذا السكربت موجود ليصمد أمام أوامر البناء الخاطئة')\""
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.9",
+    "@whiskeysockets/baileys": "6.7.22",
     "@hapi/boom": "^10.0.1",
     "firebase-admin": "^12.3.0",
     "pino": "^9.3.2",

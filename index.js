@@ -1,11 +1,11 @@
 // Baileys — واتساب بدون Chromium
 const makeWASocket    = require('@whiskeysockets/baileys').default;
 const {
-  useMultiFileAuthState,
   DisconnectReason,
   fetchLatestBaileysVersion,
   Browsers,
 } = require('@whiskeysockets/baileys');
+const { useFirestoreAuthState } = require('./firestore-auth-state');
 const QRCode = require('qrcode');
 const http   = require('http');
 const fs     = require('fs');
@@ -132,7 +132,18 @@ const { getFirestore }         = require('firebase-admin/firestore');
 
 // قراءة Service Account من متغير البيئة
 let STATE_DOC;
+let MENU_DOC;             // مستند مستقل للأقسام/الأصناف — حفظ أسرع عند التفعيل/الإلغاء
+let AUTH_DOC;              // مستند جلسة واتساب (Baileys) — بديل عن القرص المحلي
 let IMG_COL;              // مجموعة الصور المرفوعة من الجهاز
+
+/** مستند وهمي بالذاكرة — لأوضاع الاختبار وحدها */
+function memDoc() {
+  let mem = null;
+  return {
+    async set(d) { mem = JSON.parse(JSON.stringify(d)); },
+    async get() { return { exists: !!mem, data: () => mem }; },
+  };
+}
 let FB_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || '';   // لاستنتاج نطاق الصور
 if (!FB_PROJECT_ID && process.env.FIREBASE_SERVICE_ACCOUNT) {
   try { FB_PROJECT_ID = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT).project_id || ''; }
@@ -168,6 +179,8 @@ if (process.env.O2_TEST_MODE === 'failread') {
       return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc };
     },
   };
+  MENU_DOC = memDoc();
+  AUTH_DOC = memDoc();
   IMG_COL = memImageCollection();
   console.log('🧪 وضع اختبار فشل القراءة');
 } else if (process.env.O2_TEST_MODE === 'persist') {
@@ -176,11 +189,15 @@ if (process.env.O2_TEST_MODE === 'failread') {
     async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
     async get(){ return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc }; },
   };
+  MENU_DOC = memDoc();
+  AUTH_DOC = memDoc();
   IMG_COL = memImageCollection();
   console.log('🧪 وضع اختبار الاستمرارية');
 } else if (process.env.O2_TEST_MODE === '1') {
   let mem = null;
   STATE_DOC = { async set(d){ mem = JSON.parse(JSON.stringify(d)); }, async get(){ return { exists: !!mem, data: () => mem }; } };
+  MENU_DOC = memDoc();
+  AUTH_DOC = memDoc();
   IMG_COL = memImageCollection();
   console.log('🧪 وضع الاختبار: Firebase معطّل');
 } else {
@@ -191,6 +208,8 @@ if (process.env.O2_TEST_MODE === 'failread') {
   initializeApp({ credential: cert(sa) });
   const _db = getFirestore();
   STATE_DOC = _db.collection('o2bot').doc('state');
+  MENU_DOC  = _db.collection('o2bot').doc('menu');   // أقسام/أصناف — حفظ منفصل وأسرع
+  AUTH_DOC  = _db.collection('o2bot').doc('waAuth');  // جلسة واتساب — بديل القرص المحلي
   IMG_COL   = _db.collection('o2bot_images');   // صورة لكل مستند
 }
 
@@ -286,12 +305,33 @@ let stateLoaded = false;
 let loadError   = '';
 let migrationPending = false;
 
+// ══════════════════════════════════════════════════════════
+// فصل المنيو (أقسام/أصناف) عن باقي البيانات (طلبات/سجلات/إعدادات…)
+// بمستندين منفصلين على Firestore. السبب: تفعيل/إلغاء صنف أو قسم
+// يكتب الآن مستنداً صغيراً بدل STATE كاملة، فيصير الرد على
+// الداشبورد أسرع بكثير — مع بقاء الحفظ الفوري (await) كما هو
+// لحماية التغيير من الضياع لو نامت الخدمة أثناءه.
+// ══════════════════════════════════════════════════════════
+const MENU_FIELDS = ['categories', 'items', 'deletedItemIds', 'menuVersion', 'itemsBackup'];
+
+function menuSlice() {
+  const out = {};
+  for (const k of MENU_FIELDS) out[k] = STATE[k];
+  return out;
+}
+
+function opsSlice() {
+  const out = { ...STATE };
+  for (const k of MENU_FIELDS) delete out[k];
+  return out;
+}
+
 function saveState() {
   if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return; }
   if (saveTimer) return;
   saveTimer = setTimeout(async () => {
     saveTimer = null;
-    try { await STATE_DOC.set(STATE); }
+    try { await STATE_DOC.set(opsSlice()); }
     catch(e) { console.log('⚠️ Firebase save:', e.message); }
   }, 3000);
 }
@@ -299,15 +339,44 @@ function saveState() {
 async function saveStateNow() {
   if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return false; }
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  try { await STATE_DOC.set(STATE); return true; }
+  try { await STATE_DOC.set(opsSlice()); return true; }
   catch(e) { console.log('⚠️ Firebase saveNow:', e.message); return false; }
+}
+
+// نفس الفكرة، بمؤقّت منفصل، خاص بمستند المنيو وحده
+let saveMenuTimer = null;
+
+function saveMenu() {
+  if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return; }
+  if (saveMenuTimer) return;
+  saveMenuTimer = setTimeout(async () => {
+    saveMenuTimer = null;
+    try { await MENU_DOC.set(menuSlice()); }
+    catch(e) { console.log('⚠️ Firebase save (menu):', e.message); }
+  }, 3000);
+}
+
+async function saveMenuNow() {
+  if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return false; }
+  if (saveMenuTimer) { clearTimeout(saveMenuTimer); saveMenuTimer = null; }
+  try { await MENU_DOC.set(menuSlice()); return true; }
+  catch(e) { console.log('⚠️ Firebase saveNow (menu):', e.message); return false; }
+}
+
+/** يحفظ كل شي فوراً — أول تشغيل أو عند الإغلاق */
+async function saveAllNow() {
+  const [ops, menu] = await Promise.all([saveStateNow(), saveMenuNow()]);
+  return ops && menu;
 }
 
 /** يكتب أي حفظ مؤجّل فوراً — يُستدعى عند إيقاف الخدمة */
 async function flushState() {
-  if (!stateLoaded || !saveTimer) return;
-  clearTimeout(saveTimer); saveTimer = null;
-  try { await STATE_DOC.set(STATE); console.log('💾 حُفظت البيانات قبل الإغلاق'); }
+  if (!stateLoaded) return;
+  const jobs = [];
+  if (saveTimer)     { clearTimeout(saveTimer);     saveTimer = null;     jobs.push(STATE_DOC.set(opsSlice())); }
+  if (saveMenuTimer) { clearTimeout(saveMenuTimer); saveMenuTimer = null; jobs.push(MENU_DOC.set(menuSlice())); }
+  if (!jobs.length) return;
+  try { await Promise.all(jobs); console.log('💾 حُفظت البيانات قبل الإغلاق'); }
   catch(e) { console.log('⚠️ فشل الحفظ قبل الإغلاق:', e.message); }
 }
 
@@ -317,14 +386,16 @@ for (const sig of ['SIGTERM', 'SIGINT']) {
 
 async function loadState() {
   try {
-    const snap = await STATE_DOC.get();
-    if (!snap.exists) {
+    // مستندان منفصلان (باقي البيانات + المنيو) — نقرأهما معاً وندمجهما
+    // بكائن واحد، فبقية هذه الدالة تشتغل بلا أي تعديل إضافي.
+    const [opsSnap, menuSnap] = await Promise.all([STATE_DOC.get(), MENU_DOC.get()]);
+    if (!opsSnap.exists && !menuSnap.exists) {
       console.log('📝 Firebase: أول تشغيل — حفظ البيانات الافتراضية');
-      stateLoaded = true;              // القراءة نجحت والمستند غير موجود فعلاً
-      await saveStateNow();
+      stateLoaded = true;              // القراءة نجحت والمستندان غير موجودين فعلاً
+      await saveAllNow();
       return true;
     }
-    const saved = snap.data();
+    const saved = { ...(opsSnap.exists ? opsSnap.data() : {}), ...(menuSnap.exists ? menuSnap.data() : {}) };
     STATE.settings     = { ...STATE.settings, ...(saved.settings || {}) };
     STATE.orders       = saved.orders    || [];
     STATE.queue        = saved.queue     || [];
@@ -2515,7 +2586,7 @@ async function handleStaffCommand(from, raw) {
         it.active = opening; it.updatedBy = user.displayName;
         it.updatedRole = user.role; it.updatedAt = now;
       }
-      await saveStateNow();
+      await saveMenuNow();
       auth.audit(user, opening ? 'category.open' : 'category.close', cat.id,
         `${opening ? 'تفعيل' : 'إغلاق'} ${affected.length} صنف`, 'whatsapp');
       addLog(`${opening ? '✅' : '🚫'} ${cat.label}: ${affected.length} صنف — ${user.displayName}`);
@@ -2529,7 +2600,7 @@ async function handleStaffCommand(from, raw) {
     item.updatedBy = user.displayName;
     item.updatedRole = user.role;
     item.updatedAt = now;
-    await saveStateNow();
+    await saveMenuNow();
     auth.audit(user, opening ? 'menu.open' : 'menu.close', item.name,
       opening ? 'تفعيل الصنف' : 'إغلاق الصنف', 'whatsapp');
     addLog(`${opening ? '✅ فُعّل' : '🚫 أُغلق'}: ${item.name} — ${user.displayName}`);
@@ -3291,17 +3362,23 @@ ${deliveryInfo}
 // ============================================================
 // HTTP SERVER & API
 // ============================================================
-/** يمسح مجلد جلسة واتساب — مطلوب قبل أي ربط جديد */
-function clearAuthFolder() {
-  const dir = path.join(__dirname, 'baileys_auth');
+/** يمسح جلسة واتساب المحفوظة (Firestore) — مطلوب قبل أي ربط جديد */
+async function clearAuthFolder() {
+  let cleared = false;
+  // مسار قديم احتياطي — بعض النسخ السابقة قد تترك بقايا على القرص
   try {
-    if (!fs.existsSync(dir)) return false;
-    fs.rmSync(dir, { recursive: true, force: true });
-    return true;
+    const dir = path.join(__dirname, 'baileys_auth');
+    if (fs.existsSync(dir)) { fs.rmSync(dir, { recursive: true, force: true }); cleared = true; }
   } catch (e) {
-    console.log('⚠️ تعذّر مسح baileys_auth:', e.message);
-    return false;
+    console.log('⚠️ تعذّر مسح baileys_auth (قرص):', e.message);
   }
+  try {
+    await AUTH_DOC.set({ json: '', updatedAt: new Date().toISOString() });
+    cleared = true;
+  } catch (e) {
+    console.log('⚠️ تعذّر مسح جلسة واتساب (Firestore):', e.message);
+  }
+  return cleared;
 }
 
 let currentQR = '';
@@ -4061,7 +4138,7 @@ async function handleAPI(url, method, body, res) {
       active: body.active !== false,
     };
     STATE.categories.push(cat);
-    await saveStateNow();
+    await saveMenuNow();
     auth.audit(CURRENT_USER, 'category.create', cat.name, `قسم جديد (${cat.id})`);
     addLog(`➕ قسم جديد: ${cat.label} — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
     return json({ ok: true, category: cat });
@@ -4078,7 +4155,7 @@ async function handleAPI(url, method, body, res) {
     if (body.order    !== undefined) cat.order = Number(body.order) || cat.order;
     if (body.byWeight !== undefined) cat.byWeight = !!body.byWeight;
     cat.label = `${cat.emoji || '🍽️'} ${cat.name}`;
-    await saveStateNow();
+    await saveMenuNow();
     if (before.active !== cat.active) {
       auth.audit(CURRENT_USER, cat.active ? 'category.show' : 'category.hide', cat.name,
         cat.active ? 'إظهار القسم للزبائن' : 'إخفاء القسم');
@@ -4106,7 +4183,7 @@ async function handleAPI(url, method, body, res) {
       if (inside.length) auth.audit(CURRENT_USER, 'menu.close', cat.name, `إغلاق ${inside.length} صنفاً مع حذف القسم`);
     }
     STATE.categories = STATE.categories.filter(c => c.id !== cat.id);
-    await saveStateNow();
+    await saveMenuNow();
     auth.audit(CURRENT_USER, 'category.delete', cat.name, 'حذف القسم');
     addLog(`🗑️ حُذف قسم: ${cat.label} — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
     return json({ ok: true });
@@ -4170,7 +4247,7 @@ async function handleAPI(url, method, body, res) {
       it.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
       it.updatedAt = new Date().toISOString();
     }
-    await saveStateNow();
+    await saveMenuNow();
     if (affected.length) {
       auth.audit(CURRENT_USER, active ? 'category.open' : 'category.close', cat,
         `${active ? 'تفعيل' : 'إغلاق'} ${affected.length} صنف`);
@@ -4257,7 +4334,7 @@ async function handleAPI(url, method, body, res) {
       wanted === 'pair' ? `التبديل إلى كود الربط (${phone})` : 'التبديل إلى QR');
 
     // كود الربط لا يُطلب إلا لجلسة غير مسجّلة — نمسح الجلسة القديمة
-    const cleared = clearAuthFolder();
+    const cleared = await clearAuthFolder();
     pairCode = ''; currentQR = ''; pairRequested = false;
     STATE.botConnected = false;
     addLog(`🔗 إعادة ربط بطريقة ${wanted === 'pair' ? 'الكود' : 'QR'}${cleared ? ' (مُسحت الجلسة السابقة)' : ''}`);
@@ -4268,7 +4345,7 @@ async function handleAPI(url, method, body, res) {
   // فك الربط: مسح الجلسة وإعادة التشغيل
   if (url === '/api/bot/unlink' && method === 'POST') {
     try { if (waSocket) await waSocket.logout(); } catch(e) { /* غير متصل */ }
-    const cleared = clearAuthFolder();
+    const cleared = await clearAuthFolder();
     pairCode = ''; currentQR = ''; pairRequested = false;
     STATE.botConnected = false;
     auth.audit(CURRENT_USER, 'settings.edit', 'ربط واتساب', 'فك الربط ومسح الجلسة');
@@ -4354,7 +4431,7 @@ async function handleAPI(url, method, body, res) {
     item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
     item.updatedAt   = new Date().toISOString();
     STATE.items.push(item);
-    saveState();
+    saveMenu();
     auth.audit(CURRENT_USER, 'item.create', item.name, `صنف جديد بسعر ${item.price} ₪`);
     addLog(`➕ أُضيف: ${item.name} — ${item.updatedBy}`);
     return json({ok: true, item});
@@ -4375,8 +4452,9 @@ async function handleAPI(url, method, body, res) {
     it.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
     it.updatedAt   = new Date().toISOString();
     // تغيير التوفّر حرج: نحفظ فوراً بدل انتظار مؤقت الثلاث ثوانٍ،
-    // فإيقاف الخدمة خلالها كان يبتلع التغيير ويعيد الصنف مُفعّلاً
-    await saveStateNow();
+    // فإيقاف الخدمة خلالها كان يبتلع التغيير ويعيد الصنف مُفعّلاً.
+    // يكتب الآن مستند المنيو وحده (صغير) بدل STATE كاملة — أسرع بكثير.
+    await saveMenuNow();
 
     if (before.active !== it.active) {
       auth.audit(CURRENT_USER, it.active ? 'menu.open' : 'menu.close', it.name,
@@ -4401,7 +4479,7 @@ async function handleAPI(url, method, body, res) {
     STATE.items = STATE.items.filter(i => i.id !== delId);
     if (!Array.isArray(STATE.deletedItemIds)) STATE.deletedItemIds = [];
     if (!STATE.deletedItemIds.includes(delId)) STATE.deletedItemIds.push(delId);
-    await saveStateNow(); // حفظ فوري — لا ننتظر المؤقت
+    await saveMenuNow(); // حفظ فوري — لا ننتظر المؤقت
     auth.audit(CURRENT_USER, 'item.delete', item.name, 'حذف الصنف نهائياً');
     addLog(`🗑️ حُذف: ${item.name}`);
     return json({ok: true});
@@ -4905,7 +4983,7 @@ async function handleAPI(url, method, body, res) {
       STATE.items.push({id:STATE.nextId++,name:ni.name,cat:ni.cat,price:Number(ni.price)||0,active:false,keys});
       addedItems++;
     }
-    saveState(); addLog(`📚 تحليل محادثات: ${appliedAliases} alias + ${addedItems} صنف جديد`);
+    saveMenu(); addLog(`📚 تحليل محادثات: ${appliedAliases} alias + ${addedItems} صنف جديد`);
     return json({ok:true,appliedAliases,addedItems});
   }
 
@@ -5157,9 +5235,10 @@ async function startBaileys(opts = {}) {
   setPhase('starting', 'قراءة جلسة واتساب المحفوظة');
 
   try {
-    // حفظ جلسة واتساب في مجلد baileys_auth
+    // جلسة واتساب محفوظة بـ Firestore (AUTH_DOC) بدل القرص المحلي —
+    // ما بتنمسح لما الخدمة تنام أو تعيد التشغيل على Render Free
     pairRequested = false; // كل محاولة اتصال جديدة تبدأ بعلم نظيف
-    const { state: authState, saveCreds } = await useMultiFileAuthState('./baileys_auth');
+    const { state: authState, saveCreds } = await useFirestoreAuthState(AUTH_DOC);
     setPhase('version', 'جلب نسخة واتساب ويب');
     const version = await getWaVersion();
     setPhase('socket', 'فتح الاتصال بخوادم واتساب');
@@ -5473,7 +5552,7 @@ console.log('⏰ نداء ذاتي كل 12 دقيقة: ' + SELF_URL);
 // ============================================================
 async function shutdown() {
   console.log('\n🛑 إيقاف...');
-  await saveStateNow();
+  await saveAllNow();
   try { waSocket?.end(undefined, true); } catch(e) {}
   process.exit(0);
 }
@@ -5520,7 +5599,7 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
   startBaileys();
 
   if (migrationPending) {
-    saveStateNow().then(() => {
+    saveMenuNow().then(() => {
       migrationPending = false;
       console.log('💾 حُفظ المنيو الجديد (في الخلفية)');
     });
