@@ -34,10 +34,10 @@ const ROLES = {
  * هل يقدر هذا المستخدم يبدّل توفّر صنف/قسم ضمن هذا النطاق؟
  * مو بس "عنده صلاحية menu.toggle عامة" — كمان لازم يطابق فرعه/قسمه.
  *  - super_admin: دايماً مسموح.
- *  - customer_care: مسموح بس ضمن الفرع المسؤول عنه (user.branch).
  *  - dept_head: مسموح بس لقسمه (user.deptCategory) وبفرعه (user.deptBranch)
  *    إذا كان محدّداً؛ لو ما محدّد فرع، مسموح له بقسمه بكل الفروع.
- *  - كاشير/كول سنتر: صلاحية عامة بدون تقييد فرع (كما كانت قبل).
+ *  - أي دور تاني (كاشير/كول سنتر/كاستمر كير): لو عنده فرع محدّد (user.branch)،
+ *    يتقيّد فيه. لو ما عنده فرع محدّد، صلاحية عامة بدون تقييد (كالوضع الافتراضي).
  * branch/cat بلا قيمة (صنف مشترك بلا فرع، أو نداء بلا قسم محدّد) يُعتبر مسموحاً
  * دائماً لأصحاب menu.toggle، حتى لا نمنع تفعيل الأصناف العامة بالغلط.
  */
@@ -45,16 +45,13 @@ function canToggleScope(user, { branch, cat } = {}) {
   if (!user) return false;
   if (user.role === 'super_admin') return true;
   if (!can(user, 'menu.toggle')) return false;
-  if (user.role === 'customer_care') {
-    if (!user.branch) return false; // ما إله فرع محدّد بعد — ما نسمح افتراضياً
-    return !branch || branch === user.branch;
-  }
   if (user.role === 'dept_head') {
     if (!user.deptCategory) return false; // ما إله قسم محدّد بعد
     if (cat !== undefined && cat !== user.deptCategory) return false;
     return !user.deptBranch || !branch || branch === user.deptBranch;
   }
-  return true; // كاشير/كول سنتر: بدون تقييد إضافي، كما كان الوضع سابقاً
+  if (user.branch) return !branch || branch === user.branch;
+  return true; // بلا فرع محدّد: صلاحية عامة، كما كان الوضع سابقاً
 }
 
 function can(user, perm) {
@@ -202,7 +199,9 @@ function createUser({ username, displayName, role, password, branch, deptCategor
     active: true,
     usingDefaultPassword: false,
     whatsappNumber: '',
-    branch: role === 'customer_care' ? String(branch || '') : '',
+    // الفرع متاح لأي دور (كاشير/كول سنتر/كاستمر كير) — يقيّد العرض والتعديل
+    // بفرعه لو انحدّد. رئيس القسم وحده بياخد قسم + فرع اختياري.
+    branch: String(branch || ''),
     deptCategory: role === 'dept_head' ? String(deptCategory || '') : '',
     deptBranch: role === 'dept_head' ? String(deptBranch || '') : '',
     lastLoginAt: null,

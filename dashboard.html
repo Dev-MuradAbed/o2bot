@@ -542,7 +542,7 @@ img,canvas,svg{max-width:100%;height:auto}
     <div class="nav-sec">البوت</div>
     <div class="nav-item" onclick="showPage('replies',this)"><span class="nav-icon">💬</span>الردود التلقائية</div>
     <div class="nav-item" onclick="showPage('sim',this)"><span class="nav-icon">🤖</span>اختبار البوت</div>
-    <a class="nav-item" href="/link" style="text-decoration:none"><span class="nav-icon">🔗</span>ربط واتساب</a>
+    <a class="nav-item" id="nav-link-wa" href="/link" style="text-decoration:none"><span class="nav-icon">🔗</span>ربط واتساب</a>
     <div class="nav-sec">الإعدادات</div>
     <div class="nav-item" onclick="showPage('orders',this)"><span class="nav-icon">📦</span>الطلبات</div>
     <div class="nav-item" onclick="showPage('operations',this)"><span class="nav-icon">🚗</span>العمليات</div>
@@ -1224,8 +1224,9 @@ img,canvas,svg{max-width:100%;height:auto}
         <input id="mu-pass" type="password" autocomplete="new-password"></div>
     </div>
     <div class="form-row" id="mu-branch-row" style="display:none">
-      <div class="form-group"><label>الفرع المسؤول عنه</label>
+      <div class="form-group"><label>الفرع المسؤول عنه (فارغ = بدون تقييد بفرع)</label>
         <select id="mu-branch">
+          <option value="">كل الفروع (بدون تقييد)</option>
           <option value="gaza">فرع غزة</option>
           <option value="middle">الفرع الأوسط</option>
           <option value="nuseirat">فرع النصيرات</option>
@@ -1512,6 +1513,19 @@ async function loadMenu(silent) {
 var activeBranch = '';   // '' = كل الفروع
 var BRANCHES = [{id:'gaza',label:'فرع غزة'},{id:'middle',label:'الفرع الأوسط'},{id:'nuseirat',label:'فرع النصيرات'}];
 
+/**
+ * نطاق العرض الإجباري لهذا الحساب — رئيس قسم يُقفل على قسمه (وفرعه إن حُدّد)،
+ * وأي دور غيره (كاشير/كول سنتر/كاستمر كير) يُقفل على فرعه إن كان محدّداً له.
+ * null = بدون تقييد (سوبر أدمن، أو حساب بلا فرع محدّد).
+ */
+function myScope(){
+  var u = window.ME;
+  if(!u) return null;
+  if(u.role === 'dept_head' && u.deptCategory) return { cat: u.deptCategory, branch: u.deptBranch || '' };
+  if(u.branch) return { branch: u.branch };
+  return null;
+}
+
 function branchOf(i){ return i.branch || ''; }
 function itemsOfBranch(){
   const all = S.items || [];
@@ -1524,6 +1538,8 @@ function itemsOfBranch(){
 function renderBranchTabs(){
   const el = document.getElementById('menu-branch-tabs');
   if(!el) return;
+  const scope = myScope();
+  if(scope && scope.branch){ el.innerHTML = ''; return; } // فرعه مقفول — ما في داعي لمبدّل
   const has = (S.items||[]).some(i=>i.branch);
   if(!has){ el.innerHTML=''; return; }   // منيو بلا فروع
   el.innerHTML = '<button class="branch-tab'+(activeBranch===''?' on':'')+'" onclick="setBranch(\'\')">كل الفروع'
@@ -1538,7 +1554,11 @@ function renderBranchTabs(){
       }).join('');
 }
 
-function setBranch(b){ activeBranch=b; renderBranchTabs(); renderMenuCatTabs(); renderMenuTable(); }
+function setBranch(b){
+  const scope = myScope();
+  if(scope && scope.branch && b !== scope.branch) return; // ممنوع الخروج عن فرعه
+  activeBranch=b; renderBranchTabs(); renderMenuCatTabs(); renderMenuTable();
+}
 
 function catLabel(id){
   const c = (S.categories||[]).find(x=>x.id===id);
@@ -1548,8 +1568,11 @@ function catLabel(id){
 function renderMenuCatTabs() {
   renderBranchTabs();
   const pool = itemsOfBranch();
-  const ids = (S.categories||[]).filter(c=>c.active).map(c=>c.id);
-  const cats = ['الكل', ...ids];
+  const scope = myScope();
+  const ids = scope && scope.cat
+    ? [scope.cat] // رئيس قسم: قسمه بس، بدون "الكل" وبدون بقية الأقسام
+    : (S.categories||[]).filter(c=>c.active).map(c=>c.id);
+  const cats = scope && scope.cat ? ids : ['الكل', ...ids];
   document.getElementById('menu-cat-tabs').innerHTML = cats.map(function(c){
     const n = c==='الكل' ? pool.length : pool.filter(i=>i.cat===c).length;
     const lbl = c==='الكل' ? 'الكل' : catLabel(c);
@@ -1701,7 +1724,11 @@ function imageUrl(i){
   return base ? base + (raw.startsWith('/')?'':'/') + raw : raw;
 }
 
-function setMenuCat(cat){activeCat=cat;renderMenuCatTabs();renderMenuTable();}
+function setMenuCat(cat){
+  const scope = myScope();
+  if(scope && scope.cat && cat !== scope.cat) return; // رئيس قسم: ممنوع الخروج عن قسمه
+  activeCat=cat;renderMenuCatTabs();renderMenuTable();
+}
 
 function filterMenu(){renderMenuTable();}
 
@@ -3758,6 +3785,12 @@ window.hasPerm = window.hasPerm || function(p){
 
 function applyRole(){
   var u = window.ME; if(!u) return;
+  // فرض نطاق العرض حسب دور الحساب — قبل أي رندر لصفحة المنيو
+  var scope = myScope();
+  if(scope){
+    if(scope.branch) activeBranch = scope.branch;
+    if(scope.cat) activeCat = scope.cat;
+  }
   document.getElementById('user-pill').style.display='flex';
   document.getElementById('user-name').textContent = u.displayName;
   var rl=document.getElementById('user-role');
@@ -3784,6 +3817,7 @@ function applyRole(){
   // أزرار البوت للسوبر أدمن فقط
   if(!hasPerm('bot.manage')){
     var b1=document.getElementById('bot-toggle-btn'); if(b1) b1.style.display='none';
+    var navLink=document.getElementById('nav-link-wa'); if(navLink) navLink.style.display='none';
     document.querySelectorAll('.header-right .btn').forEach(function(b){
       if((b.getAttribute('onclick')||'').indexOf('restartBot')>-1) b.style.display='none';
     });
@@ -3919,7 +3953,8 @@ function refreshPermNote(){
   var role = document.getElementById('mu-role').value;
   document.getElementById('mu-perms').innerHTML =
     '<b>صلاحيات هذا الدور:</b><br>' + (ROLE_DESC[role] || '');
-  document.getElementById('mu-branch-row').style.display = role === 'customer_care' ? '' : 'none';
+  document.getElementById('mu-branch-row').style.display =
+    (role === 'customer_care' || role === 'cashier' || role === 'call_center') ? '' : 'none';
   document.getElementById('mu-dept-row').style.display   = role === 'dept_head'     ? '' : 'none';
   if(role === 'dept_head'){
     var sel = document.getElementById('mu-dept-cat');
@@ -3937,7 +3972,7 @@ function openAddUser(){
   document.getElementById('mu-wa').value = '';
   document.getElementById('mu-role').value = 'cashier';
   document.getElementById('mu-role').disabled = false;
-  document.getElementById('mu-branch').value = 'gaza';
+  document.getElementById('mu-branch').value = '';
   document.getElementById('mu-dept-branch').value = '';
   document.getElementById('mu-username').disabled = false;
   document.getElementById('mu-pass-label').textContent = 'كلمة المرور (6 أحرف فأكثر)';
@@ -3960,7 +3995,7 @@ function openEditUser(id){
   document.getElementById('mu-role').value = u.role;
   document.getElementById('mu-role').disabled = isMe;
   refreshPermNote();
-  document.getElementById('mu-branch').value = u.branch || 'gaza';
+  document.getElementById('mu-branch').value = u.branch || '';
   var dc = document.getElementById('mu-dept-cat');
   if(!dc.options.length) dc.innerHTML = (S.categories||[]).map(function(c){
     return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
@@ -3987,7 +4022,6 @@ async function submitUser(){
   if(!name){ toast('أدخل الاسم الظاهر', true); return; }
   if(!uname){ toast('أدخل اسم المستخدم', true); return; }
   if(pass && pass.length < 6){ toast('كلمة المرور 6 أحرف على الأقل', true); return; }
-  if(role === 'customer_care' && !branch){ toast('اختر الفرع المسؤول عنه', true); return; }
   if(role === 'dept_head' && !deptCategory){ toast('اختر القسم المسؤول عنه', true); return; }
 
   var btn = document.getElementById('mu-save');

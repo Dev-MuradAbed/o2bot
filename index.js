@@ -3902,7 +3902,13 @@ const server = http.createServer((req, res) => {
 
   // ─── صفحة ربط واتساب ──────────────────────────────────────
   if (url === '/link') {
-    if (!auth.userFromReq(req)) { res.writeHead(302, {'Location':'/login'}); res.end(); return; }
+    const linkUser = auth.userFromReq(req);
+    if (!linkUser) { res.writeHead(302, {'Location':'/login'}); res.end(); return; }
+    if (!auth.can(linkUser, 'bot.manage')) {
+      res.writeHead(403, {'Content-Type':'text/html;charset=utf-8'});
+      res.end('<h2 style="font-family:sans-serif;text-align:center;margin-top:60px">🔒 هذه الصفحة للسوبر أدمن فقط</h2>');
+      return;
+    }
     res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
     res.end(linkPage());
     return;
