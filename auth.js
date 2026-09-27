@@ -27,7 +27,35 @@ const ROLES = {
   cashier:       { label: 'كاشير',      color: '#f5a623', perms: ['menu.view', 'menu.toggle'] },
   call_center:   { label: 'كول سنتر',   color: '#4a9eff', perms: ['menu.view', 'menu.toggle'] },
   customer_care: { label: 'كاستمر كير', color: '#b26bff', perms: ['menu.view', 'menu.toggle'] },
+  dept_head:     { label: 'رئيس قسم',   color: '#e67e22', perms: ['menu.view', 'menu.toggle'] },
 };
+
+/**
+ * هل يقدر هذا المستخدم يبدّل توفّر صنف/قسم ضمن هذا النطاق؟
+ * مو بس "عنده صلاحية menu.toggle عامة" — كمان لازم يطابق فرعه/قسمه.
+ *  - super_admin: دايماً مسموح.
+ *  - customer_care: مسموح بس ضمن الفرع المسؤول عنه (user.branch).
+ *  - dept_head: مسموح بس لقسمه (user.deptCategory) وبفرعه (user.deptBranch)
+ *    إذا كان محدّداً؛ لو ما محدّد فرع، مسموح له بقسمه بكل الفروع.
+ *  - كاشير/كول سنتر: صلاحية عامة بدون تقييد فرع (كما كانت قبل).
+ * branch/cat بلا قيمة (صنف مشترك بلا فرع، أو نداء بلا قسم محدّد) يُعتبر مسموحاً
+ * دائماً لأصحاب menu.toggle، حتى لا نمنع تفعيل الأصناف العامة بالغلط.
+ */
+function canToggleScope(user, { branch, cat } = {}) {
+  if (!user) return false;
+  if (user.role === 'super_admin') return true;
+  if (!can(user, 'menu.toggle')) return false;
+  if (user.role === 'customer_care') {
+    if (!user.branch) return false; // ما إله فرع محدّد بعد — ما نسمح افتراضياً
+    return !branch || branch === user.branch;
+  }
+  if (user.role === 'dept_head') {
+    if (!user.deptCategory) return false; // ما إله قسم محدّد بعد
+    if (cat !== undefined && cat !== user.deptCategory) return false;
+    return !user.deptBranch || !branch || branch === user.deptBranch;
+  }
+  return true; // كاشير/كول سنتر: بدون تقييد إضافي، كما كان الوضع سابقاً
+}
 
 function can(user, perm) {
   if (!user) return false;
@@ -147,12 +175,16 @@ function updateUser(id, patch) {
   if (patch.username       !== undefined) u.username       = String(patch.username).trim();
   if (patch.active         !== undefined) u.active         = !!patch.active;
   if (patch.whatsappNumber !== undefined) u.whatsappNumber = String(patch.whatsappNumber).replace(/\D/g, '');
+  // نطاق كاستمر كير (فرع) ورئيس القسم (قسم + فرع اختياري)
+  if (patch.branch         !== undefined) u.branch         = String(patch.branch || '');
+  if (patch.deptCategory   !== undefined) u.deptCategory   = String(patch.deptCategory || '');
+  if (patch.deptBranch     !== undefined) u.deptBranch     = String(patch.deptBranch || '');
   saveState();
   return u;
 }
 
 /** إنشاء حساب جديد */
-function createUser({ username, displayName, role, password }) {
+function createUser({ username, displayName, role, password, branch, deptCategory, deptBranch }) {
   const u = String(username || '').trim().toLowerCase();
   if (!u) return { error: 'اسم المستخدم مطلوب' };
   if (!/^[a-z0-9._-]{3,20}$/.test(u)) return { error: 'اسم المستخدم: حروف إنجليزية وأرقام فقط، 3–20 خانة' };
@@ -170,6 +202,9 @@ function createUser({ username, displayName, role, password }) {
     active: true,
     usingDefaultPassword: false,
     whatsappNumber: '',
+    branch: role === 'customer_care' ? String(branch || '') : '',
+    deptCategory: role === 'dept_head' ? String(deptCategory || '') : '',
+    deptBranch: role === 'dept_head' ? String(deptBranch || '') : '',
     lastLoginAt: null,
     createdAt: new Date().toISOString(),
   };
@@ -215,6 +250,7 @@ function publicUser(u) {
     roleLabel: roleLabel(u.role), color: (ROLES[u.role] || {}).color || '#888',
     active: u.active, usingDefaultPassword: u.usingDefaultPassword,
     whatsappNumber: u.whatsappNumber, lastLoginAt: u.lastLoginAt,
+    branch: u.branch || '', deptCategory: u.deptCategory || '', deptBranch: u.deptBranch || '',
     perms: (ROLES[u.role] || {}).perms || [],
   };
 }
@@ -344,7 +380,7 @@ function permFor(url, method, body) {
 
 module.exports = {
   ROLES, COOKIE,
-  init, can, roleLabel,
+  init, can, roleLabel, canToggleScope,
   users, byId, byUsername, byWhatsapp, publicUser,
   login, setPassword, updateUser, createUser, deleteUser, setRole,
   audit, auditList, auditStats,

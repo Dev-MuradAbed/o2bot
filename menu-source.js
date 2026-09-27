@@ -272,11 +272,20 @@ const middleMenu = {
   gelato: gazaMenu.gelato,
 };
 
+// فرع جديد بلا صنف افتراضي بعد — تُضاف أصنافه لاحقاً من لوحة التحكم
+// وتُعلَّم بـ branch:'nuseirat' لكل صنف يخصّه
+const nuseiratMenu = {
+  shawarma: { items: [] }, italian: { items: [] }, sandwiches: { items: [] },
+  salads: { items: [] }, barSweets: { items: [] }, westernSweets: { items: [] },
+  easternSweets: { items: [] }, gelato: { items: [] }, drinks: { items: [] },
+};
+
 const BRANCHES = [
   { id: 'gaza', label: 'فرع غزة' },
   { id: 'middle', label: 'الفرع الأوسط' },
+  { id: 'nuseirat', label: 'فرع النصيرات' },
 ];
 
-const branchMenuData = { gaza: gazaMenu, middle: middleMenu };
+const branchMenuData = { gaza: gazaMenu, middle: middleMenu, nuseirat: nuseiratMenu };
 
 module.exports = { categoryNames, categoryEmoji, branchMenuData, BRANCHES };

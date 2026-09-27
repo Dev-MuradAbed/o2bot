@@ -1072,7 +1072,8 @@ img,canvas,svg{max-width:100%;height:auto}
         <select id="mi-branch">
           <option value="gaza">فرع غزة</option>
           <option value="middle">الفرع الأوسط</option>
-          <option value="">الفرعان معاً</option>
+          <option value="nuseirat">فرع النصيرات</option>
+          <option value="">كل الفروع معاً</option>
         </select></div>
     </div>
     <div class="form-group">
@@ -1216,10 +1217,30 @@ img,canvas,svg{max-width:100%;height:auto}
           <option value="cashier">كاشير</option>
           <option value="call_center">كول سنتر</option>
           <option value="customer_care">كاستمر كير</option>
+          <option value="dept_head">رئيس قسم</option>
           <option value="super_admin">سوبر أدمن</option>
         </select></div>
       <div class="form-group"><label id="mu-pass-label">كلمة المرور</label>
         <input id="mu-pass" type="password" autocomplete="new-password"></div>
+    </div>
+    <div class="form-row" id="mu-branch-row" style="display:none">
+      <div class="form-group"><label>الفرع المسؤول عنه</label>
+        <select id="mu-branch">
+          <option value="gaza">فرع غزة</option>
+          <option value="middle">الفرع الأوسط</option>
+          <option value="nuseirat">فرع النصيرات</option>
+        </select></div>
+    </div>
+    <div class="form-row" id="mu-dept-row" style="display:none">
+      <div class="form-group"><label>القسم المسؤول عنه</label>
+        <select id="mu-dept-cat"></select></div>
+      <div class="form-group"><label>الفرع (اختياري — فارغ = كل الفروع)</label>
+        <select id="mu-dept-branch">
+          <option value="">كل الفروع</option>
+          <option value="gaza">فرع غزة</option>
+          <option value="middle">الفرع الأوسط</option>
+          <option value="nuseirat">فرع النصيرات</option>
+        </select></div>
     </div>
     <div class="form-group"><label>رقم واتساب للأوامر السريعة (اختياري)</label>
       <input id="mu-wa" placeholder="9705XXXXXXXX" dir="ltr"></div>
@@ -1489,7 +1510,7 @@ async function loadMenu(silent) {
 }
 
 var activeBranch = '';   // '' = كل الفروع
-var BRANCHES = [{id:'gaza',label:'فرع غزة'},{id:'middle',label:'الفرع الأوسط'}];
+var BRANCHES = [{id:'gaza',label:'فرع غزة'},{id:'middle',label:'الفرع الأوسط'},{id:'nuseirat',label:'فرع النصيرات'}];
 
 function branchOf(i){ return i.branch || ''; }
 function itemsOfBranch(){
@@ -3824,13 +3845,14 @@ function ago(iso){
 
 var ROLE_OPTS = [
   ['cashier','كاشير'], ['call_center','كول سنتر'],
-  ['customer_care','كاستمر كير'], ['super_admin','سوبر أدمن'],
+  ['customer_care','كاستمر كير'], ['dept_head','رئيس قسم'], ['super_admin','سوبر أدمن'],
 ];
 var ROLE_DESC = {
   super_admin:   'كل الصفحات: المنيو، الطلبات، السائقون، الردود، الإعدادات، البوت، الحسابات، السجل.',
   cashier:       'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
   call_center:   'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
-  customer_care: 'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
+  customer_care: 'صفحة المنيو فقط — تفعيل/إغلاق كل أصناف وأقسام الفرع المحدّد له فقط.',
+  dept_head:     'صفحة المنيو فقط — تفعيل/إغلاق أصناف قسمه المحدّد فقط (وبفرع واحد إن حُدّد).',
 };
 
 var USERS = [];          // آخر قائمة من الخادم
@@ -3897,6 +3919,13 @@ function refreshPermNote(){
   var role = document.getElementById('mu-role').value;
   document.getElementById('mu-perms').innerHTML =
     '<b>صلاحيات هذا الدور:</b><br>' + (ROLE_DESC[role] || '');
+  document.getElementById('mu-branch-row').style.display = role === 'customer_care' ? '' : 'none';
+  document.getElementById('mu-dept-row').style.display   = role === 'dept_head'     ? '' : 'none';
+  if(role === 'dept_head'){
+    var sel = document.getElementById('mu-dept-cat');
+    if(!sel.options.length) sel.innerHTML = (S.categories||[]).map(function(c){
+      return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
+  }
 }
 
 function openAddUser(){
@@ -3908,6 +3937,8 @@ function openAddUser(){
   document.getElementById('mu-wa').value = '';
   document.getElementById('mu-role').value = 'cashier';
   document.getElementById('mu-role').disabled = false;
+  document.getElementById('mu-branch').value = 'gaza';
+  document.getElementById('mu-dept-branch').value = '';
   document.getElementById('mu-username').disabled = false;
   document.getElementById('mu-pass-label').textContent = 'كلمة المرور (6 أحرف فأكثر)';
   document.getElementById('mu-banner').style.display = 'none';
@@ -3928,12 +3959,18 @@ function openEditUser(id){
   document.getElementById('mu-pass').value = '';
   document.getElementById('mu-role').value = u.role;
   document.getElementById('mu-role').disabled = isMe;
+  refreshPermNote();
+  document.getElementById('mu-branch').value = u.branch || 'gaza';
+  var dc = document.getElementById('mu-dept-cat');
+  if(!dc.options.length) dc.innerHTML = (S.categories||[]).map(function(c){
+    return '<option value="'+c.id+'">'+c.label+'</option>'; }).join('');
+  dc.value = u.deptCategory || '';
+  document.getElementById('mu-dept-branch').value = u.deptBranch || '';
   document.getElementById('mu-pass-label').textContent = 'كلمة مرور جديدة (اتركها فارغة لعدم التغيير)';
   var b = document.getElementById('mu-banner');
   if(isMe){ b.textContent = 'هذا حسابك — لا يمكنك تغيير دوره أو حذفه.'; b.style.display=''; }
   else if(u.usingDefaultPassword){ b.textContent = '⚠️ هذا الحساب ما زال على كلمة المرور الافتراضية.'; b.style.display=''; }
   else b.style.display='none';
-  refreshPermNote();
   document.getElementById('modal-user').classList.add('open');
 }
 
@@ -3943,17 +3980,23 @@ async function submitUser(){
   var role = document.getElementById('mu-role').value;
   var pass = document.getElementById('mu-pass').value;
   var wa = document.getElementById('mu-wa').value.trim();
+  var branch = document.getElementById('mu-branch').value;
+  var deptCategory = document.getElementById('mu-dept-cat').value;
+  var deptBranch = document.getElementById('mu-dept-branch').value;
 
   if(!name){ toast('أدخل الاسم الظاهر', true); return; }
   if(!uname){ toast('أدخل اسم المستخدم', true); return; }
   if(pass && pass.length < 6){ toast('كلمة المرور 6 أحرف على الأقل', true); return; }
+  if(role === 'customer_care' && !branch){ toast('اختر الفرع المسؤول عنه', true); return; }
+  if(role === 'dept_head' && !deptCategory){ toast('اختر القسم المسؤول عنه', true); return; }
 
   var btn = document.getElementById('mu-save');
   btn.disabled = true;
   try{
     var res, data;
     if(editUserId){
-      var body = { displayName:name, username:uname, whatsappNumber:wa };
+      var body = { displayName:name, username:uname, whatsappNumber:wa,
+        branch: branch, deptCategory: deptCategory, deptBranch: deptBranch };
       if(!document.getElementById('mu-role').disabled) body.role = role;
       if(pass) body.password = pass;
       res = await fetch('/api/users/'+editUserId,{method:'PUT',
@@ -3962,7 +4005,8 @@ async function submitUser(){
       if(!pass){ toast('أدخل كلمة مرور للحساب الجديد', true); btn.disabled=false; return; }
       res = await fetch('/api/users',{method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({displayName:name, username:uname, role:role, password:pass})});
+        body:JSON.stringify({displayName:name, username:uname, role:role, password:pass,
+          branch: branch, deptCategory: deptCategory, deptBranch: deptBranch})});
     }
     data = await res.json();
     if(!data.ok){ toast(data.error || 'تعذّر الحفظ', true); btn.disabled=false; return; }

@@ -53,6 +53,13 @@ let STATE = {
     // 'ask'    = يسأل الزبون عن فرعه أول المحادثة
     branchMode: 'ask',
     activeBranch: 'gaza',
+    // ساعات استقبال الطلبات لكل فرع — enabled:false يعني الفرع مفتوح 24 ساعة
+    // (بلا أي قيد) كما كان الوضع سابقاً. الوقت بصيغة 24 ساعة "HH:MM" بتوقيت غزة.
+    branchHours: {
+      gaza:     { enabled: false, open: '10:00', close: '23:59' },
+      middle:   { enabled: false, open: '10:00', close: '23:59' },
+      nuseirat: { enabled: false, open: '10:00', close: '23:59' },
+    },
     imageBaseUrl: '',   // مثال: https://o2restaurant.com — يُسبق مسارات الصور النسبية
     showItemDesc: true, // إظهار وصف الصنف تحت اسمه للزبون
 
@@ -2477,6 +2484,25 @@ function branchItems(branch) {
   return STATE.items.filter(i => !i.branch || i.branch === branch);
 }
 
+/** الوقت الحالي بتوقيت غزة، "HH:MM" (24 ساعة) */
+function gazaTimeHHMM() {
+  return new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Gaza', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date());
+}
+
+/**
+ * هل الفرع بيستقبل طلبات هلق؟ لو enabled:false (الافتراضي) الفرع مفتوح دايماً.
+ * بيدعم نافذة تعدّي منتصف الليل (مثلاً open:'18:00' close:'02:00').
+ */
+function isBranchAcceptingOrders(branch) {
+  const h = (STATE.settings.branchHours || {})[branch];
+  if (!h || !h.enabled) return true;
+  const now = gazaTimeHHMM();
+  if (h.open <= h.close) return now >= h.open && now <= h.close;
+  return now >= h.open || now <= h.close; // نافذة تعدّي منتصف الليل
+}
+
 function branchQuestion() {
   const nums = ['1️⃣','2️⃣','3️⃣','4️⃣'];
   return [
@@ -2581,7 +2607,10 @@ async function handleStaffCommand(from, raw) {
     const cat = STATE.categories.find(c =>
       normalize(c.id) === normalize(arg) || normalize(c.label).includes(normalize(arg)));
     if (cat) {
-      const affected = STATE.items.filter(i => i.cat === cat.id && i.active !== opening);
+      const inScope = STATE.items.filter(i =>
+        i.cat === cat.id && auth.canToggleScope(user, { branch: i.branch, cat: i.cat }));
+      if (!inScope.length) return `🔒 حسابك مسؤول عن فرع/قسم آخر — ما فيه صنف بهذا القسم تقدر تتحكم فيه.`;
+      const affected = inScope.filter(i => i.active !== opening);
       for (const it of affected) {
         it.active = opening; it.updatedBy = user.displayName;
         it.updatedRole = user.role; it.updatedAt = now;
@@ -2595,6 +2624,9 @@ async function handleStaffCommand(from, raw) {
 
     const item = findItem(arg);
     if (!item) return `🤔 لم أجد صنفاً باسم "${arg}".\nجرّب الاسم كما هو في المنيو، أو أرسل #المغلق.`;
+    if (!auth.canToggleScope(user, { branch: item.branch, cat: item.cat })) {
+      return `🔒 حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تتحكم بصنف "${item.name}".`;
+    }
     if (item.active === opening) return `ℹ️ *${item.name}* أصلاً ${opening ? 'مفعّل' : 'مغلق'}.`;
     item.active = opening;
     item.updatedBy = user.displayName;
@@ -3262,6 +3294,11 @@ async function handleMessage(msg) {
       || text.length <= 4; // أي رد قصير جداً = موافقة
 
     if (isPositive && !/^(لا|لأ|لاء|لع|no|بطل|إلغاء|الغاء|كنسل|تعديل|غير)$/i.test(text)) {
+      const orderBranch = sessionBranch(session);
+      if (!isBranchAcceptingOrders(orderBranch)) {
+        const h = STATE.settings.branchHours[orderBranch];
+        return `⏰ عذراً، فرع *${branchLabel(orderBranch)}* ما بيستقبل طلبات هلق.\nأوقات الاستقبال: ${h.open} – ${h.close}\nجرّب معنا بهاد الوقت 🌿`;
+      }
       session.orderNum = getNextOrderNum(); // ترقيم يومي
       session.state = 'transfer_name';
       // احفظ الطلب كـ pending في الـ customerProfiles
@@ -4200,6 +4237,7 @@ async function handleAPI(url, method, body, res) {
     auth.updateUser(target.id, {
       displayName: body.displayName, username: body.username,
       whatsappNumber: body.whatsappNumber, active: body.active,
+      branch: body.branch, deptCategory: body.deptCategory, deptBranch: body.deptBranch,
     });
     if (body.role && body.role !== target.role) {
       const rr = auth.setRole(target.id, body.role, CURRENT_USER ? CURRENT_USER.id : null);
@@ -4216,8 +4254,7 @@ async function handleAPI(url, method, body, res) {
   }
 
   if (url === '/api/users' && method === 'POST') {
-    const r = auth.createUser(body);
-    if (r.error) return json({error: r.error}, 400);
+    const r = auth.createUser(body);    if (r.error) return json({error: r.error}, 400);
     auth.audit(CURRENT_USER, 'user.create', r.user.displayName,
       `حساب جديد بدور ${auth.roleLabel(r.user.role)}`);
     return json({ok: true, user: auth.publicUser(r.user)});
@@ -4239,7 +4276,11 @@ async function handleAPI(url, method, body, res) {
   if (catToggle && method === 'POST') {
     const cat = String(body.cat || '');
     const active = !!body.active;
-    const affected = STATE.items.filter(i => i.cat === cat && i.active !== active);
+    // نطاق الصلاحية: نبدّل بس الأصناف يلي المستخدم مسموحله فيها (فرعه/قسمه)،
+    // مش كل صنف بهالقسم بكل الفروع — إلا لو سوبر أدمن.
+    const affected = STATE.items.filter(i =>
+      i.cat === cat && i.active !== active &&
+      auth.canToggleScope(CURRENT_USER, { branch: i.branch, cat: i.cat }));
     const stamp = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     for (const it of affected) {
       it.active = active;
@@ -4420,7 +4461,7 @@ async function handleAPI(url, method, body, res) {
       id: STATE.nextId++,
       name: body.name,
       cat: body.cat,
-      branch: ['gaza','middle'].includes(body.branch) ? body.branch : (body.branch === '' ? '' : undefined),
+      branch: ['gaza','middle','nuseirat'].includes(body.branch) ? body.branch : (body.branch === '' ? '' : undefined),
       price: Number(body.price),
       active: true,
       keys: body.keys || [body.name.toLowerCase()],
@@ -4441,6 +4482,9 @@ async function handleAPI(url, method, body, res) {
     const idx = STATE.items.findIndex(i => i.id === parseInt(itemMatch[1]));
     if (idx === -1) return json({error: 'not found'}, 404);
     const it     = STATE.items[idx];
+    if (!auth.canToggleScope(CURRENT_USER, { branch: it.branch, cat: it.cat })) {
+      return json({error: 'حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تعدّل هذا الصنف'}, 403);
+    }
     const before = { name: it.name, price: it.price, cat: it.cat, active: it.active, desc: it.desc };
     if (body.price !== undefined) body.price = Number(body.price);
     if (body.image !== undefined) body.image = cleanImageUrl(body.image);
