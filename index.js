@@ -2468,6 +2468,29 @@ function branchList() {
   return menuBuild.BRANCHES;
 }
 
+/** فرع الحساب المقيّد به (رئيس قسم: فرعه؛ غيره: فرعه إن حُدّد) — null بلا تقييد */
+function myBranchScope(user) {
+  if (!user) return null;
+  if (user.role === 'dept_head') return user.deptBranch || null;
+  return user.branch || null;
+}
+
+/**
+ * يحوّل صنفاً مشتركاً (بلا فرع) لنسخة خاصة بفرع صاحب الطلب + نسخ منفصلة
+ * لبقية الفروع بنفس حالته الحالية (active) — حتى يقدر يتحكم بصنف فرعه لحاله
+ * من غير ما يأثر على باقي الفروع. تُستدعى فقط عند أول محاولة تبديل توفّر
+ * لصنف مشترك من حساب مقيّد بفرع؛ بعدها يصير الصنف مستقلاً بكل فرع للأبد.
+ */
+function splitSharedItemToBranch(item, myBranch) {
+  const preservedActive = item.active;
+  for (const b of branchList()) {
+    if (b.id === myBranch) continue;
+    const clone = { ...item, id: STATE.nextId++, branch: b.id, active: preservedActive };
+    STATE.items.push(clone);
+  }
+  item.branch = myBranch;
+}
+
 function branchLabel(id) {
   const b = branchList().find(x => x.id === id);
   return b ? b.label : id;
@@ -2607,6 +2630,11 @@ async function handleStaffCommand(from, raw) {
     const cat = STATE.categories.find(c =>
       normalize(c.id) === normalize(arg) || normalize(c.label).includes(normalize(arg)));
     if (cat) {
+      const myBranch = myBranchScope(user);
+      if (myBranch) {
+        const shared = STATE.items.filter(i => i.cat === cat.id && !i.branch);
+        for (const s of shared) splitSharedItemToBranch(s, myBranch);
+      }
       const inScope = STATE.items.filter(i =>
         i.cat === cat.id && auth.canToggleScope(user, { branch: i.branch, cat: i.cat }));
       if (!inScope.length) return `🔒 حسابك مسؤول عن فرع/قسم آخر — ما فيه صنف بهذا القسم تقدر تتحكم فيه.`;
@@ -2624,6 +2652,11 @@ async function handleStaffCommand(from, raw) {
 
     const item = findItem(arg);
     if (!item) return `🤔 لم أجد صنفاً باسم "${arg}".\nجرّب الاسم كما هو في المنيو، أو أرسل #المغلق.`;
+    const myBranch = myBranchScope(user);
+    if (myBranch && !item.branch) {
+      splitSharedItemToBranch(item, myBranch);
+      addLog(`🔀 فُصل الصنف المشترك "${item.name}" لكل فرع لحاله — ${user.displayName}`);
+    }
     if (!auth.canToggleScope(user, { branch: item.branch, cat: item.cat })) {
       return `🔒 حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تتحكم بصنف "${item.name}".`;
     }
@@ -4289,6 +4322,13 @@ async function handleAPI(url, method, body, res) {
   if (catToggle && method === 'POST') {
     const cat = String(body.cat || '');
     const active = !!body.active;
+    // حساب مقيّد بفرع: افصل أي صنف مشترك بهذا القسم لأصناف خاصة بكل فرع أولاً،
+    // حتى يتحكم بفرعه لحاله بلا ما يأثر على الفروع الأخرى.
+    const myBranch = myBranchScope(CURRENT_USER);
+    if (myBranch) {
+      const shared = STATE.items.filter(i => i.cat === cat && !i.branch);
+      for (const s of shared) splitSharedItemToBranch(s, myBranch);
+    }
     // نطاق الصلاحية: نبدّل بس الأصناف يلي المستخدم مسموحله فيها (فرعه/قسمه)،
     // مش كل صنف بهالقسم بكل الفروع — إلا لو سوبر أدمن.
     const affected = STATE.items.filter(i =>
@@ -4495,6 +4535,16 @@ async function handleAPI(url, method, body, res) {
     const idx = STATE.items.findIndex(i => i.id === parseInt(itemMatch[1]));
     if (idx === -1) return json({error: 'not found'}, 404);
     const it     = STATE.items[idx];
+    // صنف مشترك (بلا فرع) وحساب مقيّد بفرع بيحاول يبدّل توفّره فقط؟
+    // نحوّله تلقائياً لصنف خاص بفرعه + نسخة لبقية الفروع بنفس حالته الحالية،
+    // فيصير مستقلاً بكل فرع من هلق وطالع — تبديله ما بيأثر على فرع تاني.
+    const isToggleOnly = Object.keys(body).length > 0 &&
+      Object.keys(body).every(k => k === 'active' || k === 'id');
+    const myBranch = myBranchScope(CURRENT_USER);
+    if (isToggleOnly && myBranch && !it.branch) {
+      splitSharedItemToBranch(it, myBranch);
+      addLog(`🔀 فُصل الصنف المشترك "${it.name}" لكل فرع لحاله — ${CURRENT_USER.displayName}`);
+    }
     if (!auth.canToggleScope(CURRENT_USER, { branch: it.branch, cat: it.cat })) {
       return json({error: 'حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تعدّل هذا الصنف'}, 403);
     }
