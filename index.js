@@ -2476,6 +2476,17 @@ function myBranchScope(user) {
 }
 
 /**
+ * هل يحق لهذا المستخدم يفصل/يتحكم بصنف مشترك بهذا القسم تحديداً؟
+ * رئيس قسم: قسمه هو بس (وإلا فصل صنف قسم مش قسمه رغم إنه ممنوع منه أصلاً).
+ * أي دور تاني مقيّد بفرع: بدون قيد قسم إضافي.
+ */
+function eligibleForCategory(user, catId) {
+  if (!user) return false;
+  if (user.role === 'dept_head') return user.deptCategory === catId;
+  return true;
+}
+
+/**
  * يحوّل صنفاً مشتركاً (بلا فرع) لنسخة خاصة بفرع صاحب الطلب + نسخ منفصلة
  * لبقية الفروع بنفس حالته الحالية (active) — حتى يقدر يتحكم بصنف فرعه لحاله
  * من غير ما يأثر على باقي الفروع. تُستدعى فقط عند أول محاولة تبديل توفّر
@@ -2631,7 +2642,7 @@ async function handleStaffCommand(from, raw) {
       normalize(c.id) === normalize(arg) || normalize(c.label).includes(normalize(arg)));
     if (cat) {
       const myBranch = myBranchScope(user);
-      if (myBranch) {
+      if (myBranch && eligibleForCategory(user, cat.id)) {
         const shared = STATE.items.filter(i => i.cat === cat.id && !i.branch);
         for (const s of shared) splitSharedItemToBranch(s, myBranch);
       }
@@ -2653,7 +2664,7 @@ async function handleStaffCommand(from, raw) {
     const item = findItem(arg);
     if (!item) return `🤔 لم أجد صنفاً باسم "${arg}".\nجرّب الاسم كما هو في المنيو، أو أرسل #المغلق.`;
     const myBranch = myBranchScope(user);
-    if (myBranch && !item.branch) {
+    if (myBranch && !item.branch && eligibleForCategory(user, item.cat)) {
       splitSharedItemToBranch(item, myBranch);
       addLog(`🔀 فُصل الصنف المشترك "${item.name}" لكل فرع لحاله — ${user.displayName}`);
     }
@@ -4328,7 +4339,7 @@ async function handleAPI(url, method, body, res) {
       (['gaza','middle','nuseirat'].includes(body.viewBranch) ? body.viewBranch : null);
     // فرع تصرّف معروف: افصل أي صنف مشترك بهذا القسم لأصناف خاصة بكل فرع أولاً،
     // حتى يتحكم بفرعه لحاله بلا ما يأثر على الفروع الأخرى.
-    if (actingBranch) {
+    if (actingBranch && eligibleForCategory(CURRENT_USER, cat)) {
       const shared = STATE.items.filter(i => i.cat === cat && !i.branch);
       for (const s of shared) splitSharedItemToBranch(s, actingBranch);
     }
@@ -4549,7 +4560,7 @@ async function handleAPI(url, method, body, res) {
     // صنف مشترك (بلا فرع) وفيه فرع تصرّف معروف؟ نحوّله تلقائياً لصنف خاص
     // بهذا الفرع + نسخة لبقية الفروع بنفس حالته الحالية — يصير مستقلاً بكل
     // فرع من هلق وطالع، فتبديله ما بيأثر على فرع تاني.
-    if (isToggleOnly && actingBranch && !it.branch) {
+    if (isToggleOnly && actingBranch && !it.branch && eligibleForCategory(CURRENT_USER, it.cat)) {
       splitSharedItemToBranch(it, actingBranch);
       addLog(`🔀 فُصل الصنف المشترك "${it.name}" لكل فرع لحاله — ${CURRENT_USER ? CURRENT_USER.displayName : 'النظام'}`);
     }
