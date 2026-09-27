@@ -1235,9 +1235,9 @@ img,canvas,svg{max-width:100%;height:auto}
     <div class="form-row" id="mu-dept-row" style="display:none">
       <div class="form-group"><label>القسم المسؤول عنه</label>
         <select id="mu-dept-cat"></select></div>
-      <div class="form-group"><label>الفرع (اختياري — فارغ = كل الفروع)</label>
+      <div class="form-group"><label>الفرع المسؤول عنه (إجباري)</label>
         <select id="mu-dept-branch">
-          <option value="">كل الفروع</option>
+          <option value="">اختر الفرع…</option>
           <option value="gaza">فرع غزة</option>
           <option value="middle">الفرع الأوسط</option>
           <option value="nuseirat">فرع النصيرات</option>
@@ -3892,7 +3892,7 @@ var ROLE_DESC = {
   cashier:       'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
   call_center:   'صفحة المنيو فقط — عرض الأصناف وتفعيلها أو إغلاقها.',
   customer_care: 'صفحة المنيو فقط — تفعيل/إغلاق كل أصناف وأقسام الفرع المحدّد له فقط.',
-  dept_head:     'صفحة المنيو فقط — تفعيل/إغلاق أصناف قسمه المحدّد فقط (وبفرع واحد إن حُدّد).',
+  dept_head:     'صفحة المنيو فقط — تفعيل/إغلاق أصناف قسمه بفرعه المحدّد فقط (فرع واحد إجباري).',
 };
 
 var USERS = [];          // آخر قائمة من الخادم
@@ -4029,6 +4029,7 @@ async function submitUser(){
   if(!uname){ toast('أدخل اسم المستخدم', true); return; }
   if(pass && pass.length < 6){ toast('كلمة المرور 6 أحرف على الأقل', true); return; }
   if(role === 'dept_head' && !deptCategory){ toast('اختر القسم المسؤول عنه', true); return; }
+  if(role === 'dept_head' && !deptBranch){ toast('اختر الفرع المسؤول عنه — إجباري لرئيس القسم', true); return; }
 
   var btn = document.getElementById('mu-save');
   btn.disabled = true;

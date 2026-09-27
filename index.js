@@ -4240,6 +4240,13 @@ async function handleAPI(url, method, body, res) {
   if (userMatch && method === 'PUT') {
     const target = auth.byId(userMatch[1]);
     if (!target) return json({error:'not found'}, 404);
+    const finalRole = body.role || target.role; // الدور بعد هالتعديل (لو تغيّر)
+    if (finalRole === 'dept_head') {
+      const finalDeptCategory = body.deptCategory !== undefined ? body.deptCategory : target.deptCategory;
+      const finalDeptBranch   = body.deptBranch   !== undefined ? body.deptBranch   : target.deptBranch;
+      if (!finalDeptCategory) return json({error: 'حدّد القسم المسؤول عنه'}, 400);
+      if (!finalDeptBranch)   return json({error: 'حدّد الفرع المسؤول عنه — لا يمكن ترك رئيس قسم بلا فرع محدّد'}, 400);
+    }
     auth.updateUser(target.id, {
       displayName: body.displayName, username: body.username,
       whatsappNumber: body.whatsappNumber, active: body.active,

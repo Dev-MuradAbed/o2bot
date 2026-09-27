@@ -49,8 +49,10 @@ function canToggleScope(user, { branch, cat } = {}) {
   if (user.role === 'dept_head') {
     if (!user.deptCategory) return false; // ما إله قسم محدّد بعد
     if (cat !== undefined && cat !== user.deptCategory) return false;
-    if (!user.deptBranch) return true; // مسؤول عن قسمه بكل الفروع
-    return branch === user.deptBranch; // مقيّد بفرع: الصنف المشترك ممنوع عليه
+    // فرع إجباري لرئيس القسم — حساب قديم بلا فرع = إعداد ناقص، نمنع بدل ما نسمح
+    // بكل شي، حتى ما يتكرر خطأ "تفعيل بفرع بيأثر على فرع تاني" لحساب منسي.
+    if (!user.deptBranch) return false;
+    return branch === user.deptBranch; // الصنف المشترك (بلا فرع) ممنوع عليه دائماً
   }
   if (user.branch) return branch === user.branch; // مقيّد بفرع: الصنف المشترك ممنوع عليه
   return true; // بلا فرع محدّد: صلاحية عامة، كما كان الوضع سابقاً
@@ -190,6 +192,10 @@ function createUser({ username, displayName, role, password, branch, deptCategor
   if (byUsername(u)) return { error: 'اسم المستخدم مستخدم بالفعل' };
   if (!ROLES[role]) return { error: 'الدور غير معروف' };
   if (!password || String(password).length < 6) return { error: 'كلمة المرور 6 أحرف على الأقل' };
+  if (role === 'dept_head') {
+    if (!deptCategory) return { error: 'حدّد القسم المسؤول عنه' };
+    if (!deptBranch)   return { error: 'حدّد الفرع المسؤول عنه — لا يمكن ترك رئيس قسم بلا فرع محدّد' };
+  }
 
   const { salt, hash: h } = hash(String(password));
   const user = {
