@@ -2042,7 +2042,9 @@ async function toggleItem(id, val) {
   const card = document.getElementById('mcard-'+id);
   if(card) card.classList.add('busy');
   try{
-    const res = await apiPut('/items/'+id, {active:val});
+    const body = {active:val};
+    if(activeBranch) body.viewBranch = activeBranch; // سياق تبويب الفرع الحالي — لفصل الصنف المشترك تلقائياً
+    const res = await apiPut('/items/'+id, body);
     if(res && res.error){ toast(res.error, true); if(card) card.classList.remove('busy'); return; }
     const item = S.items.find(i=>i.id===id);
     if(item){

@@ -4322,17 +4322,21 @@ async function handleAPI(url, method, body, res) {
   if (catToggle && method === 'POST') {
     const cat = String(body.cat || '');
     const active = !!body.active;
-    // حساب مقيّد بفرع: افصل أي صنف مشترك بهذا القسم لأصناف خاصة بكل فرع أولاً،
+    // فرع "التصرّف": فرع الحساب الثابت إن وُجد، وإلا فرع العرض الحالي
+    // بالداشبورد (viewBranch) — حتى لسوبر أدمن شغّال على تبويب فرع محدّد.
+    const actingBranch = myBranchScope(CURRENT_USER) ||
+      (['gaza','middle','nuseirat'].includes(body.viewBranch) ? body.viewBranch : null);
+    // فرع تصرّف معروف: افصل أي صنف مشترك بهذا القسم لأصناف خاصة بكل فرع أولاً،
     // حتى يتحكم بفرعه لحاله بلا ما يأثر على الفروع الأخرى.
-    const myBranch = myBranchScope(CURRENT_USER);
-    if (myBranch) {
+    if (actingBranch) {
       const shared = STATE.items.filter(i => i.cat === cat && !i.branch);
-      for (const s of shared) splitSharedItemToBranch(s, myBranch);
+      for (const s of shared) splitSharedItemToBranch(s, actingBranch);
     }
     // نطاق الصلاحية: نبدّل بس الأصناف يلي المستخدم مسموحله فيها (فرعه/قسمه)،
     // مش كل صنف بهالقسم بكل الفروع — إلا لو سوبر أدمن.
     const affected = STATE.items.filter(i =>
       i.cat === cat && i.active !== active &&
+      (!actingBranch || i.branch === actingBranch) &&
       auth.canToggleScope(CURRENT_USER, { branch: i.branch, cat: i.cat }));
     const stamp = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     for (const it of affected) {
@@ -4535,20 +4539,25 @@ async function handleAPI(url, method, body, res) {
     const idx = STATE.items.findIndex(i => i.id === parseInt(itemMatch[1]));
     if (idx === -1) return json({error: 'not found'}, 404);
     const it     = STATE.items[idx];
-    // صنف مشترك (بلا فرع) وحساب مقيّد بفرع بيحاول يبدّل توفّره فقط؟
-    // نحوّله تلقائياً لصنف خاص بفرعه + نسخة لبقية الفروع بنفس حالته الحالية،
-    // فيصير مستقلاً بكل فرع من هلق وطالع — تبديله ما بيأثر على فرع تاني.
+    // فرع "التصرّف" الفعلي: فرع الحساب الثابت (رئيس قسم/كاشير مقيّد) إن وُجد،
+    // وإلا فرع العرض الحالي بالداشبورد (viewBranch) — حتى لو سوبر أدمن، إذا
+    // كان شغّال على تبويب فرع محدّد وقت الضغط على الزر.
     const isToggleOnly = Object.keys(body).length > 0 &&
-      Object.keys(body).every(k => k === 'active' || k === 'id');
-    const myBranch = myBranchScope(CURRENT_USER);
-    if (isToggleOnly && myBranch && !it.branch) {
-      splitSharedItemToBranch(it, myBranch);
-      addLog(`🔀 فُصل الصنف المشترك "${it.name}" لكل فرع لحاله — ${CURRENT_USER.displayName}`);
+      Object.keys(body).every(k => k === 'active' || k === 'id' || k === 'viewBranch');
+    const actingBranch = myBranchScope(CURRENT_USER) ||
+      (isToggleOnly && ['gaza','middle','nuseirat'].includes(body.viewBranch) ? body.viewBranch : null);
+    // صنف مشترك (بلا فرع) وفيه فرع تصرّف معروف؟ نحوّله تلقائياً لصنف خاص
+    // بهذا الفرع + نسخة لبقية الفروع بنفس حالته الحالية — يصير مستقلاً بكل
+    // فرع من هلق وطالع، فتبديله ما بيأثر على فرع تاني.
+    if (isToggleOnly && actingBranch && !it.branch) {
+      splitSharedItemToBranch(it, actingBranch);
+      addLog(`🔀 فُصل الصنف المشترك "${it.name}" لكل فرع لحاله — ${CURRENT_USER ? CURRENT_USER.displayName : 'النظام'}`);
     }
     if (!auth.canToggleScope(CURRENT_USER, { branch: it.branch, cat: it.cat })) {
       return json({error: 'حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تعدّل هذا الصنف'}, 403);
     }
     const before = { name: it.name, price: it.price, cat: it.cat, active: it.active, desc: it.desc };
+    delete body.viewBranch; // سياق عرض فقط — ما ينحفظ كحقل بالصنف
     if (body.price !== undefined) body.price = Number(body.price);
     if (body.image !== undefined) body.image = cleanImageUrl(body.image);
     if (body.desc  !== undefined) body.desc  = String(body.desc).trim().slice(0, 300);

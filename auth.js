@@ -350,10 +350,11 @@ const clearCookieHeader = () => `${COOKIE}=; HttpOnly; Path=/; SameSite=Lax; Max
 function permFor(url, method, body) {
   if (url === '/api/auth/me' || url === '/api/auth/login' || url === '/api/auth/logout') return null;
 
-  // تبديل توفّر صنف: تعديل حقل active فقط
+  // تبديل توفّر صنف: تعديل حقل active فقط (viewBranch = سياق الفرع المعروض
+  // بالداشبورد وقت الضغط، لتفعيل فصل الصنف المشترك تلقائياً — مو تعديل فعلي)
   if (/^\/api\/items\/\d+$/.test(url) && method === 'PUT') {
     const keys = Object.keys(body || {});
-    const onlyActive = keys.length > 0 && keys.every(k => k === 'active' || k === 'id');
+    const onlyActive = keys.length > 0 && keys.every(k => k === 'active' || k === 'id' || k === 'viewBranch');
     return onlyActive ? 'menu.toggle' : 'menu.edit';
   }
   if (url === '/api/images' && method === 'POST')          return 'menu.edit';
