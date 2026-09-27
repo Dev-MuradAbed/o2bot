@@ -34,12 +34,13 @@ const ROLES = {
  * هل يقدر هذا المستخدم يبدّل توفّر صنف/قسم ضمن هذا النطاق؟
  * مو بس "عنده صلاحية menu.toggle عامة" — كمان لازم يطابق فرعه/قسمه.
  *  - super_admin: دايماً مسموح.
- *  - dept_head: مسموح بس لقسمه (user.deptCategory) وبفرعه (user.deptBranch)
- *    إذا كان محدّداً؛ لو ما محدّد فرع، مسموح له بقسمه بكل الفروع.
- *  - أي دور تاني (كاشير/كول سنتر/كاستمر كير): لو عنده فرع محدّد (user.branch)،
- *    يتقيّد فيه. لو ما عنده فرع محدّد، صلاحية عامة بدون تقييد (كالوضع الافتراضي).
- * branch/cat بلا قيمة (صنف مشترك بلا فرع، أو نداء بلا قسم محدّد) يُعتبر مسموحاً
- * دائماً لأصحاب menu.toggle، حتى لا نمنع تفعيل الأصناف العامة بالغلط.
+ *  - dept_head: مسموح بس لقسمه (user.deptCategory). لو محدّد فرع (user.deptBranch)،
+ *    لازم صنف هذا الفرع بالتحديد — الصنف المشترك (بلا فرع) ممنوع عليه، لأنه
+ *    بيظهر بكل الفروع فتبديله بيأثر على فرع مش مسؤول عنه.
+ *  - أي دور تاني (كاشير/كول سنتر/كاستمر كير): نفس القاعدة — لو عنده فرع محدّد
+ *    (user.branch)، بيتقيّد فيه بالضبط، والصنف المشترك ممنوع عليه لنفس السبب.
+ *    لو ما عنده فرع محدّد، صلاحية عامة بدون تقييد (كالوضع الافتراضي).
+ * الصنف المشترك يبقى قابلاً للتبديل من: سوبر أدمن، أو أي حساب بلا فرع محدّد له.
  */
 function canToggleScope(user, { branch, cat } = {}) {
   if (!user) return false;
@@ -48,9 +49,10 @@ function canToggleScope(user, { branch, cat } = {}) {
   if (user.role === 'dept_head') {
     if (!user.deptCategory) return false; // ما إله قسم محدّد بعد
     if (cat !== undefined && cat !== user.deptCategory) return false;
-    return !user.deptBranch || !branch || branch === user.deptBranch;
+    if (!user.deptBranch) return true; // مسؤول عن قسمه بكل الفروع
+    return branch === user.deptBranch; // مقيّد بفرع: الصنف المشترك ممنوع عليه
   }
-  if (user.branch) return !branch || branch === user.branch;
+  if (user.branch) return branch === user.branch; // مقيّد بفرع: الصنف المشترك ممنوع عليه
   return true; // بلا فرع محدّد: صلاحية عامة، كما كان الوضع سابقاً
 }
 

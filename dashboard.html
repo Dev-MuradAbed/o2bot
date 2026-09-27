@@ -1530,8 +1530,14 @@ function branchOf(i){ return i.branch || ''; }
 function itemsOfBranch(){
   const all = S.items || [];
   if(!activeBranch) return all;
-  // الصنف بلا فرع = متاح في الفرعين (نفس منطق البوت في branchItems).
-  // الشرط السابق كان يُخفيه عند اختيار أي فرع، فيبدو أن الصنف لم يُضف.
+  const scope = myScope();
+  if(scope && scope.branch){
+    // حساب مقيّد بفرع محدّد: يشوف بس أصناف فرعه، بلا الأصناف المشتركة —
+    // لأنها بتظهر بالفرعين وما بيقدر يتحكم فيها بأمان (تفعيلها/إغلاقها بيأثر
+    // على فرع تاني مش مسؤول عنه).
+    return all.filter(function(i){ return i.branch === activeBranch; });
+  }
+  // بدون تقييد فرع (سوبر أدمن يتصفّح، أو حساب عام): الصنف بلا فرع = متاح بالفرعين
   return all.filter(function(i){ return !i.branch || i.branch === activeBranch; });
 }
 
