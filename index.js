@@ -1,5 +1,5 @@
 // Baileys — واتساب بدون Chromium
-const makeWASocket = require('@whiskeysockets/baileys').default;
+const makeWASocket    = require('@whiskeysockets/baileys').default;
 const {
   DisconnectReason,
   fetchLatestBaileysVersion,
@@ -7,12 +7,12 @@ const {
 } = require('@whiskeysockets/baileys');
 const { useFirestoreAuthState } = require('./firestore-auth-state');
 const QRCode = require('qrcode');
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const pino = require('pino');
-const https = require('https');
-const auth = require('./auth');
+const http   = require('http');
+const fs     = require('fs');
+const path   = require('path');
+const pino   = require('pino');
+const https  = require('https');
+const auth   = require('./auth');
 const menuBuild = require('./menu-build');
 
 // ============================================================
@@ -56,8 +56,8 @@ let STATE = {
     // ساعات استقبال الطلبات لكل فرع — enabled:false يعني الفرع مفتوح 24 ساعة
     // (بلا أي قيد) كما كان الوضع سابقاً. الوقت بصيغة 24 ساعة "HH:MM" بتوقيت غزة.
     branchHours: {
-      gaza: { enabled: false, open: '10:00', close: '23:59' },
-      middle: { enabled: false, open: '10:00', close: '23:59' },
+      gaza:     { enabled: false, open: '10:00', close: '23:59' },
+      middle:   { enabled: false, open: '10:00', close: '23:59' },
     },
     imageBaseUrl: '',   // مثال: https://o2restaurant.com — يُسبق مسارات الصور النسبية
     showItemDesc: true, // إظهار وصف الصنف تحت اسمه للزبون
@@ -76,16 +76,16 @@ let STATE = {
   categories: menuBuild.buildCategories(),
   items: menuBuild.buildItems(1000),
   replies: [
-    { id: 1, keys: ['مرحبا', 'هلا', 'اهلا', 'السلام', 'هاي', 'hi', 'hello'], text: 'أهلاً وسهلاً! 🌿 شو بدك اليوم؟', active: true },
-    { id: 2, keys: ['منيو', 'قائمة', 'اسعار', 'أسعار'], text: 'شو بدك تشوف؟ 😊\n1️⃣ الشاورما\n2️⃣ الإيطالي\n3️⃣ الساندويشات\n4️⃣ السلطات\n5️⃣ المشروبات\n6️⃣ الحلويات', active: true },
-    { id: 3, keys: ['دوام', 'ساعات', 'مفتوح', 'متى'], text: 'احنا مفتوحين من 11 الصبح لـ11 الليل كل أيام الأسبوع 🕛', active: true },
-    { id: 4, keys: ['موقع', 'عنوان', 'وين', 'فين'], text: 'موجودين في النصيرات — شارع أبو صرار 📍', active: true },
-    { id: 5, keys: ['توصيل', 'ديليفري', 'رسوم'], text: 'رسوم التوصيل 🚚\nالنصيرات (العودة): 5 ₪\nالنصيرات: 10 ₪\nالسوارحة/البريج: 15 ₪\nالزوايدة/المغازي: 20 ₪\ndير البلح: 35 ₪', active: true },
+    { id:1, keys:['مرحبا','هلا','اهلا','السلام','هاي','hi','hello'], text:'أهلاً وسهلاً! 🌿 شو بدك اليوم؟', active:true },
+    { id:2, keys:['منيو','قائمة','اسعار','أسعار'],                   text:'شو بدك تشوف؟ 😊\n1️⃣ الشاورما\n2️⃣ الإيطالي\n3️⃣ الساندويشات\n4️⃣ السلطات\n5️⃣ المشروبات\n6️⃣ الحلويات', active:true },
+    { id:3, keys:['دوام','ساعات','مفتوح','متى'],                     text:'احنا مفتوحين من 11 الصبح لـ11 الليل كل أيام الأسبوع 🕛', active:true },
+    { id:4, keys:['موقع','عنوان','وين','فين'],                       text:'موجودين في النصيرات — شارع أبو صرار 📍', active:true },
+    { id:5, keys:['توصيل','ديليفري','رسوم'],                         text:'رسوم التوصيل 🚚\nالنصيرات (العودة): 5 ₪\nالنصيرات: 10 ₪\nالسوارحة/البريج: 15 ₪\nالزوايدة/المغازي: 20 ₪\ndير البلح: 35 ₪', active:true },
     // الرد 6 معطّل عمداً: بيانات الدفع تُولَّد حيّاً من paymentAccounts
     // عبر paymentMessage()، فلا تُكتب ثابتة هنا وإلا تجاوزت الإعدادات.
-    { id: 6, keys: ['تحويل', 'دفع', 'بنك', 'حساب'], text: '', active: false },
-    { id: 7, keys: ['شكرا', 'شكراً', 'يسلمو', 'ممتاز', 'مشكور'], text: 'يسلمو! نتشرف فيك دايماً ❤️', active: true },
-    { id: 8, keys: ['موظف', 'بشري', 'شخص', 'انسان'], text: 'تمام! سيتواصل معك أحد موظفينا قريباً 👨‍💼', active: true },
+    { id:6, keys:['تحويل','دفع','بنك','حساب'], text:'', active:false },
+    { id:7, keys:['شكرا','شكراً','يسلمو','ممتاز','مشكور'],           text:'يسلمو! نتشرف فيك دايماً ❤️', active:true },
+    { id:8, keys:['موظف','بشري','شخص','انسان'],                      text:'تمام! سيتواصل معك أحد موظفينا قريباً 👨‍💼', active:true },
   ],
   orders: [],
   queue: [],
@@ -103,9 +103,9 @@ let STATE = {
     // zones: مناطق مسؤوليته الأساسية (مطابق لـ deliveryZones[].label)
     // shift: 'morning'(6-15) | 'evening'(15-24) | 'both'
     // maxActive: أقصى عدد طلبات في نفس الوقت
-    { id: 1, name: 'أحمد', phone: '', shift: 'both', zones: [], maxActive: 3, active: true, ordersToday: 0, currentOrders: [] },
-    { id: 2, name: 'محمد', phone: '', shift: 'morning', zones: [], maxActive: 3, active: false, ordersToday: 0, currentOrders: [] },
-    { id: 3, name: 'خالد', phone: '', shift: 'evening', zones: [], maxActive: 3, active: false, ordersToday: 0, currentOrders: [] },
+    { id:1, name:'أحمد',  phone:'', shift:'both',    zones:[], maxActive:3, active:true,  ordersToday:0, currentOrders:[] },
+    { id:2, name:'محمد',  phone:'', shift:'morning', zones:[], maxActive:3, active:false, ordersToday:0, currentOrders:[] },
+    { id:3, name:'خالد',  phone:'', shift:'evening', zones:[], maxActive:3, active:false, ordersToday:0, currentOrders:[] },
   ],
   driverDailyDate: '', // تاريخ آخر reset للعدادات
 
@@ -114,12 +114,10 @@ let STATE = {
   // ── حسابات استلام الأموال ──
   // كل حساب يُفعَّل أو يُغلق مستقلاً؛ البوت يعرض المفعّلة فقط.
   paymentAccounts: [
-    {
-      id: 'pa-bank-1', type: 'bank', label: 'بنك فلسطين',
+    { id: 'pa-bank-1', type: 'bank', label: 'بنك فلسطين',
       holder: 'فادي أبو شرخ', phone: '0567743979',
       iban: 'PS43PALS045411071670993000000', note: '',
-      active: true, order: 1, updatedBy: 'النظام', updatedAt: null
-    },
+      active: true, order: 1, updatedBy: 'النظام', updatedAt: null },
   ],
   paymentConfig: {
     onlineEnabled: true,   // إظهار خيار الدفع/التحويل للزبون
@@ -135,8 +133,8 @@ let STATE = {
 // ============================================================
 // PERSISTENCE — Firebase Firestore
 // ============================================================
-const { initializeApp, cert } = require('firebase-admin/app');
-const { getFirestore } = require('firebase-admin/firestore');
+const { initializeApp, cert }  = require('firebase-admin/app');
+const { getFirestore }         = require('firebase-admin/firestore');
 
 // قراءة Service Account من متغير البيئة
 let STATE_DOC;
@@ -176,8 +174,8 @@ function memImageCollection() {
 if (process.env.O2_TEST_MODE === 'failread') {
   // وضع اختبار: يفشل أول قراءة لمحاكاة انقطاع لحظي مع Firebase
   STATE_DOC = {
-    async set(d) { global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
-    async get() {
+    async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
+    async get(){
       global.__FAKE_DB.gets++;
       if (global.__FAKE_DB.failAlways) throw new Error(global.__FAKE_DB.errMsg || 'UNAVAILABLE: الخدمة غير متاحة');
       if (global.__FAKE_DB.failNextGet) {
@@ -194,8 +192,8 @@ if (process.env.O2_TEST_MODE === 'failread') {
 } else if (process.env.O2_TEST_MODE === 'persist') {
   // وضع اختبار يبقي المستند بين إعادات التشغيل (global)
   STATE_DOC = {
-    async set(d) { global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
-    async get() { return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc }; },
+    async set(d){ global.__FAKE_DB.doc = JSON.parse(JSON.stringify(d)); },
+    async get(){ return { exists: !!global.__FAKE_DB.doc, data: () => global.__FAKE_DB.doc }; },
   };
   MENU_DOC = memDoc();
   AUTH_DOC = memDoc();
@@ -203,7 +201,7 @@ if (process.env.O2_TEST_MODE === 'failread') {
   console.log('🧪 وضع اختبار الاستمرارية');
 } else if (process.env.O2_TEST_MODE === '1') {
   let mem = null;
-  STATE_DOC = { async set(d) { mem = JSON.parse(JSON.stringify(d)); }, async get() { return { exists: !!mem, data: () => mem }; } };
+  STATE_DOC = { async set(d){ mem = JSON.parse(JSON.stringify(d)); }, async get(){ return { exists: !!mem, data: () => mem }; } };
   MENU_DOC = memDoc();
   AUTH_DOC = memDoc();
   IMG_COL = memImageCollection();
@@ -216,9 +214,9 @@ if (process.env.O2_TEST_MODE === 'failread') {
   initializeApp({ credential: cert(sa) });
   const _db = getFirestore();
   STATE_DOC = _db.collection('o2bot').doc('state');
-  MENU_DOC = _db.collection('o2bot').doc('menu');   // أقسام/أصناف — حفظ منفصل وأسرع
-  AUTH_DOC = _db.collection('o2bot').doc('waAuth');  // جلسة واتساب — بديل القرص المحلي
-  IMG_COL = _db.collection('o2bot_images');   // صورة لكل مستند
+  MENU_DOC  = _db.collection('o2bot').doc('menu');   // أقسام/أصناف — حفظ منفصل وأسرع
+  AUTH_DOC  = _db.collection('o2bot').doc('waAuth');  // جلسة واتساب — بديل القرص المحلي
+  IMG_COL   = _db.collection('o2bot_images');   // صورة لكل مستند
 }
 
 /**
@@ -236,8 +234,8 @@ function parseServiceAccount(raw) {
 
   if (!raw || !raw.trim()) {
     die('متغيّر FIREBASE_SERVICE_ACCOUNT غير موجود',
-      'Render ← Environment ← أضف FIREBASE_SERVICE_ACCOUNT',
-      'قيمته: محتوى ملف JSON الذي نزّلته من Firebase كاملاً');
+        'Render ← Environment ← أضف FIREBASE_SERVICE_ACCOUNT',
+        'قيمته: محتوى ملف JSON الذي نزّلته من Firebase كاملاً');
   }
 
   let sa;
@@ -245,8 +243,8 @@ function parseServiceAccount(raw) {
     sa = JSON.parse(raw.trim());
   } catch (e) {
     die('محتوى FIREBASE_SERVICE_ACCOUNT ليس JSON صالحاً: ' + e.message,
-      'انسخ الملف كاملاً من { حتى } دون حذف أو إضافة',
-      'لا تضع علامات اقتباس حول المحتوى كله');
+        'انسخ الملف كاملاً من { حتى } دون حذف أو إضافة',
+        'لا تضع علامات اقتباس حول المحتوى كله');
   }
 
   for (const f of ['project_id', 'client_email', 'private_key']) {
@@ -260,8 +258,8 @@ function parseServiceAccount(raw) {
   }
   if (!/^-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(sa.private_key.trim())) {
     die('حقل private_key تالف',
-      'يجب أن يبدأ بـ -----BEGIN PRIVATE KEY-----',
-      'أعد نسخ ملف JSON كاملاً من Firebase');
+        'يجب أن يبدأ بـ -----BEGIN PRIVATE KEY-----',
+        'أعد نسخ ملف JSON كاملاً من Firebase');
   }
   return sa;
 }
@@ -310,7 +308,7 @@ let saveTimer = null;
 // الافتراضية ثم تكتبها فوق قاعدتك — فيضيع المنيو وكلمات المرور.
 // ══════════════════════════════════════════════════════════
 let stateLoaded = false;
-let loadError = '';
+let loadError   = '';
 let migrationPending = false;
 
 // ══════════════════════════════════════════════════════════
@@ -340,7 +338,7 @@ function saveState() {
   saveTimer = setTimeout(async () => {
     saveTimer = null;
     try { await STATE_DOC.set(opsSlice()); }
-    catch (e) { console.log('⚠️ Firebase save:', e.message); }
+    catch(e) { console.log('⚠️ Firebase save:', e.message); }
   }, 3000);
 }
 
@@ -348,7 +346,7 @@ async function saveStateNow() {
   if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return false; }
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
   try { await STATE_DOC.set(opsSlice()); return true; }
-  catch (e) { console.log('⚠️ Firebase saveNow:', e.message); return false; }
+  catch(e) { console.log('⚠️ Firebase saveNow:', e.message); return false; }
 }
 
 // نفس الفكرة، بمؤقّت منفصل، خاص بمستند المنيو وحده
@@ -360,7 +358,7 @@ function saveMenu() {
   saveMenuTimer = setTimeout(async () => {
     saveMenuTimer = null;
     try { await MENU_DOC.set(menuSlice()); }
-    catch (e) { console.log('⚠️ Firebase save (menu):', e.message); }
+    catch(e) { console.log('⚠️ Firebase save (menu):', e.message); }
   }, 3000);
 }
 
@@ -368,7 +366,7 @@ async function saveMenuNow() {
   if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return false; }
   if (saveMenuTimer) { clearTimeout(saveMenuTimer); saveMenuTimer = null; }
   try { await MENU_DOC.set(menuSlice()); return true; }
-  catch (e) { console.log('⚠️ Firebase saveNow (menu):', e.message); return false; }
+  catch(e) { console.log('⚠️ Firebase saveNow (menu):', e.message); return false; }
 }
 
 /** يحفظ كل شي فوراً — أول تشغيل أو عند الإغلاق */
@@ -381,11 +379,11 @@ async function saveAllNow() {
 async function flushState() {
   if (!stateLoaded) return;
   const jobs = [];
-  if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; jobs.push(STATE_DOC.set(opsSlice())); }
+  if (saveTimer)     { clearTimeout(saveTimer);     saveTimer = null;     jobs.push(STATE_DOC.set(opsSlice())); }
   if (saveMenuTimer) { clearTimeout(saveMenuTimer); saveMenuTimer = null; jobs.push(MENU_DOC.set(menuSlice())); }
   if (!jobs.length) return;
   try { await Promise.all(jobs); console.log('💾 حُفظت البيانات قبل الإغلاق'); }
-  catch (e) { console.log('⚠️ فشل الحفظ قبل الإغلاق:', e.message); }
+  catch(e) { console.log('⚠️ فشل الحفظ قبل الإغلاق:', e.message); }
 }
 
 for (const sig of ['SIGTERM', 'SIGINT']) {
@@ -404,27 +402,27 @@ async function loadState() {
       return true;
     }
     const saved = { ...(opsSnap.exists ? opsSnap.data() : {}), ...(menuSnap.exists ? menuSnap.data() : {}) };
-    STATE.settings = { ...STATE.settings, ...(saved.settings || {}) };
-    STATE.orders = saved.orders || [];
-    STATE.queue = saved.queue || [];
-    STATE.logs = (saved.logs || []).slice(-200);
-    STATE.nextId = saved.nextId || STATE.nextId;
+    STATE.settings     = { ...STATE.settings, ...(saved.settings || {}) };
+    STATE.orders       = saved.orders    || [];
+    STATE.queue        = saved.queue     || [];
+    STATE.logs         = (saved.logs     || []).slice(-200);
+    STATE.nextId       = saved.nextId    || STATE.nextId;
     STATE.nextOrderNum = saved.nextOrderNum || STATE.nextOrderNum;
     STATE.botConnected = false;
-    if (saved.drivers) STATE.drivers = saved.drivers;
-    if (saved.driverDailyDate) STATE.driverDailyDate = saved.driverDailyDate;
+    if (saved.drivers)          STATE.drivers          = saved.drivers;
+    if (saved.driverDailyDate)  STATE.driverDailyDate  = saved.driverDailyDate;
     if (saved.customerProfiles) STATE.customerProfiles = saved.customerProfiles;
-    if (saved.pendingOrders) STATE.pendingOrders = saved.pendingOrders;
-    if (saved.dailyCounter) STATE.dailyCounter = saved.dailyCounter;
-    if (saved.unknowns) STATE.unknowns = saved.unknowns;
-    if (saved.runtimeAliases) STATE.runtimeAliases = saved.runtimeAliases;
-    if (saved.learnedAliases) STATE.learnedAliases = saved.learnedAliases;
+    if (saved.pendingOrders)    STATE.pendingOrders    = saved.pendingOrders;
+    if (saved.dailyCounter)     STATE.dailyCounter     = saved.dailyCounter;
+    if (saved.unknowns)         STATE.unknowns         = saved.unknowns;
+    if (saved.runtimeAliases)   STATE.runtimeAliases   = saved.runtimeAliases;
+    if (saved.learnedAliases)   STATE.learnedAliases   = saved.learnedAliases;
     if (saved.paymentAccounts) STATE.paymentAccounts = saved.paymentAccounts;
-    if (saved.paymentConfig) STATE.paymentConfig = { ...STATE.paymentConfig, ...saved.paymentConfig };
+    if (saved.paymentConfig)   STATE.paymentConfig = { ...STATE.paymentConfig, ...saved.paymentConfig };
     if (saved.users && saved.users.length) STATE.users = saved.users;
-    if (saved.audit) STATE.audit = saved.audit;
-    if (saved.categories && saved.categories.length) STATE.categories = saved.categories;
-    if (saved.replies && saved.replies.length) STATE.replies = saved.replies;
+    if (saved.audit)                       STATE.audit = saved.audit;
+    if (saved.categories    && saved.categories.length)    STATE.categories    = saved.categories;
+    if (saved.replies       && saved.replies.length)       STATE.replies       = saved.replies;
     if (saved.deliveryZones && saved.deliveryZones.length) STATE.deliveryZones = saved.deliveryZones;
     // ── دمج المنيو ──────────────────────────────────────────
     // المحفوظ هو المرجع دائماً. المقارنة بعدد أصناف الكود كانت
@@ -434,8 +432,8 @@ async function loadState() {
     if (saved.items && saved.items.length) {
       const codeItems = STATE.items;                 // النسخة الافتراضية من الكود
       STATE.items = saved.items;                     // المحفوظ يفوز
-      const haveIds = new Set(STATE.items.map(i => i.id));
-      const gone = new Set(STATE.deletedItemIds);
+      const haveIds  = new Set(STATE.items.map(i => i.id));
+      const gone     = new Set(STATE.deletedItemIds);
       // أضف فقط أصناف الكود الجديدة التي لم تُحفظ ولم تُحذف يدوياً
       const fresh = codeItems.filter(i => !haveIds.has(i.id) && !gone.has(i.id));
       if (fresh.length) {
@@ -449,10 +447,10 @@ async function loadState() {
     if (saved.menuVersion !== menuBuild.MENU_VERSION) {
       const oldCount = STATE.items.length;
       STATE.itemsBackup = { at: new Date().toISOString(), version: saved.menuVersion || 'legacy', items: STATE.items };
-      STATE.categories = menuBuild.buildCategories();
-      STATE.items = menuBuild.buildItems(1000);
+      STATE.categories  = menuBuild.buildCategories();
+      STATE.items       = menuBuild.buildItems(1000);
       STATE.menuVersion = menuBuild.MENU_VERSION;
-      STATE.nextId = Math.max(STATE.nextId || 100, 1000 + STATE.items.length + 50);
+      STATE.nextId      = Math.max(STATE.nextId || 100, 1000 + STATE.items.length + 50);
       STATE.deletedItemIds = [];
       const g = STATE.items.filter(i => i.branch === 'gaza').length;
       const m = STATE.items.filter(i => i.branch === 'middle').length;
@@ -483,7 +481,7 @@ async function loadState() {
     stateLoaded = true;
     loadError = '';
     return true;
-  } catch (e) {
+  } catch(e) {
     loadError = e.message;
     console.log('⚠️ Firebase loadState:', e.message);
     return false;
@@ -527,7 +525,7 @@ async function loadStateWithRetry(attempts = 5) {
 
 // ترقيم يومي: يبدأ من 1 كل يوم جديد
 function getNextOrderNum() {
-  const today = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const today = new Date().toLocaleDateString('ar-SA', {year:'numeric',month:'2-digit',day:'2-digit'});
   if (!STATE.dailyCounter || STATE.dailyCounter.date !== today) {
     STATE.dailyCounter = { date: today, seq: 1 };
   } else {
@@ -577,7 +575,7 @@ function pendingOrderSummary(po) {
   const delivery = po.deliveryType === 'توصيل'
     ? `🚚 توصيل إلى: ${po.address} (${po.deliveryFee} ₪)`
     : `🏪 استلام من المطعم`;
-  const grand = (po.cart || []).reduce((s, i) => s + i.qty * i.price, 0) + (po.deliveryFee || 0);
+  const grand = (po.cart || []).reduce((s,i) => s + i.qty*i.price, 0) + (po.deliveryFee || 0);
   return `${items}\n${delivery}\nالمجموع: *${grand} ₪*`;
 }
 
@@ -657,16 +655,16 @@ setInterval(() => {
 // قاموس الأعداد والمساعدات
 // ============================================================
 const ARABIC_NUMS = {
-  'واحد': 1, 'واحدة': 1, 'وحدة': 1, 'وحده': 1, 'واحده': 1, '١': 1,
-  'اثنين': 2, 'اثنتين': 2, 'اثنان': 2, 'اتنين': 2, 'تنتين': 2, '٢': 2,
-  'ثلاثة': 3, 'ثلاثه': 3, 'ثلاث': 3, 'تلاتة': 3, 'تلاته': 3, 'تلات': 3, '٣': 3,
-  'اربعة': 4, 'أربعة': 4, 'اربعه': 4, 'اربع': 4, 'أربع': 4, '٤': 4,
-  'خمسة': 5, 'خمسه': 5, 'خمس': 5, '٥': 5,
-  'ستة': 6, 'سته': 6, 'ست': 6, '٦': 6,
-  'سبعة': 7, 'سبعه': 7, 'سبع': 7, '٧': 7,
-  'ثمانية': 8, 'تمانية': 8, 'ثمان': 8, '٨': 8,
-  'تسعة': 9, 'تسعه': 9, 'تسع': 9, '٩': 9,
-  'عشرة': 10, 'عشره': 10, 'عشر': 10, '١٠': 10,
+  'واحد':1,'واحدة':1,'وحدة':1,'وحده':1,'واحده':1,'١':1,
+  'اثنين':2,'اثنتين':2,'اثنان':2,'اتنين':2,'تنتين':2,'٢':2,
+  'ثلاثة':3,'ثلاثه':3,'ثلاث':3,'تلاتة':3,'تلاته':3,'تلات':3,'٣':3,
+  'اربعة':4,'أربعة':4,'اربعه':4,'اربع':4,'أربع':4,'٤':4,
+  'خمسة':5,'خمسه':5,'خمس':5,'٥':5,
+  'ستة':6,'سته':6,'ست':6,'٦':6,
+  'سبعة':7,'سبعه':7,'سبع':7,'٧':7,
+  'ثمانية':8,'تمانية':8,'ثمان':8,'٨':8,
+  'تسعة':9,'تسعه':9,'تسع':9,'٩':9,
+  'عشرة':10,'عشره':10,'عشر':10,'١٠':10,
 };
 
 function arabicToEnglishNumbers(str) {
@@ -696,60 +694,60 @@ function extractItemName(text) {
 }
 
 const SPELLING_FIX = {
-  'شاورمه': 'شاورما', 'شاورمة': 'شاورما',
-  'زنقر': 'زنجر', 'زنكر': 'زنجر', 'زينجر': 'زنجر',
-  'كاليزوني': 'كالزوني', 'كلزوني': 'كالزوني',
-  'بيتزه': 'بيتزا', 'بيتزة': 'بيتزا',
-  'برقر': 'برجر', 'بورقر': 'برجر',
-  'شيش طاوق': 'شيش طاووق',
-  'فطيره': 'فطيرة', 'فطيره ذهبيه': 'فطيرة ذهبية',
-  'بانسيه': 'بانسية',
-  'ملك شيك': 'ميلك شيك',
-  'كريبة': 'كريب', 'كريبه': 'كريب',
-  'كنافه': 'كنافة', 'كنافه نابلسيه': 'كنافة نابلسية',
-  'نابلسيه': 'نابلسية',
-  'بقلاوه': 'بقلاوة',
-  'نسكفيه': 'نسكافيه',
-  'موتلن': 'مولتن', 'مولتون': 'مولتن',
-  'وافله': 'وافل', 'وافلة': 'وافل',
-  'لقيمه': 'لقيمات', 'لقيمة': 'لقيمات',
-  'بانكيك': 'بان كيك', 'باين كيك': 'بان كيك',
-  'ايس كافيه': 'آيس كافي', 'ايس كافي': 'آيس كافي',
-  'جيلاتوه': 'جيلاتو',
-  'موهيطو': 'موهيتو',
-  'فراشيح': 'فرشوحة', 'فراشيح شاورما': 'بيتا شاورما',
-  'فرشوحه': 'فرشوحة',
-  'كوكا كولا': 'كولا كبير',
-  'كولسلو': 'كول سلو', 'كولسلاو': 'كول سلو',
-  'بيكانتو': 'بيكانتي', 'بيكانتى': 'بيكانتي',
-  'ميجا': 'ميجا شاورما',
-  'سبريت': 'سبرايت',
+  'شاورمه':'شاورما','شاورمة':'شاورما',
+  'زنقر':'زنجر','زنكر':'زنجر','زينجر':'زنجر',
+  'كاليزوني':'كالزوني','كلزوني':'كالزوني',
+  'بيتزه':'بيتزا','بيتزة':'بيتزا',
+  'برقر':'برجر','بورقر':'برجر',
+  'شيش طاوق':'شيش طاووق',
+  'فطيره':'فطيرة','فطيره ذهبيه':'فطيرة ذهبية',
+  'بانسيه':'بانسية',
+  'ملك شيك':'ميلك شيك',
+  'كريبة':'كريب','كريبه':'كريب',
+  'كنافه':'كنافة','كنافه نابلسيه':'كنافة نابلسية',
+  'نابلسيه':'نابلسية',
+  'بقلاوه':'بقلاوة',
+  'نسكفيه':'نسكافيه',
+  'موتلن':'مولتن','مولتون':'مولتن',
+  'وافله':'وافل','وافلة':'وافل',
+  'لقيمه':'لقيمات','لقيمة':'لقيمات',
+  'بانكيك':'بان كيك','باين كيك':'بان كيك',
+  'ايس كافيه':'آيس كافي','ايس كافي':'آيس كافي',
+  'جيلاتوه':'جيلاتو',
+  'موهيطو':'موهيتو',
+  'فراشيح':'فرشوحة','فراشيح شاورما':'بيتا شاورما',
+  'فرشوحه':'فرشوحة',
+  'كوكا كولا':'كولا كبير',
+  'كولسلو':'كول سلو','كولسلاو':'كول سلو',
+  'بيكانتو':'بيكانتي','بيكانتى':'بيكانتي',
+  'ميجا':'ميجا شاورما',
+  'سبريت':'سبرايت',
 };
 
 const EN_TO_AR = {
-  'hello': 'مرحبا', 'hi': 'مرحبا', 'hey': 'مرحبا', 'salam': 'مرحبا',
-  'menu': 'منيو', 'prices': 'اسعار', 'order': 'طلب', 'delivery': 'توصيل', 'location': 'موقع',
-  'hours': 'ساعات', 'open': 'مفتوح', 'cancel': 'الغاء',
-  'thanks': 'شكرا', 'thank you': 'شكرا', 'ok': 'تمام', 'yes': 'نعم', 'no': 'لا',
-  'shawarma': 'شاورما', 'pizza': 'بيتزا', 'burger': 'برجر', 'sandwich': 'ساندويش',
-  'juice': 'عصير', 'coffee': 'قهوة', 'tea': 'شاي', 'cake': 'كيك',
-  'dessert': 'حلويات', 'salad': 'سلطة', 'ice coffee': 'آيس كافي',
-  'transfer': 'تحويل', 'payment': 'دفع', 'confirm': 'تأكيد', 'add': 'اضيف',
-  'nutella': 'نوتيلا', 'lotus': 'لوتس', 'waffle': 'وافل', 'crepe': 'كريب',
-  'pancake': 'بان كيك', 'milkshake': 'ميلك شيك', 'mojito': 'موهيتو',
-  'gelato': 'جيلاتو', 'baklava': 'بقلاوة', 'kunafa': 'كنافة',
+  'hello':'مرحبا','hi':'مرحبا','hey':'مرحبا','salam':'مرحبا',
+  'menu':'منيو','prices':'اسعار','order':'طلب','delivery':'توصيل','location':'موقع',
+  'hours':'ساعات','open':'مفتوح','cancel':'الغاء',
+  'thanks':'شكرا','thank you':'شكرا','ok':'تمام','yes':'نعم','no':'لا',
+  'shawarma':'شاورما','pizza':'بيتزا','burger':'برجر','sandwich':'ساندويش',
+  'juice':'عصير','coffee':'قهوة','tea':'شاي','cake':'كيك',
+  'dessert':'حلويات','salad':'سلطة','ice coffee':'آيس كافي',
+  'transfer':'تحويل','payment':'دفع','confirm':'تأكيد','add':'اضيف',
+  'nutella':'نوتيلا','lotus':'لوتس','waffle':'وافل','crepe':'كريب',
+  'pancake':'بان كيك','milkshake':'ميلك شيك','mojito':'موهيتو',
+  'gelato':'جيلاتو','baklava':'بقلاوة','kunafa':'كنافة',
 };
 
 function translateEN(text) {
   let t = text.toLowerCase();
-  const sorted = Object.entries(EN_TO_AR).sort((a, b) => b[0].length - a[0].length);
+  const sorted = Object.entries(EN_TO_AR).sort((a,b) => b[0].length - a[0].length);
   for (const [en, ar] of sorted) t = t.replace(new RegExp('\\b' + en + '\\b', 'gi'), ar);
   return t;
 }
 
 function fixSpelling(text) {
   let t = text;
-  const sorted = Object.entries(SPELLING_FIX).sort((a, b) => b[0].length - a[0].length);
+  const sorted = Object.entries(SPELLING_FIX).sort((a,b) => b[0].length - a[0].length);
   for (const [wrong, right] of sorted) t = t.replace(new RegExp(wrong, 'gi'), right);
   return t;
 }
@@ -761,12 +759,12 @@ function levenshtein(a, b) {
   const m = a.length, n = b.length;
   if (m === 0) return n;
   if (n === 0) return m;
-  const dp = Array.from({ length: m + 1 }, (_, i) =>
-    Array.from({ length: n + 1 }, (_, j) => i === 0 ? j : j === 0 ? i : 0)
+  const dp = Array.from({length: m+1}, (_, i) =>
+    Array.from({length: n+1}, (_, j) => i === 0 ? j : j === 0 ? i : 0)
   );
-  for (let i = 1; i <= m; i++)
-    for (let j = 1; j <= n; j++)
-      dp[i][j] = a[i - 1] === b[j - 1] ? dp[i - 1][j - 1] : 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+  for (let i=1; i<=m; i++)
+    for (let j=1; j<=n; j++)
+      dp[i][j] = a[i-1]===b[j-1] ? dp[i-1][j-1] : 1 + Math.min(dp[i-1][j], dp[i][j-1], dp[i-1][j-1]);
   return dp[m][n];
 }
 
@@ -780,26 +778,26 @@ function normalize(s) { return s.toLowerCase().replace(/[هة]/g, 'ه').trim(); 
 // ============================================================
 const INGREDIENT_MAP = {
   // فواكه ونكهات
-  'بلوبري': ['ميلك شيك سبيشل', 'لقيمات نوتيلا', 'آيس كافي كراميل'],
-  'فراولة': ['ميلك شيك سبيشل', 'وافل سنيك'],
-  'مانجو': ['ميلك شيك سبيشل', 'عصير الموسم'],
-  'نوتيلا': ['كنافة نوتيلا', 'بان كيك نوتيلا', 'آيس كافي نوتيلا', 'لقيمات نوتيلا'],
-  'لوتس': ['جيلاتو لوتس', 'بان كيك لوتس', 'لقيمات لوتس'],
-  'كراميل': ['آيس كافي كراميل', 'ميلك شيك سبيشل'],
-  'شوكولا': ['مولتن كيك', 'تشيز كيك', 'ميلك شيك سبيشل'],
-  'شوكولاتة': ['مولتن كيك', 'تشيز كيك'],
+  'بلوبري':   ['ميلك شيك سبيشل','لقيمات نوتيلا','آيس كافي كراميل'],
+  'فراولة':   ['ميلك شيك سبيشل','وافل سنيك'],
+  'مانجو':    ['ميلك شيك سبيشل','عصير الموسم'],
+  'نوتيلا':   ['كنافة نوتيلا','بان كيك نوتيلا','آيس كافي نوتيلا','لقيمات نوتيلا'],
+  'لوتس':     ['جيلاتو لوتس','بان كيك لوتس','لقيمات لوتس'],
+  'كراميل':   ['آيس كافي كراميل','ميلك شيك سبيشل'],
+  'شوكولا':   ['مولتن كيك','تشيز كيك','ميلك شيك سبيشل'],
+  'شوكولاتة': ['مولتن كيك','تشيز كيك'],
   // مكونات الشاورما
-  'لحمة': ['فرشوحة دبل لحمة', 'فرشوحة دبل دبل', 'سوري'],
-  'دجاج': ['فرشوحة عادي', 'فرشوحة دبل', 'صفيحة', 'شاورما عربي', 'بيتزا مكسيكي دجاج', 'تشيكن برجر', 'شيش طاووق', 'ستيك دجاج مشوي', 'بانسية'],
-  'جبن': ['بيتزا مكسيكي دجاج', 'مارغريتا', 'نابولي', 'بيتزا ماما روزا'],
-  'خضار': ['بيتزا خضار وذرة', 'كالزوني خضار'],
+  'لحمة':     ['فرشوحة دبل لحمة','فرشوحة دبل دبل','سوري'],
+  'دجاج':     ['فرشوحة عادي','فرشوحة دبل','صفيحة','شاورما عربي','بيتزا مكسيكي دجاج','تشيكن برجر','شيش طاووق','ستيك دجاج مشوي','بانسية'],
+  'جبن':      ['بيتزا مكسيكي دجاج','مارغريتا','نابولي','بيتزا ماما روزا'],
+  'خضار':     ['بيتزا خضار وذرة','كالزوني خضار'],
   // مشروبات
-  'قهوة': ['كابتشينو', 'نسكافيه', 'إسبريسو سنجل', 'إسبريسو دبل', 'قهوة تركي سنجل', 'آيس كافي كراميل'],
-  'حليب': ['كابتشينو', 'ميلك شيك سبيشل', 'آيس كافي كراميل'],
-  'ليمون': ['عصير ليمون ونعناع', 'موهيتو'],
-  'نعناع': ['عصير ليمون ونعناع', 'موهيتو'],
-  'أفوكادو': ['عصير أفوكاتو'],
-  'افوكادو': ['عصير أفوكاتو'],
+  'قهوة':     ['كابتشينو','نسكافيه','إسبريسو سنجل','إسبريسو دبل','قهوة تركي سنجل','آيس كافي كراميل'],
+  'حليب':     ['كابتشينو','ميلك شيك سبيشل','آيس كافي كراميل'],
+  'ليمون':    ['عصير ليمون ونعناع','موهيتو'],
+  'نعناع':    ['عصير ليمون ونعناع','موهيتو'],
+  'أفوكادو':  ['عصير أفوكاتو'],
+  'افوكادو':  ['عصير أفوكاتو'],
 };
 
 // البحث عن ingredient في الأصناف
@@ -832,165 +830,165 @@ function findByIngredient(query) {
 const ITEM_ALIASES = {
 
   // ── فرشوحة ───────────────────────────────────────────────
-  'فراشيح': 'فرشوحة عادي', 'فراشيح عادية': 'فرشوحة عادي',
-  'فراشيح عادي': 'فرشوحة عادي', 'فرشوحات': 'فرشوحة عادي',
-  'فرشوحه': 'فرشوحة عادي',
+  'فراشيح':'فرشوحة عادي','فراشيح عادية':'فرشوحة عادي',
+  'فراشيح عادي':'فرشوحة عادي','فرشوحات':'فرشوحة عادي',
+  'فرشوحه':'فرشوحة عادي',
 
-  'دبل': 'فرشوحة دبل', 'فرشوحة دبله': 'فرشوحة دبل',
-  'فرشوحات دبل': 'فرشوحة دبل',
+  'دبل':'فرشوحة دبل','فرشوحة دبله':'فرشوحة دبل',
+  'فرشوحات دبل':'فرشوحة دبل',
 
-  'دوبل لحمة': 'فرشوحة دبل لحمة', 'دبل لحمة': 'فرشوحة دبل لحمة',
-  'دبل لحم': 'فرشوحة دبل لحمة', 'فرشوحه دبل لحمة': 'فرشوحة دبل لحمة',
-  'فراشيح دبل لحمة': 'فرشوحة دبل لحمة', 'فراشيح دوبل لحمة': 'فرشوحة دبل لحمة',
+  'دوبل لحمة':'فرشوحة دبل لحمة','دبل لحمة':'فرشوحة دبل لحمة',
+  'دبل لحم':'فرشوحة دبل لحمة','فرشوحه دبل لحمة':'فرشوحة دبل لحمة',
+  'فراشيح دبل لحمة':'فرشوحة دبل لحمة','فراشيح دوبل لحمة':'فرشوحة دبل لحمة',
 
-  'دبل دبل': 'فرشوحة دبل دبل', 'دوبل دوبل': 'فرشوحة دبل دبل',
+  'دبل دبل':'فرشوحة دبل دبل','دوبل دوبل':'فرشوحة دبل دبل',
 
-  'فراشيح شاورما': 'فرشوحة شاورما', 'فرشوحه شاورما': 'فرشوحة شاورما',
+  'فراشيح شاورما':'فرشوحة شاورما','فرشوحه شاورما':'فرشوحة شاورما',
 
   // ── شاورما ────────────────────────────────────────────────
-  'صحن': 'صحن شاورما', 'الصحن': 'صحن شاورما',
-  'شاورما عادي': 'صحن شاورما', 'شاورما صحن': 'صحن شاورما',
-  'صحن شاورما ب ٣٠': 'صحن شاورما', 'صحن شاورما ب 30': 'صحن شاورما',
+  'صحن':'صحن شاورما','الصحن':'صحن شاورما',
+  'شاورما عادي':'صحن شاورما','شاورما صحن':'صحن شاورما',
+  'صحن شاورما ب ٣٠':'صحن شاورما','صحن شاورما ب 30':'صحن شاورما',
 
-  'شاورما سوري': 'سوري', 'السوري': 'سوري',
+  'شاورما سوري':'سوري','السوري':'سوري',
 
-  'شاورما عربي': 'شاورما عربي', 'العربي': 'شاورما عربي', 'عربي': 'شاورما عربي',
+  'شاورما عربي':'شاورما عربي','العربي':'شاورما عربي','عربي':'شاورما عربي',
 
-  'شاورما ايطالي': 'شاورما إيطالي', 'ايطالي شاورما': 'شاورما إيطالي',
+  'شاورما ايطالي':'شاورما إيطالي','ايطالي شاورما':'شاورما إيطالي',
 
-  'صفيحه': 'صفيحة', 'صفايح': 'صفيحة', 'الصفيحة': 'صفيحة',
+  'صفيحه':'صفيحة','صفايح':'صفيحة','الصفيحة':'صفيحة',
 
-  'بيتا': 'بيتا شاورما', 'فراشيح شاورما': 'بيتا شاورما',
+  'بيتا':'بيتا شاورما','فراشيح شاورما':'بيتا شاورما',
 
-  'ميجا': 'ميجا شاورما', 'الميجا': 'ميجا شاورما',
+  'ميجا':'ميجا شاورما','الميجا':'ميجا شاورما',
 
   // ── إيطالي ────────────────────────────────────────────────
-  'كلزوني': 'كالزوني دجاج', 'الكلزوني': 'كالزوني دجاج',
-  'كاليزوني': 'كالزوني دجاج', 'كالزوني': 'كالزوني دجاج',
-  'كلزوني دجاج': 'كالزوني دجاج', 'الكالزوني': 'كالزوني دجاج',
+  'كلزوني':'كالزوني دجاج','الكلزوني':'كالزوني دجاج',
+  'كاليزوني':'كالزوني دجاج','كالزوني':'كالزوني دجاج',
+  'كلزوني دجاج':'كالزوني دجاج','الكالزوني':'كالزوني دجاج',
 
-  'كلزوني خضار': 'كالزوني خضار', 'كاليزوني خضار': 'كالزوني خضار',
+  'كلزوني خضار':'كالزوني خضار','كاليزوني خضار':'كالزوني خضار',
 
-  'مكسيكي': 'بيتزا مكسيكي دجاج', 'تشكن بيتزا': 'بيتزا مكسيكي دجاج',
-  'تشيكن بيتزا': 'بيتزا مكسيكي دجاج', 'بيتزا تشكن': 'بيتزا مكسيكي دجاج',
-  'بيتزا دجاج': 'بيتزا مكسيكي دجاج', 'دجاج بيتزا': 'بيتزا مكسيكي دجاج',
+  'مكسيكي':'بيتزا مكسيكي دجاج','تشكن بيتزا':'بيتزا مكسيكي دجاج',
+  'تشيكن بيتزا':'بيتزا مكسيكي دجاج','بيتزا تشكن':'بيتزا مكسيكي دجاج',
+  'بيتزا دجاج':'بيتزا مكسيكي دجاج','دجاج بيتزا':'بيتزا مكسيكي دجاج',
 
-  'ماما': 'بيتزا ماما روزا', 'ماما روزا': 'بيتزا ماما روزا',
+  'ماما':'بيتزا ماما روزا','ماما روزا':'بيتزا ماما روزا',
 
-  'بيتزا خضار': 'بيتزا خضار وذرة', 'خضار وذرة': 'بيتزا خضار وذرة',
+  'بيتزا خضار':'بيتزا خضار وذرة','خضار وذرة':'بيتزا خضار وذرة',
 
-  'مرغريتا': 'مارغريتا',
+  'مرغريتا':'مارغريتا',
 
-  'صوص': 'علبة صوص إكسترا', 'علبة صوص': 'علبة صوص إكسترا',
-  'اكسترا صوص': 'علبة صوص إكسترا', 'صوص اكسترا': 'علبة صوص إكسترا',
+  'صوص':'علبة صوص إكسترا','علبة صوص':'علبة صوص إكسترا',
+  'اكسترا صوص':'علبة صوص إكسترا','صوص اكسترا':'علبة صوص إكسترا',
 
   // ── ساندويش ───────────────────────────────────────────────
-  'الصاروخ': 'ستيك دجاج مشوي', 'صاروخ': 'ستيك دجاج مشوي',
-  'ستيك دجاج': 'ستيك دجاج مشوي', 'ستيك مشوي': 'ستيك دجاج مشوي',
+  'الصاروخ':'ستيك دجاج مشوي','صاروخ':'ستيك دجاج مشوي',
+  'ستيك دجاج':'ستيك دجاج مشوي','ستيك مشوي':'ستيك دجاج مشوي',
 
-  'زينجر': 'زنجر', 'الزنجر': 'زنجر',
-  'الزنجر العادي': 'زنجر', 'زنجر عادي': 'زنجر',
+  'زينجر':'زنجر','الزنجر':'زنجر',
+  'الزنجر العادي':'زنجر','زنجر عادي':'زنجر',
 
-  'بيغ زنجر': 'بيج زنجر', 'بيج زنقر': 'بيج زنجر',
+  'بيغ زنجر':'بيج زنجر','بيج زنقر':'بيج زنجر',
 
-  'بيغ ماك': 'بيج ماك', 'البيج ماك': 'بيج ماك',
+  'بيغ ماك':'بيج ماك','البيج ماك':'بيج ماك',
 
-  'وقية شيش': 'شيش طاووق', 'الشيش': 'شيش طاووق',
-  'شيش دجاج': 'شيش طاووق', 'شيش طاوق': 'شيش طاووق',
+  'وقية شيش':'شيش طاووق','الشيش':'شيش طاووق',
+  'شيش دجاج':'شيش طاووق','شيش طاوق':'شيش طاووق',
 
-  'بيف': 'بيف برجر', 'برجر بيف': 'بيف برجر',
+  'بيف':'بيف برجر','برجر بيف':'بيف برجر',
 
-  'تشيكن': 'تشيكن برجر', 'تشكن': 'تشيكن برجر',
-  'تشكن برجر': 'تشيكن برجر', 'دجاج برجر': 'تشيكن برجر',
-  'برجر دجاج': 'تشيكن برجر',
+  'تشيكن':'تشيكن برجر','تشكن':'تشيكن برجر',
+  'تشكن برجر':'تشيكن برجر','دجاج برجر':'تشيكن برجر',
+  'برجر دجاج':'تشيكن برجر',
 
-  'بانسيه': 'بانسية', 'بانيه': 'بانسية', 'دجاج بانيه': 'بانسية',
+  'بانسيه':'بانسية','بانيه':'بانسية','دجاج بانيه':'بانسية',
 
-  'فطيره': 'فطيرة ذهبية', 'الفطيرة': 'فطيرة ذهبية',
-  'فطيرة': 'فطيرة ذهبية',
+  'فطيره':'فطيرة ذهبية','الفطيرة':'فطيرة ذهبية',
+  'فطيرة':'فطيرة ذهبية',
 
   // ── سلطة ──────────────────────────────────────────────────
-  'بطاطا': 'بطاطا كبير', 'الشيبس': 'بطاطا كبير',
-  'شيبس بطاطس': 'بطاطا كبير', 'علبة بطاطا': 'بطاطا كبير',
-  'علب بطاطا': 'بطاطا كبير', 'صحن بطاطا': 'بطاطا كبير',
+  'بطاطا':'بطاطا كبير','الشيبس':'بطاطا كبير',
+  'شيبس بطاطس':'بطاطا كبير','علبة بطاطا':'بطاطا كبير',
+  'علب بطاطا':'بطاطا كبير','صحن بطاطا':'بطاطا كبير',
 
-  'سلطة مشكلة': 'سلطات وسط', 'صحن سلطه مشكل': 'سلطات وسط',
-  'سلطه': 'سلطات وسط',
+  'سلطة مشكلة':'سلطات وسط','صحن سلطه مشكل':'سلطات وسط',
+  'سلطه':'سلطات وسط',
 
-  'كولسلو': 'كول سلو', 'كولسلاو': 'كول سلو',
+  'كولسلو':'كول سلو','كولسلاو':'كول سلو',
 
-  'ذره': 'ذرة بمايونيز', 'ذرة مايونيز': 'ذرة بمايونيز',
-  'سلطة ذرة': 'ذرة بمايونيز', 'الذرة': 'ذرة بمايونيز',
+  'ذره':'ذرة بمايونيز','ذرة مايونيز':'ذرة بمايونيز',
+  'سلطة ذرة':'ذرة بمايونيز','الذرة':'ذرة بمايونيز',
 
-  'بيكانتي': 'بيكانتي', 'بيكانتو': 'بيكانتي', 'بيكانتى': 'بيكانتي',
+  'بيكانتي':'بيكانتي','بيكانتو':'بيكانتي','بيكانتى':'بيكانتي',
 
   // ── مشروبات ───────────────────────────────────────────────
-  'ايس كافي': 'آيس كافي كراميل', 'آيس كافي': 'آيس كافي كراميل',
-  'ايس كوفي': 'آيس كافي كراميل', 'ايس كافيه': 'آيس كافي كراميل',
-  'كافي كراميل': 'آيس كافي كراميل',
+  'ايس كافي':'آيس كافي كراميل','آيس كافي':'آيس كافي كراميل',
+  'ايس كوفي':'آيس كافي كراميل','ايس كافيه':'آيس كافي كراميل',
+  'كافي كراميل':'آيس كافي كراميل',
 
-  'كافي نوتيلا': 'آيس كافي نوتيلا', 'ايس كافي نوتيلا': 'آيس كافي نوتيلا',
+  'كافي نوتيلا':'آيس كافي نوتيلا','ايس كافي نوتيلا':'آيس كافي نوتيلا',
 
-  'نسكفيه': 'نسكافيه', 'ناسكافيه': 'نسكافيه',
+  'نسكفيه':'نسكافيه','ناسكافيه':'نسكافيه',
 
-  'اسبريسو': 'إسبريسو سنجل', 'اسبريسو سنجل': 'إسبريسو سنجل',
-  'اسبريسو دبل': 'إسبريسو دبل',
+  'اسبريسو':'إسبريسو سنجل','اسبريسو سنجل':'إسبريسو سنجل',
+  'اسبريسو دبل':'إسبريسو دبل',
 
-  'تركي': 'قهوة تركي سنجل', 'قهوة تركي': 'قهوة تركي سنجل',
-  'تركي دبل': 'قهوة تركي دبل',
+  'تركي':'قهوة تركي سنجل','قهوة تركي':'قهوة تركي سنجل',
+  'تركي دبل':'قهوة تركي دبل',
 
-  'كوكا': 'كولا كبير', 'كوكاكولا': 'كولا كبير', 'كوكا كولا': 'كولا كبير',
-  'كولا': 'كولا كبير',
+  'كوكا':'كولا كبير','كوكاكولا':'كولا كبير','كوكا كولا':'كولا كبير',
+  'كولا':'كولا كبير',
 
-  'سبريت': 'سبرايت',
+  'سبريت':'سبرايت',
 
-  'ملك شيك': 'ميلك شيك سبيشل', 'ملكشيك': 'ميلك شيك سبيشل',
-  'ميلك شيك': 'ميلك شيك سبيشل',
+  'ملك شيك':'ميلك شيك سبيشل','ملكشيك':'ميلك شيك سبيشل',
+  'ميلك شيك':'ميلك شيك سبيشل',
 
-  'موهيطو': 'موهيتو',
+  'موهيطو':'موهيتو',
 
-  'ليمون': 'عصير ليمون ونعناع', 'ليمون نعناع': 'عصير ليمون ونعناع',
+  'ليمون':'عصير ليمون ونعناع','ليمون نعناع':'عصير ليمون ونعناع',
 
-  'افوكاتو': 'عصير أفوكاتو', 'أفوكادو': 'عصير أفوكاتو',
+  'افوكاتو':'عصير أفوكاتو','أفوكادو':'عصير أفوكاتو',
 
-  'موسم': 'عصير الموسم', 'عصير موسم': 'عصير الموسم',
+  'موسم':'عصير الموسم','عصير موسم':'عصير الموسم',
 
   // ── حلويات ────────────────────────────────────────────────
-  'كنافه نوتيلا': 'كنافة نوتيلا',
-  'كنافه دبي': 'كنافة دبي',
-  'كنافه عربية': 'كنافة عربية', 'كنافه عربيه': 'كنافة عربية',
-  'كنافه نابلسية': 'كنافة نابلسية', 'نابلسيه': 'كنافة نابلسية',
-  'نابلسية': 'كنافة نابلسية',
+  'كنافه نوتيلا':'كنافة نوتيلا',
+  'كنافه دبي':'كنافة دبي',
+  'كنافه عربية':'كنافة عربية','كنافه عربيه':'كنافة عربية',
+  'كنافه نابلسية':'كنافة نابلسية','نابلسيه':'كنافة نابلسية',
+  'نابلسية':'كنافة نابلسية',
 
-  'مولتن': 'مولتن كيك', 'موتلن': 'مولتن كيك',
+  'مولتن':'مولتن كيك','موتلن':'مولتن كيك',
 
-  'وافله': 'وافل سنيك', 'وافلة': 'وافل سنيك', 'الوافل': 'وافل سنيك',
+  'وافله':'وافل سنيك','وافلة':'وافل سنيك','الوافل':'وافل سنيك',
 
-  'كريبة دبي': 'كريب دبي', 'كريبه دبي': 'كريب دبي',
+  'كريبة دبي':'كريب دبي','كريبه دبي':'كريب دبي',
 
-  'تشيزكيك': 'تشيز كيك', 'تشيز': 'تشيز كيك',
+  'تشيزكيك':'تشيز كيك','تشيز':'تشيز كيك',
 
-  'لوتس': 'جيلاتو لوتس', 'الجيلاتو': 'جيلاتو لوتس',
+  'لوتس':'جيلاتو لوتس','الجيلاتو':'جيلاتو لوتس',
 
-  'بقلاوه لوز': 'بقلاوة لوز',
+  'بقلاوه لوز':'بقلاوة لوز',
 
-  'بانكيك نوتيلا': 'بان كيك نوتيلا', 'بانكيك': 'بان كيك نوتيلا',
-  'بان كيك': 'بان كيك نوتيلا', 'pancake': 'بان كيك نوتيلا',
+  'بانكيك نوتيلا':'بان كيك نوتيلا','بانكيك':'بان كيك نوتيلا',
+  'بان كيك':'بان كيك نوتيلا','pancake':'بان كيك نوتيلا',
 
-  'بانكيك لوتس': 'بان كيك لوتس',
+  'بانكيك لوتس':'بان كيك لوتس',
 
-  'لقيمه نوتيلا': 'لقيمات نوتيلا', 'لقيمة نوتيلا': 'لقيمات نوتيلا',
-  'لقيمات': 'لقيمات نوتيلا',
+  'لقيمه نوتيلا':'لقيمات نوتيلا','لقيمة نوتيلا':'لقيمات نوتيلا',
+  'لقيمات':'لقيمات نوتيلا',
 
-  'لقيمه لوتس': 'لقيمات لوتس', 'لقيمة لوتس': 'لقيمات لوتس',
+  'لقيمه لوتس':'لقيمات لوتس','لقيمة لوتس':'لقيمات لوتس',
 };
 
 function findItem(query, onlyActive = false, branch = null) {
   // فحص ITEM_ALIASES + runtimeAliases أولاً
-  const rawQ = (query || '').trim();
-  const allAliases = { ...ITEM_ALIASES, ...(STATE.runtimeAliases || {}) };
-  for (const [alias, target] of Object.entries(allAliases)) {
-    if (normalize(rawQ).includes(normalize(alias)) || normalize(alias).includes(normalize(rawQ))) {
+  const rawQ = (query||'').trim();
+  const allAliases = {...ITEM_ALIASES,...(STATE.runtimeAliases||{})};
+  for (const [alias,target] of Object.entries(allAliases)) {
+    if (normalize(rawQ).includes(normalize(alias))||normalize(alias).includes(normalize(rawQ))) {
       query = target; break;
     }
   }
@@ -1076,9 +1074,9 @@ function findItem(query, onlyActive = false, branch = null) {
       // ✅ threshold صارم: أقصر الكلمة تحدد الـ threshold
       const minLen = Math.min(q.length, kn.length);
       const threshold = minLen <= 3 ? 0   // كلمات قصيرة: مطابقة تامة فقط
-        : minLen <= 5 ? 1   // كلمات متوسطة: خطأ واحد فقط
-          : minLen <= 8 ? 2   // كلمات طويلة: خطآن
-            : 3;               // كلمات طويلة جداً
+                      : minLen <= 5 ? 1   // كلمات متوسطة: خطأ واحد فقط
+                      : minLen <= 8 ? 2   // كلمات طويلة: خطآن
+                      : 3;               // كلمات طويلة جداً
 
       const dist = levenshtein(q, kn);
 
@@ -1106,9 +1104,9 @@ function findItem(query, onlyActive = false, branch = null) {
   return best;
 }
 
-function findSimilarItems(query, preferCat = null, limit = 3) {
+function findSimilarItems(query, preferCat=null, limit=3) {
   const q = normalize(query);
-  const active = STATE.items.filter(i => i.active && STATE.categories.find(c => c.id === i.cat && c.active));
+  const active = STATE.items.filter(i => i.active && STATE.categories.find(c => c.id===i.cat && c.active));
   return active
     .map(item => {
       let score = 999;
@@ -1116,7 +1114,7 @@ function findSimilarItems(query, preferCat = null, limit = 3) {
         const kn = normalize(k);
         score = Math.min(score, levenshtein(q, kn));
         for (const w of kn.split(' '))
-          if (w.length >= 3) score = Math.min(score, levenshtein(q.split(' ')[0] || q, w));
+          if (w.length >= 3) score = Math.min(score, levenshtein(q.split(' ')[0]||q, w));
       }
       if (preferCat && item.cat === preferCat) score -= 5;
       return { item, score };
@@ -1130,7 +1128,7 @@ function findSimilarItems(query, preferCat = null, limit = 3) {
 // CART HELPERS
 // ============================================================
 function cartTotal(c) { return c.reduce((s, i) => s + i.qty * i.price, 0); }
-function cartText(c) { return c.map(i => `• ${i.qty}x ${i.name} — ${i.qty * i.price} ₪`).join('\n'); }
+function cartText(c)  { return c.map(i => `• ${i.qty}x ${i.name} — ${i.qty * i.price} ₪`).join('\n'); }
 
 function addToCart(session, item, qty) {
   const ex = session.cart.find(c => c.name === item.name);
@@ -1151,14 +1149,14 @@ function removeFromCart(session, itemName) {
 // ============================================================
 function saveOrder(session, status = 'pending_payment') {
   const now = new Date();
-  const dateKey = now.toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' });
+  const dateKey = now.toLocaleDateString('ar-SA', {year:'numeric',month:'2-digit',day:'2-digit'});
   const order = {
     id: session.orderNum,
     dateKey,
     customerPhone: session.from,
     name: session.name,
     phone: session.phone,
-    items: session.cart.map(i => ({ ...i })),
+    items: session.cart.map(i => ({...i})),
     total: cartTotal(session.cart),
     deliveryFee: session.deliveryFee,
     grandTotal: cartTotal(session.cart) + session.deliveryFee,
@@ -1223,8 +1221,8 @@ function detectZone(address) {
 // ─── الخوارزمية الرئيسية ────────────────────────────────────
 // ترجع { driver, reason, score, warning }
 function selectDriver(order) {
-  const shift = getCurrentShift();
-  const zone = detectZone(order.address || '');
+  const shift   = getCurrentShift();
+  const zone    = detectZone(order.address || '');
   const grandTotal = order.grandTotal || 0;
   const isBigOrder = grandTotal >= 100; // طلب ضخم
 
@@ -1233,8 +1231,8 @@ function selectDriver(order) {
 
   // ── تقييم كل سائق ──
   const scored = active.map(d => {
-    let score = 0;
-    let flags = [];
+    let score   = 0;
+    let flags   = [];
 
     // 1. الفترة — أهم معيار (40 نقطة)
     const rightShift = d.shift === shift || d.shift === 'both';
@@ -1250,8 +1248,8 @@ function selectDriver(order) {
     // 3. العبء الحالي (20 نقطة — أقل أفضل)
     const active_orders = d.currentOrders?.length || 0;
     const maxA = d.maxActive || 3;
-    if (active_orders === 0) score += 20;
-    else if (active_orders < maxA) score += Math.round(20 * (1 - active_orders / maxA));
+    if (active_orders === 0)        score += 20;
+    else if (active_orders < maxA)  score += Math.round(20 * (1 - active_orders/maxA));
     else { score -= 20; flags.push('overloaded'); } // تجاوز الحد
 
     // 4. عدالة توزيع اليوم (10 نقطة — أقل طلبات اليوم = أحسن)
@@ -1270,17 +1268,17 @@ function selectDriver(order) {
   let warning = null;
 
   if (best.flags.includes('overloaded')) {
-    reason = `${best.driver.name} مشغول (${best.active_orders} طلب) — أفضل المتاحين`;
+    reason  = `${best.driver.name} مشغول (${best.active_orders} طلب) — أفضل المتاحين`;
     warning = 'overloaded';
   } else if (best.flags.includes('wrong_zone') && !best.flags.includes('wrong_shift')) {
-    reason = `${best.driver.name} — منطقته مختلفة لكن الأقرب متاحاً`;
+    reason  = `${best.driver.name} — منطقته مختلفة لكن الأقرب متاحاً`;
     warning = 'wrong_zone';
   } else if (best.flags.includes('wrong_shift')) {
-    reason = `${best.driver.name} — من فترة مختلفة (لا يوجد سائق من فترة ${shift === 'morning' ? 'الصباح' : 'المساء'})`;
+    reason  = `${best.driver.name} — من فترة مختلفة (لا يوجد سائق من فترة ${shift === 'morning' ? 'الصباح' : 'المساء'})`;
     warning = 'wrong_shift';
   } else {
     const parts = [];
-    if (best.rightShift) parts.push(`فترة ${shift === 'morning' ? 'صباحية' : 'مسائية'}`);
+    if (best.rightShift)   parts.push(`فترة ${shift === 'morning' ? 'صباحية' : 'مسائية'}`);
     if (best.coversZone && zone) parts.push(`يغطي ${zone}`);
     if (best.active_orders === 0) parts.push('متفرغ');
     reason = `${best.driver.name} — ${parts.join('، ')}`;
@@ -1298,9 +1296,9 @@ function applyDriverAssignment(order, driver) {
   if (!driver.currentOrders) driver.currentOrders = [];
   driver.currentOrders.push(order.id);
   driver.ordersToday = (driver.ordersToday || 0) + 1;
-  order.driverId = driver.id;
-  order.driverName = driver.name;
-  order.assignedAt = Date.now();
+  order.driverId    = driver.id;
+  order.driverName  = driver.name;
+  order.assignedAt  = Date.now();
   saveState();
   addLog(`🚗 #${order.id} → ${driver.name} (${driver.currentOrders.length} نشط، ${driver.ordersToday} اليوم)`);
 }
@@ -1328,13 +1326,13 @@ const CONFIRM_THRESHOLD = 3; // عدد مرات الاستخدام قبل يصي
 // سجّل استخدام alias مؤقت وارفعه للدائم إذا وصل العتبة
 // كلمات لا تُتعلّم أبداً كـ alias
 const LEARN_BLACKLIST = new Set([
-  'نعم', 'آه', 'اه', 'ايوه', 'أيوه', 'yes', 'يلا', 'ماشي', 'حاضر', 'تمام', 'اوكي', 'ok', 'صح', 'صحيح',
-  'مزبوط', 'زبط', 'انعم', 'حلو', 'موافق', 'اضيف', 'ضيفه', 'اطلبه', 'خذلي', 'بدي',
-  'لا', 'لأ', 'لاء', 'no', 'بلاش', 'مش', 'مو', 'ما', 'مش بدي', 'ما بدي',
-  'تأكيد', 'تاكيد', 'خلص', 'كفاية', 'ارسل', 'ابعت', 'send', 'يلا ارسل',
-  'الغاء', 'إلغاء', 'كنسل', 'بطل', 'وقف',
-  'شكرا', 'شكراً', 'يسلمو', 'مشكور', 'تسلم',
-  'مرحبا', 'هلا', 'سلام', 'صباح', 'مساء', 'كيف', 'اهلا',
+  'نعم','آه','اه','ايوه','أيوه','yes','يلا','ماشي','حاضر','تمام','اوكي','ok','صح','صحيح',
+  'مزبوط','زبط','انعم','حلو','موافق','اضيف','ضيفه','اطلبه','خذلي','بدي',
+  'لا','لأ','لاء','no','بلاش','مش','مو','ما','مش بدي','ما بدي',
+  'تأكيد','تاكيد','خلص','كفاية','ارسل','ابعت','send','يلا ارسل',
+  'الغاء','إلغاء','كنسل','بطل','وقف',
+  'شكرا','شكراً','يسلمو','مشكور','تسلم',
+  'مرحبا','هلا','سلام','صباح','مساء','كيف','اهلا',
 ]);
 
 function learnAlias(rawMsg, itemName) {
@@ -1358,7 +1356,7 @@ function learnAlias(rawMsg, itemName) {
   // سجّل في learnedAliases (عداد الاستخدام)
   if (!STATE.learnedAliases) STATE.learnedAliases = {};
   const key = rawNorm + '→' + normalize(itemName);
-  const entry = STATE.learnedAliases[key] || { raw: rawMsg, itemId: item.id, itemName, count: 0, permanent: false };
+  const entry = STATE.learnedAliases[key] || { raw:rawMsg, itemId:item.id, itemName, count:0, permanent:false };
   entry.count++;
   entry.lastSeen = new Date().toLocaleString('ar');
   STATE.learnedAliases[key] = entry;
@@ -1388,17 +1386,17 @@ async function askGroq(systemPrompt, userMsg) {
         model: 'llama-3.3-70b-versatile',
         messages: [
           { role: 'system', content: systemPrompt },
-          { role: 'user', content: userMsg },
+          { role: 'user',   content: userMsg },
         ],
         max_tokens: 120,
         temperature: 0.0, // 0 = أكثر دقة وثبات
       });
       const req = https.request({
         hostname: 'api.groq.com',
-        path: '/openai/v1/chat/completions',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+        path:     '/openai/v1/chat/completions',
+        method:   'POST',
+        headers:  {
+          'Content-Type':  'application/json',
           'Authorization': `Bearer ${GROQ_KEY}`,
           'Content-Length': Buffer.byteLength(body),
         },
@@ -1412,7 +1410,7 @@ async function askGroq(systemPrompt, userMsg) {
       req.end();
     });
     return res.choices?.[0]?.message?.content?.trim() || null;
-  } catch (e) {
+  } catch(e) {
     console.log('⚠️ Groq:', e.message);
     return null;
   }
@@ -1429,8 +1427,8 @@ function buildItemsList() {
 // يحاول يفهم الرسالة بـ AI
 async function tryAIUnderstand(from, rawMsg, session) {
   const itemsList = buildItemsList();
-  const cartInfo = session?.cart?.length
-    ? `السلة الحالية: ${session.cart.map(i => `${i.qty}x ${i.name}`).join(', ')}`
+  const cartInfo  = session?.cart?.length
+    ? `السلة الحالية: ${session.cart.map(i=>`${i.qty}x ${i.name}`).join(', ')}`
     : 'السلة فارغة';
 
   // سياق المحادثة — آخر 5 رسائل
@@ -1443,7 +1441,7 @@ async function tryAIUnderstand(from, rawMsg, session) {
     : '';
 
   // قائمة مختصرة
-  const itemsShort = STATE.items.filter(i => i.active).map(i => i.name).join('، ');
+  const itemsShort = STATE.items.filter(i=>i.active).map(i=>i.name).join('، ');
 
   const systemPrompt = `أنت مساعد طلبات مطعم ${STATE.settings.name} في غزة.
 الزبائن يكتبون بلهجة فلسطينية وعامية.
@@ -1484,10 +1482,10 @@ UNKNOWN                  ← ما فهمت
 
   // تعلّم تلقائياً من إجابة AI
   if (aiResponse.startsWith('ORDER:')) {
-    const parts = aiResponse.split(':');
+    const parts    = aiResponse.split(':');
     const itemName = parts[1]?.trim();
-    const qty = parseInt(parts[2]) || 1;
-    const item = STATE.items.find(i => normalize(i.name) === normalize(itemName || ''));
+    const qty      = parseInt(parts[2]) || 1;
+    const item     = STATE.items.find(i => normalize(i.name) === normalize(itemName || ''));
 
     if (item && item.active) {
       const rawNorm = normalize(rawMsg);
@@ -1495,7 +1493,7 @@ UNKNOWN                  ← ما فهمت
 
       // تعلّم تراكمي
       learnAlias(rawMsg, item.name);
-      const unkEntry = (STATE.unknowns || []).find(u => u.raw === rawMsg);
+      const unkEntry = (STATE.unknowns||[]).find(u => u.raw === rawMsg);
       if (unkEntry) { unkEntry.status = 'added'; unkEntry.aiLearned = true; }
 
       // اسأل للتأكيد فقط إذا جديد كلياً ومختلف كثيراً
@@ -1519,9 +1517,9 @@ UNKNOWN                  ← ما فهمت
     const itemName = aiResponse.split(':')[1]?.trim();
     const item = STATE.items.find(i => normalize(i.name) === normalize(itemName || ''));
     if (item) {
-      session.state = 'pending_item';
+      session.state       = 'pending_item';
       session.pendingItem = item;
-      session.pendingQty = 1;
+      session.pendingQty  = 1;
       return `${item.name} — *${item.price} ₪*\n\nبدك تطلبه؟ (نعم / لا)`;
     }
   }
@@ -1577,28 +1575,26 @@ UNKNOWN                  ← ما فهمت
 // ============================================================
 // LEARNING SYSTEM
 // ============================================================
-function logUnknown(from, rawMsg, ctx = {}) {
-  if (!rawMsg || rawMsg.length < 2) return;
+function logUnknown(from, rawMsg, ctx={}) {
+  if (!rawMsg||rawMsg.length<2) return;
   // لا تسجّل التحيات والثرثرة الاجتماعية
   const t = normalize(rawMsg);
   const isSocial = /^(مرحبا|هلا|سلام|كيف حالك|كيف الحال|شو اخبارك|كيفك|صباح|مساء|يسلمو|شكرا|تمام|اوكي|مزبوط)/.test(t);
   if (isSocial && rawMsg.length < 25) return;
-  if (!STATE.unknowns) STATE.unknowns = [];
-  const ex = STATE.unknowns.find(u => u.raw === rawMsg);
-  if (ex) { ex.count = (ex.count || 1) + 1; ex.lastSeen = new Date().toLocaleString('ar'); }
-  else STATE.unknowns.push({
-    raw: rawMsg, from: from.slice(-6), count: 1,
-    firstSeen: new Date().toLocaleString('ar'), lastSeen: new Date().toLocaleString('ar'),
-    context: { state: ctx.state || null, cartItems: ctx.cartItems || 0 }, suggested: null, status: 'new'
-  });
-  if (STATE.unknowns.length > 500) STATE.unknowns = STATE.unknowns.slice(-500);
+  if (!STATE.unknowns) STATE.unknowns=[];
+  const ex = STATE.unknowns.find(u=>u.raw===rawMsg);
+  if (ex) { ex.count=(ex.count||1)+1; ex.lastSeen=new Date().toLocaleString('ar'); }
+  else STATE.unknowns.push({raw:rawMsg,from:from.slice(-6),count:1,
+    firstSeen:new Date().toLocaleString('ar'),lastSeen:new Date().toLocaleString('ar'),
+    context:{state:ctx.state||null,cartItems:ctx.cartItems||0},suggested:null,status:'new'});
+  if (STATE.unknowns.length>500) STATE.unknowns=STATE.unknowns.slice(-500);
   analyzeUnknown(rawMsg); saveState();
 }
 
 function analyzeUnknown(rawMsg) {
-  const entry = (STATE.unknowns || []).find(u => u.raw === rawMsg);
-  if (!entry || entry.suggested || entry.status !== 'new') return;
-  const q = normalize(rawMsg);
+  const entry=(STATE.unknowns||[]).find(u=>u.raw===rawMsg);
+  if (!entry||entry.suggested||entry.status!=='new') return;
+  const q=normalize(rawMsg);
 
   // 1. هل يشبه اسم قسم؟
   const catResult = detectCategoryQuery(rawMsg);
@@ -1624,12 +1620,10 @@ function analyzeUnknown(rawMsg) {
   // 2. هل يشبه اسم صنف؟ (levenshtein)
   for (const item of STATE.items) {
     for (const key of item.keys) {
-      const d = levenshtein(q, normalize(key));
-      if (d <= 2 && d > 0) {
-        entry.suggested = {
-          type: 'alias', targetItem: item.name, targetId: item.id,
-          confidence: d === 1 ? 'high' : 'medium', hint: `"${rawMsg}" → قريب من "${key}" في ${item.name}`
-        };
+      const d=levenshtein(q,normalize(key));
+      if (d<=2&&d>0) {
+        entry.suggested={type:'alias',targetItem:item.name,targetId:item.id,
+          confidence:d===1?'high':'medium',hint:`"${rawMsg}" → قريب من "${key}" في ${item.name}`};
         return;
       }
     }
@@ -1640,10 +1634,8 @@ function analyzeUnknown(rawMsg) {
     for (const key of item.keys) {
       const kn = normalize(key);
       if (q.includes(kn) || kn.includes(q)) {
-        entry.suggested = {
-          type: 'alias', targetItem: item.name, targetId: item.id,
-          confidence: 'medium', hint: `"${rawMsg}" يحتوي "${item.name}"`
-        };
+        entry.suggested={type:'alias',targetItem:item.name,targetId:item.id,
+          confidence:'medium',hint:`"${rawMsg}" يحتوي "${item.name}"`};
         return;
       }
     }
@@ -1654,44 +1646,44 @@ function analyzeUnknown(rawMsg) {
 // CHAT ANALYZER — تحليل تصدير واتساب
 // ============================================================
 function analyzeChatExport(rawText) {
-  const aD = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9' };
-  const toN = s => s.replace(/[٠-٩]/g, d => aD[d] || d);
-  const LINE_RX = /^[\d٠-٩‏\u200f\/،,\s:]+[صمءٌٍ]?\s*-\s*(.+?):\s*(.*)$/u;
-  const msgs = []; let cur = null;
+  const aD={'٠':'0','١':'1','٢':'2','٣':'3','٤':'4','٥':'5','٦':'6','٧':'7','٨':'8','٩':'9'};
+  const toN = s=>s.replace(/[٠-٩]/g,d=>aD[d]||d);
+  const LINE_RX=/^[\d٠-٩‏\u200f\/،,\s:]+[صمءٌٍ]?\s*-\s*(.+?):\s*(.*)$/u;
+  const msgs=[]; let cur=null;
   for (const ln of rawText.split('\n')) {
-    const line = ln.trim();
-    if (!line || line.includes('<تم استبعاد')) continue;
-    const m = LINE_RX.exec(line);
-    if (m) { if (cur) msgs.push(cur); cur = { sender: m[1].trim(), text: m[2].trim() }; }
-    else if (cur) cur.text += '\n' + line;
+    const line=ln.trim();
+    if (!line||line.includes('<تم استبعاد')) continue;
+    const m=LINE_RX.exec(line);
+    if (m) { if(cur)msgs.push(cur); cur={sender:m[1].trim(),text:m[2].trim()}; }
+    else if (cur) cur.text+='\n'+line;
   }
-  if (cur) msgs.push(cur);
-  const cnt = {}; msgs.forEach(m => { cnt[m.sender] = (cnt[m.sender] || 0) + 1; });
-  const sorted = Object.entries(cnt).sort((a, b) => b[1] - a[1]);
-  const rest = sorted[0]?.[0]?.includes('Rest') || sorted[0]?.[0]?.includes('O2') ? sorted[0][0] : sorted[1]?.[0] || null;
-  const custMsgs = msgs.filter(m => m.sender !== rest);
-  const QTY = /^(\d+)\s*[xX×]?\s*(.+)$/;
-  const aliasMap = {}, unknMap = {}, statMap = {};
+  if(cur)msgs.push(cur);
+  const cnt={}; msgs.forEach(m=>{cnt[m.sender]=(cnt[m.sender]||0)+1;});
+  const sorted=Object.entries(cnt).sort((a,b)=>b[1]-a[1]);
+  const rest=sorted[0]?.[0]?.includes('Rest')||sorted[0]?.[0]?.includes('O2')?sorted[0][0]:sorted[1]?.[0]||null;
+  const custMsgs=msgs.filter(m=>m.sender!==rest);
+  const QTY=/^(\d+)\s*[xX×]?\s*(.+)$/;
+  const aliasMap={}, unknMap={}, statMap={};
   for (const msg of custMsgs) {
     for (const line of msg.text.split('\n')) {
-      const l = toN(line.trim()).replace(/\s*(بدون|بس|فقط)\s*.+/gi, '').trim();
-      const m = QTY.exec(l); if (!m) continue;
-      const qty = parseInt(m[1]); const name = m[2].trim();
-      if (qty < 1 || qty > 99 || name.length < 2) continue;
-      const key = normalize(name);
-      if (!statMap[key]) statMap[key] = { name, count: 0 };
-      statMap[key].count += qty;
-      let found = null;
-      for (const item of STATE.items) { for (const k of item.keys) { const kn = normalize(k); if (kn === key || kn.includes(key) || key.includes(kn)) { found = item; break; } } if (found) break; }
-      if (found) { const already = found.keys.some(k => normalize(k) === key); if (!already) { if (!aliasMap[key]) aliasMap[key] = { alias: name, itemId: found.id, itemName: found.name, type: 'contains', count: 0 }; aliasMap[key].count += qty; } }
-      else { if (!unknMap[key]) unknMap[key] = { name, count: 0 }; unknMap[key].count += qty; }
+      const l=toN(line.trim()).replace(/\s*(بدون|بس|فقط)\s*.+/gi,'').trim();
+      const m=QTY.exec(l); if(!m)continue;
+      const qty=parseInt(m[1]); const name=m[2].trim();
+      if(qty<1||qty>99||name.length<2)continue;
+      const key=normalize(name);
+      if(!statMap[key])statMap[key]={name,count:0};
+      statMap[key].count+=qty;
+      let found=null;
+      for(const item of STATE.items){for(const k of item.keys){const kn=normalize(k);if(kn===key||kn.includes(key)||key.includes(kn)){found=item;break;}}if(found)break;}
+      if(found){const already=found.keys.some(k=>normalize(k)===key);if(!already){if(!aliasMap[key])aliasMap[key]={alias:name,itemId:found.id,itemName:found.name,type:'contains',count:0};aliasMap[key].count+=qty;}}
+      else{if(!unknMap[key])unknMap[key]={name,count:0};unknMap[key].count+=qty;}
     }
   }
   return {
-    stats: { totalMessages: msgs.length, customerMessages: custMsgs.length, restaurantSender: rest || '—' },
-    aliases: Object.values(aliasMap).sort((a, b) => b.count - a.count),
-    unknownItems: Object.values(unknMap).sort((a, b) => b.count - a.count),
-    topItems: Object.values(statMap).sort((a, b) => b.count - a.count).slice(0, 20),
+    stats:{totalMessages:msgs.length,customerMessages:custMsgs.length,restaurantSender:rest||'—'},
+    aliases:Object.values(aliasMap).sort((a,b)=>b.count-a.count),
+    unknownItems:Object.values(unknMap).sort((a,b)=>b.count-a.count),
+    topItems:Object.values(statMap).sort((a,b)=>b.count-a.count).slice(0,20),
   };
 }
 
@@ -1702,7 +1694,7 @@ function getMenuText(cat) {
   const items = STATE.items.filter(i => i.cat === cat && i.active);
   if (!items.length) return 'هاد القسم مش متوفر الحين 😅';
   const label = (STATE.categories.find(c => c.id === cat) || {}).label
-    || (({ شاورما: '🥙', ايطالي: '🍕', ساندويش: '🍔', سلطة: '🥗', مشروبات: '☕', حلويات: '🍰' })[cat] || '🍽️') + ' ' + cat;
+    || (({ شاورما:'🥙', ايطالي:'🍕', ساندويش:'🍔', سلطة:'🥗', مشروبات:'☕', حلويات:'🍰' })[cat] || '🍽️') + ' ' + cat;
   const width = items.reduce((m, i) => Math.max(m, [...i.name].length), 0);
   return [
     `${label}   _(${items.length} صنف)_`,
@@ -1714,49 +1706,49 @@ function getMenuText(cat) {
 
 // ── كلمات كل قسم ──────────────────────────────────────────
 const CAT_KEYWORDS = {
-  'شاورما': [
-    'شاورما', 'الشاورما', 'شاورمه', 'الشاورمه', 'شورما',
-    'فرشوحة', 'فرشوحه', 'فراشيح', 'فراشيح', 'صفيحة', 'صفيحه', 'صفايح',
-    'صحن شاورما', 'بيتا شاورما', 'باشكا', 'ميجا',
+  'شاورما':  [
+    'شاورما','الشاورما','شاورمه','الشاورمه','شورما',
+    'فرشوحة','فرشوحه','فراشيح','فراشيح','صفيحة','صفيحه','صفايح',
+    'صحن شاورما','بيتا شاورما','باشكا','ميجا',
   ],
-  'ايطالي': [
-    'بيتزا', 'بيتزه', 'البيتزا', 'بيتزات', 'بيتزة',
-    'ايطالي', 'إيطالي', 'الايطالي', 'إيطالية', 'ايطالية',
-    'كالزوني', 'كالزوني', 'كلزوني', 'الكلزوني', 'كاليزوني',
-    'نابولي', 'مارغريتا', 'مرغريتا',
+  'ايطالي':  [
+    'بيتزا','بيتزه','البيتزا','بيتزات','بيتزة',
+    'ايطالي','إيطالي','الايطالي','إيطالية','ايطالية',
+    'كالزوني','كالزوني','كلزوني','الكلزوني','كاليزوني',
+    'نابولي','مارغريتا','مرغريتا',
   ],
   'ساندويش': [
-    'ساندويش', 'ساندويشات', 'ساندوتش', 'ساندوتشات', 'ساندويشه',
-    'برجر', 'برغر', 'البرجر', 'برجرات',
-    'شيش', 'شيش طاووق', 'ستيك',
-    'باربكيو', 'بانسية', 'باريه', 'بانيه',
-    'فطيرة', 'فطيره',
+    'ساندويش','ساندويشات','ساندوتش','ساندوتشات','ساندويشه',
+    'برجر','برغر','البرجر','برجرات',
+    'شيش','شيش طاووق','ستيك',
+    'باربكيو','بانسية','باريه','بانيه',
+    'فطيرة','فطيره',
   ],
-  'سلطة': [
-    'سلطة', 'سلطه', 'سلطات', 'سلطات',
-    'بطاطا', 'شيبس',
-    'كول سلو', 'كولسلو',
-    'بيكانتي', 'ذرة', 'ذره',
+  'سلطة':    [
+    'سلطة','سلطه','سلطات','سلطات',
+    'بطاطا','شيبس',
+    'كول سلو','كولسلو',
+    'بيكانتي','ذرة','ذره',
   ],
   'مشروبات': [
-    'مشروبات', 'مشروب', 'مشروبه',
-    'قهوة', 'قهوه', 'قهوه',
-    'كافي', 'كوفي', 'ايس كافي', 'آيس كافي', 'ايس كوفي',
-    'كابتشينو', 'اسبريسو', 'اسبريسو', 'نسكافيه',
-    'عصير', 'عصائر', 'ليمون', 'موهيتو', 'ميلك شيك',
-    'كولا', 'كوكاكولا', 'بيبسي', 'سبرايت', 'ميرندا',
+    'مشروبات','مشروب','مشروبه',
+    'قهوة','قهوه','قهوه',
+    'كافي','كوفي','ايس كافي','آيس كافي','ايس كوفي',
+    'كابتشينو','اسبريسو','اسبريسو','نسكافيه',
+    'عصير','عصائر','ليمون','موهيتو','ميلك شيك',
+    'كولا','كوكاكولا','بيبسي','سبرايت','ميرندا',
     'شاي',
   ],
-  'حلويات': [
-    'حلويات', 'حلو', 'حلوه', 'حلوى', 'حلاوة', 'حلاوه',
-    'كيك', 'تشيز كيك', 'مولتن كيك',
-    'كنافة', 'كنافه', 'كنافة دبي', 'كنافة نوتيلا',
-    'وافل', 'وافله', 'وافلة',
-    'بان كيك', 'بانكيك', 'بانكيك نوتيلا',
-    'لقيمات', 'لقيمه',
-    'جيلاتو', 'لوتس',
-    'كريب دبي', 'كريبة',
-    'بقلاوة', 'بقلاوه',
+  'حلويات':  [
+    'حلويات','حلو','حلوه','حلوى','حلاوة','حلاوه',
+    'كيك','تشيز كيك','مولتن كيك',
+    'كنافة','كنافه','كنافة دبي','كنافة نوتيلا',
+    'وافل','وافله','وافلة',
+    'بان كيك','بانكيك','بانكيك نوتيلا',
+    'لقيمات','لقيمه',
+    'جيلاتو','لوتس',
+    'كريب دبي','كريبة',
+    'بقلاوة','بقلاوه',
   ],
 };
 
@@ -1773,7 +1765,7 @@ function detectCategoryQuery(text) {
   const catKey = '__cat__' + t;
   if (rta[catKey]) return rta[catKey];
   // أيضاً: فحص بدون prefix
-  for (const [k, v] of Object.entries(rta)) {
+  for (const [k,v] of Object.entries(rta)) {
     if (k.startsWith('__cat__') && k.slice(7) === t) return v;
   }
 
@@ -1895,7 +1887,7 @@ function parseComplexMessage(text) {
   const itemVerbMatch = t.match(REPLACE_ITEM_THEN_VERB);
   if (itemVerbMatch) {
     const fromPart = itemVerbMatch[1].trim().replace(/^ال/, '').trim();
-    const toPart = itemVerbMatch[2].trim().replace(/^(?:بـ?|لـ?)(?=\S)/, '').trim();
+    const toPart   = itemVerbMatch[2].trim().replace(/^(?:بـ?|لـ?)(?=\S)/, '').trim();
     if (fromPart.length > 1 && toPart.length > 1) {
       actions.push({ type: 'replace', from: fromPart, to: toPart });
       return actions;
@@ -2061,11 +2053,11 @@ function handleComplexOrder(session, text, inOrdering = false) {
   if (!inOrdering) session.state = 'ordering';
 
   let reply = '';
-  if (added.length) reply += `✅ أُضيف: ${added.join('، ')}\n`;
-  if (removed.length) reply += `🗑️ شُيل: ${removed.join('، ')}\n`;
-  if (replaced.length) reply += `🔄 بُدّل: ${replaced.join(' | ')}\n`;
+  if (added.length)       reply += `✅ أُضيف: ${added.join('، ')}\n`;
+  if (removed.length)     reply += `🗑️ شُيل: ${removed.join('، ')}\n`;
+  if (replaced.length)    reply += `🔄 بُدّل: ${replaced.join(' | ')}\n`;
   if (unavailable.length) reply += `❌ غير متوفر: ${unavailable.join('، ')}\n`;
-  if (notFound.length) reply += `🤔 مش في سلتك: ${notFound.join('، ')}\n`;
+  if (notFound.length)    reply += `🤔 مش في سلتك: ${notFound.join('، ')}\n`;
 
   if (session.cart.length) {
     reply += `\n🛒 السلة:\n${cartText(session.cart)}\nالمجموع: ${cartTotal(session.cart)} ₪\n\nفي غير شي؟ أو أرسل *تأكيد* ✅`;
@@ -2175,7 +2167,7 @@ function classifyAndParse(rawLine) {
 
 // hashMsg: بصمة مختصرة للرسالة لكشف الإعادة
 function hashMsg(raw) {
-  return raw.replace(/\s+/g, '').slice(0, 60);
+  return raw.replace(/\s+/g,'').slice(0, 60);
 }
 
 function tryQuickOrder(session, raw, inOrdering = false) {
@@ -2280,7 +2272,7 @@ ${cartText(session.cart)}
     const currentItemIds = new Set(session.cart.map(i => i.id));
     const newItemIds = pendingCart.map(p => p.item.id);
     const allNew = newItemIds.every(id => !currentItemIds.has(id));
-
+    
     if (allNew && newItemIds.length >= 2) {
       // أصناف جديدة كلياً — ابدأ طلب جديد بدل الإضافة
       // امسح السلة القديمة وابدأ من جديد
@@ -2291,7 +2283,7 @@ ${cartText(session.cart)}
   }
 
   // الآن أضف للسلة
-  for (const { item, qty } of pendingCart) {
+  for (const {item, qty} of pendingCart) {
     addToCart(session, item, qty);
   }
 
@@ -2327,15 +2319,15 @@ ${cartText(session.cart)}
 // ============================================================
 // MISC HELPERS
 // ============================================================
-function buildUnavailableMsg(itemName, query, cat = null) {
-  const orig = STATE.items.find(i => normalize(i.name) === normalize(itemName));
-  const preferCat = cat || orig?.cat || null;
-  const similar = findSimilarItems(query || itemName, preferCat, 3);
+function buildUnavailableMsg(itemName, query, cat=null) {
+  const orig = STATE.items.find(i => normalize(i.name)===normalize(itemName));
+  const preferCat = cat||orig?.cat||null;
+  const similar = findSimilarItems(query||itemName, preferCat, 3);
   let msg = `عذراً، *${itemName}* غير متوفر حالياً 😔`;
   if (similar.length) {
-    const same = similar.filter(i => i.cat === preferCat);
+    const same = similar.filter(i => i.cat===preferCat);
     msg += '\n\nبس عندنا من نفس الفئة:\n';
-    msg += (same.length ? same : similar).map(i => `• ${i.name} — ${i.price} ₪`).join('\n');
+    msg += (same.length?same:similar).map(i=>`• ${i.name} — ${i.price} ₪`).join('\n');
     msg += '\n\nبدك تطلب أحد هالأصناف؟ 😊';
   }
   return msg;
@@ -2346,7 +2338,7 @@ function isQuestion(t) {
     /[؟?]$/.test(t.trim()) || /\bبكم\b|\bسعر\b/.test(t) ||
     /^(في|فيه|هل|عندكم|متوفر|في عندكم|بتعملوا)/i.test(t);
 }
-function isOrder(t) { return /بدي|عايز|اريد|أريد|اطلب|خذلي|حطلي|اضيف|زودني|i want|order|give me|add/.test(t); }
+function isOrder(t)    { return /بدي|عايز|اريد|أريد|اطلب|خذلي|حطلي|اضيف|زودني|i want|order|give me|add/.test(t); }
 function isComplex(t) {
   return (
     // حذف: شيل / احذف / امسح / ما بدي / مش بدي / لغِّ / روّح / بدي اشيل
@@ -2363,7 +2355,7 @@ function isComplex(t) {
 }
 
 const rand = arr => arr[Math.floor(Math.random() * arr.length)];
-const WAIT_MSGS = ['تمام! 👍', 'اوك حبيبي! 👌', 'ماشي!'];
+const WAIT_MSGS    = ['تمام! 👍', 'اوك حبيبي! 👌', 'ماشي!'];
 const CONFIRM_MSGS = ['هاد كل شي؟ 😊', 'في غير شي؟', 'شو رأيك بإضافة حلوى أو مشروب؟ 😄'];
 
 // ============================================================
@@ -2377,7 +2369,7 @@ async function sendToGroup(text) {
       : STATE.settings.groupId.trim() + '@g.us';
     if (!waSocket) { console.log('⚠️ لا اتصال — لم يُرسل إشعار القروب'); return null; }
     return await waSocket.sendMessage(chatId, { text });
-  } catch (e) {
+  } catch(e) {
     console.log('خطأ في القروب:', e.message);
     return null;
   }
@@ -2422,7 +2414,7 @@ function activeCategories(branch) {
   return STATE.categories.filter(c => isCatVisible(c, branch));
 }
 
-const NUM_EMOJI = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟'];
+const NUM_EMOJI = ['1️⃣','2️⃣','3️⃣','4️⃣','5️⃣','6️⃣','7️⃣','8️⃣','9️⃣','🔟'];
 const SEP = '━━━━━━━━━━━━━━━';
 
 /** أسطر الأقسام المرقّمة — تُستخدم في البداية وفي نهاية كل قسم */
@@ -2487,7 +2479,7 @@ function branchList() {
 /** نسخة مستقلة من صنف — المصفوفات (keys/variants) لا تُشارك بين النسخ */
 function cloneItem(item, extra) {
   const c = { ...item, ...extra };
-  if (Array.isArray(item.keys)) c.keys = [...item.keys];
+  if (Array.isArray(item.keys))     c.keys = [...item.keys];
   if (Array.isArray(item.variants)) c.variants = item.variants.map(v => ({ ...v }));
   return c;
 }
@@ -2584,7 +2576,7 @@ function normalizeBranchData() {
 
   // (3) الحسابات والإعدادات
   for (const u of (STATE.users || [])) {
-    if (u.branch && !ids.includes(u.branch)) { u.branch = 'middle'; changes++; }
+    if (u.branch && !ids.includes(u.branch))         { u.branch = 'middle';     changes++; }
     if (u.deptBranch && !ids.includes(u.deptBranch)) { u.deptBranch = 'middle'; changes++; }
   }
   if (STATE.settings.activeBranch && !ids.includes(STATE.settings.activeBranch)) {
@@ -2674,12 +2666,12 @@ function isBranchAcceptingOrders(branch) {
 }
 
 function branchQuestion() {
-  const nums = ['1️⃣', '2️⃣', '3️⃣', '4️⃣'];
+  const nums = ['1️⃣','2️⃣','3️⃣','4️⃣'];
   return [
     `👋 أهلاً بك في *${STATE.settings.name}*`,
     SEP,
     'اختر الفرع الأقرب لك:',
-    ...branchList().map((b, i) => `${nums[i] || (i + 1) + '.'}  ${b.label}`),
+    ...branchList().map((b, i) => `${nums[i] || (i+1)+'.'}  ${b.label}`),
   ].join('\n');
 }
 
@@ -2825,7 +2817,7 @@ async function handleStaffCommand(from, raw) {
     auth.audit(user, opening ? 'menu.open' : 'menu.close', item.name,
       opening ? 'تفعيل الصنف' : 'إغلاق الصنف', 'whatsapp');
     addLog(`${opening ? '✅ فُعّل' : '🚫 أُغلق'}: ${item.name} — ${user.displayName}`);
-    notifyStaffAvailability(item, user.displayName).catch(() => { });
+    notifyStaffAvailability(item, user.displayName).catch(()=>{});
     return `${opening ? '✅' : '🚫'} *${item.name}* أصبح ${opening ? 'متوفراً' : 'غير متوفر'} في ${branchLabel(item.branch)} — بواسطة ${user.displayName}`;
   }
 
@@ -3046,87 +3038,87 @@ async function handleMessage(msg) {
   //   }
   // }
 
-  //   // وضع الموظف البشري
-  //   if (STATE.settings.transferMode) {
-  //     let q = STATE.queue.find(q => q.phone === from);
-  //     if (!q) {
-  //       q = { phone: from, time: new Date().toLocaleTimeString('ar'), msgs: [] };
-  //       STATE.queue.push(q);
-  //       addLog(`👨‍💼 زبون في الانتظار: ${from}`);
-  //     }
-  //     q.msgs.push(rawOriginal);
-  //     if (q.msgs.length > 50) q.msgs = q.msgs.slice(-50);
-  //     saveState();
-  //     return `شكراً! أحد موظفينا سيتواصل معك قريباً 👨‍💼\nأوقات الدوام: ${STATE.settings.hours}`;
-  //   }
+//   // وضع الموظف البشري
+//   if (STATE.settings.transferMode) {
+//     let q = STATE.queue.find(q => q.phone === from);
+//     if (!q) {
+//       q = { phone: from, time: new Date().toLocaleTimeString('ar'), msgs: [] };
+//       STATE.queue.push(q);
+//       addLog(`👨‍💼 زبون في الانتظار: ${from}`);
+//     }
+//     q.msgs.push(rawOriginal);
+//     if (q.msgs.length > 50) q.msgs = q.msgs.slice(-50);
+//     saveState();
+//     return `شكراً! أحد موظفينا سيتواصل معك قريباً 👨‍💼\nأوقات الدوام: ${STATE.settings.hours}`;
+//   }
 
-  //   // إلغاء
-  //   if (/^(الغاء|إلغاء|كنسل|بطل|وقف)$/.test(text)) {
-  //     clearPendingOrder(from);
-  //     resetSession(from);
-  //     return 'تم الإلغاء ❌ أهلاً بك في أي وقت 🌿';
-  //   }
+//   // إلغاء
+//   if (/^(الغاء|إلغاء|كنسل|بطل|وقف)$/.test(text)) {
+//     clearPendingOrder(from);
+//     resetSession(from);
+//     return 'تم الإلغاء ❌ أهلاً بك في أي وقت 🌿';
+//   }
 
-  //   // ====== طلب معلق — تحقق عند أول رسالة للزبون ======
-  //   if (!session.state && !session.cart.length) {
-  //     const po = getPendingOrder(from);
-  //     if (po) {
-  //       // زبون عنده طلب معلق — نسأله
-  //       session.state = 'pending_order_choice';
-  //       session._pendingOrder = po;
-  //       const age = Math.round((Date.now() - po.savedAt) / 60000);
-  //       const ageText = age < 60 ? `منذ ${age} دقيقة` : `منذ ${Math.round(age/60)} ساعة`;
-  //       return `مرحباً! 👋 عندك طلب غير مكتمل (${ageText}):
+//   // ====== طلب معلق — تحقق عند أول رسالة للزبون ======
+//   if (!session.state && !session.cart.length) {
+//     const po = getPendingOrder(from);
+//     if (po) {
+//       // زبون عنده طلب معلق — نسأله
+//       session.state = 'pending_order_choice';
+//       session._pendingOrder = po;
+//       const age = Math.round((Date.now() - po.savedAt) / 60000);
+//       const ageText = age < 60 ? `منذ ${age} دقيقة` : `منذ ${Math.round(age/60)} ساعة`;
+//       return `مرحباً! 👋 عندك طلب غير مكتمل (${ageText}):
 
-  // ${pendingOrderSummary(po)}
+// ${pendingOrderSummary(po)}
 
-  // 1️⃣ *أكمل التحويل للطلب القديم*
-  // 2️⃣ *اطلب جديد*
-  // 3️⃣ *إلغاء الطلب القديم*`;
-  //     }
-  //   }
+// 1️⃣ *أكمل التحويل للطلب القديم*
+// 2️⃣ *اطلب جديد*
+// 3️⃣ *إلغاء الطلب القديم*`;
+//     }
+//   }
 
-  //   // استئناف طلب معلق
-  //   if (session.state === 'pending_order_choice') {
-  //     const po = session._pendingOrder;
-  //     if (/^(1|أكمل|اكمل|نفس الطلب|الطلب القديم|نفسو|أكملو|اكملو)$/i.test(text)) {
-  //       // استئناف — اعادة بناء السلة وانتقل لـ transfer_name
-  //       session.cart       = po.cart;
-  //       session.name       = po.name;
-  //       session.phone      = po.phone;
-  //       session.address    = po.address || '';
-  //       session.deliveryType = po.deliveryType;
-  //       session.deliveryFee  = po.deliveryFee || 0;
-  //       session.note       = po.note || '';
-  //       session.orderNum   = po.orderNum;
-  //       session.state      = 'transfer_name';
-  //       clearPendingOrder(from);
-  //       return `تمام! 😊 نكمل طلبك #${po.orderNum}
+//   // استئناف طلب معلق
+//   if (session.state === 'pending_order_choice') {
+//     const po = session._pendingOrder;
+//     if (/^(1|أكمل|اكمل|نفس الطلب|الطلب القديم|نفسو|أكملو|اكملو)$/i.test(text)) {
+//       // استئناف — اعادة بناء السلة وانتقل لـ transfer_name
+//       session.cart       = po.cart;
+//       session.name       = po.name;
+//       session.phone      = po.phone;
+//       session.address    = po.address || '';
+//       session.deliveryType = po.deliveryType;
+//       session.deliveryFee  = po.deliveryFee || 0;
+//       session.note       = po.note || '';
+//       session.orderNum   = po.orderNum;
+//       session.state      = 'transfer_name';
+//       clearPendingOrder(from);
+//       return `تمام! 😊 نكمل طلبك #${po.orderNum}
 
-  // ${pendingOrderSummary(po)}
+// ${pendingOrderSummary(po)}
 
-  // أرسل *الاسم اللي حوّلت منه* 👇
+// أرسل *الاسم اللي حوّلت منه* 👇
 
-  // بيانات التحويل:
-  // الاسم: *${STATE.settings.bankName}*
-  // البنك: *${STATE.settings.bank}*
-  // جوال: *${STATE.settings.bankPhone}*`;
-  //     }
-  //     if (/^(2|جديد|طلب جديد|بدي اطلب|اطلب)$/i.test(text)) {
-  //       clearPendingOrder(from);
-  //       session.state = null; session._pendingOrder = null;
-  //       return `تمام! 🛒 قولي شو بدك تطلب 😊`;
-  //     }
-  //     if (/^(3|الغاء|إلغاء|لا|لأ)$/i.test(text)) {
-  //       clearPendingOrder(from);
-  //       session.state = null; session._pendingOrder = null;
-  //       return `تم إلغاء الطلب القديم ✅ أهلاً بك في أي وقت 🌿`;
-  //     }
-  //     return `اختار:
-  // 1️⃣ أكمل التحويل
-  // 2️⃣ طلب جديد
-  // 3️⃣ إلغاء الطلب القديم`;
-  //   }
+// بيانات التحويل:
+// الاسم: *${STATE.settings.bankName}*
+// البنك: *${STATE.settings.bank}*
+// جوال: *${STATE.settings.bankPhone}*`;
+//     }
+//     if (/^(2|جديد|طلب جديد|بدي اطلب|اطلب)$/i.test(text)) {
+//       clearPendingOrder(from);
+//       session.state = null; session._pendingOrder = null;
+//       return `تمام! 🛒 قولي شو بدك تطلب 😊`;
+//     }
+//     if (/^(3|الغاء|إلغاء|لا|لأ)$/i.test(text)) {
+//       clearPendingOrder(from);
+//       session.state = null; session._pendingOrder = null;
+//       return `تم إلغاء الطلب القديم ✅ أهلاً بك في أي وقت 🌿`;
+//     }
+//     return `اختار:
+// 1️⃣ أكمل التحويل
+// 2️⃣ طلب جديد
+// 3️⃣ إلغاء الطلب القديم`;
+//   }
 
   // // ====== تتبع الطلب ======
   // const isTrack = /وين طلبي|وين الطلب|حالة الطلب|شو صار|طلع الطلب|تحرك الطلب|وصل طلبي/i.test(text)
@@ -3180,17 +3172,17 @@ async function handleMessage(msg) {
   // }
 
   // ====== PRIORITY 1.8: تحيات واجتماعيات → رد لطيف ======
-  //   // "كيف حالك" / "شو اخبارك" / "كيف الاحوال" → يرد ويسأل عن الطلب
-  //   if (/^(كيف حالك|كيف الحال|كيف اخبارك|شو اخبارك|كيف الاحوال|عامل كيف|كيف عامل|ايش اخبارك|شو اخبارك|كيفك|كيفكم|كيف حالكم)[\s؟?!]*$/i.test(text)) {
-  //     return `الحمد لله بخير! 😊
-  // ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
-  //   }
-  //   if (/^(صباح|مساء)/.test(text) && text.length < 20) {
-  //     const isM = /صباح/.test(text);
-  //     return `${isM ? 'صباح النور' : 'مساء النور'} 🌿
-  // أهلاً بك في ${STATE.settings.name}!
-  // شو بدك تطلب اليوم؟ 😊`;
-  //   }
+//   // "كيف حالك" / "شو اخبارك" / "كيف الاحوال" → يرد ويسأل عن الطلب
+//   if (/^(كيف حالك|كيف الحال|كيف اخبارك|شو اخبارك|كيف الاحوال|عامل كيف|كيف عامل|ايش اخبارك|شو اخبارك|كيفك|كيفكم|كيف حالكم)[\s؟?!]*$/i.test(text)) {
+//     return `الحمد لله بخير! 😊
+// ${STATE.settings.welcome || 'شو بدك اليوم؟ 🌿'}`;
+//   }
+//   if (/^(صباح|مساء)/.test(text) && text.length < 20) {
+//     const isM = /صباح/.test(text);
+//     return `${isM ? 'صباح النور' : 'مساء النور'} 🌿
+// أهلاً بك في ${STATE.settings.name}!
+// شو بدك تطلب اليوم؟ 😊`;
+//   }
 
   // ====== PRIORITY 2: الردود الثابتة ======
   // const hasOrderIntent = /بدي|عايز|اريد|أريد|اطلب/.test(text);
@@ -3205,7 +3197,7 @@ async function handleMessage(msg) {
   if (!session.state) {
     // رقم قسم
     if (/^[1-6]$/.test(text)) {
-      return getMenuText(['شاورما', 'ايطالي', 'ساندويش', 'سلطة', 'مشروبات', 'حلويات'][parseInt(text) - 1]);
+      return getMenuText(['شاورما','ايطالي','ساندويش','سلطة','مشروبات','حلويات'][parseInt(text)-1]);
     }
 
     // طلب مركب (جملة فيها و)
@@ -3224,8 +3216,8 @@ async function handleMessage(msg) {
 
     // سؤال عن سعر/توفر → pending_item
     if (isQuestion(text)) {
-      const q = raw.replace(/^(في|فيه|هل|عندكم|متوفر|في عندكم)\s*/i, '').replace(/[؟?]+$/, '').trim();
-      const item = findItem(extractItemName(q || text) || q || raw, false, sessionBranch(session));
+      const q = raw.replace(/^(في|فيه|هل|عندكم|متوفر|في عندكم)\s*/i,'').replace(/[؟?]+$/,'').trim();
+      const item = findItem(extractItemName(q||text)||q||raw, false, sessionBranch(session));
       if (item) {
         if (!item.active) return buildUnavailableMsg(item.name, raw, item.cat);
         session.state = 'pending_item'; session.pendingItem = item; session.pendingQty = 1;
@@ -3280,25 +3272,25 @@ async function handleMessage(msg) {
   // ====== PENDING ITEM ======
   if (session.state === 'pending_item') {
     const item = session.pendingItem;
-    const qty = session.pendingQty || 1;
+    const qty  = session.pendingQty || 1;
     const isYes = /^(نعم|آه|اه|اوك|ok|تمام|اضيف|يلا|ايوه|أيوه|ماشي|حلو|اطلبه|ضيفه|خذلي|yes|بدي|حاضر|انعم)$/i.test(text);
     if (isYes) {
-      session.state = 'ordering'; addToCart(session, item, qty); session.pendingItem = null;
+      session.state='ordering'; addToCart(session,item,qty); session.pendingItem=null;
       return `تمام أضفت ${qty}x ${item.name}! 🛒\nشو كمان بدك؟ 😊`;
     }
     const isNo = /^(لا|لأ|لاء|لع|بس|مو|مش|no|بلاش|مش بدي|ما بدي|لا شكرا|بالعكس)$/i.test(text);
     if (isNo) {
-      session.state = 'ordering'; session.pendingItem = null;
+      session.state='ordering'; session.pendingItem=null;
       return session.cart.length
         ? `اوكي! 😊\n🛒 سلتك:\n${cartText(session.cart)}\nالمجموع: *${cartTotal(session.cart)} ₪*\n\nشو بدك تضيف؟`
         : `اوكي! 😊 شو بدك تطلب؟`;
     }
     if (/كم سعره|بكام|بكم|سعره كم|السعر/i.test(text))
       return `${item.name} بـ*${item.price} ₪* 😊\n\nبدك تطلبه؟ (نعم / لا)`;
-    const newItem = findItem(extractItemName(text) || raw, false, sessionBranch(session));
+    const newItem = findItem(extractItemName(text)||raw, false, sessionBranch(session));
     if (newItem && newItem.id !== item.id) {
       if (!newItem.active) return buildUnavailableMsg(newItem.name, raw, newItem.cat);
-      session.state = 'ordering'; addToCart(session, item, qty); addToCart(session, newItem, extractQty(text)); session.pendingItem = null;
+      session.state='ordering'; addToCart(session,item,qty); addToCart(session,newItem,extractQty(text)); session.pendingItem=null;
       return `تمام أضفت:\n• ${qty}x ${item.name}\n• ${extractQty(text)}x ${newItem.name}\nشو كمان؟ 😊`;
     }
     return `${item.name} — *${item.price} ₪*\n\nبدك تطلبه؟ اكتب *نعم* أو *لا* 😊`;
@@ -3348,13 +3340,13 @@ async function handleMessage(msg) {
     const qty = extractQty(text);
     const item = findItem(extractItemName(text) || raw, false, sessionBranch(session));
     if (item) {
-      if (!item.active) return buildUnavailableMsg(item.name, extractItemName(text) || raw);
+      if (!item.active) return buildUnavailableMsg(item.name, extractItemName(text)||raw);
       addToCart(session, item, qty);
       return `${rand(WAIT_MSGS)} أضفت ${qty}x ${item.name} ✅\n${cartText(session.cart)}\nالمجموع: ${cartTotal(session.cart)} ₪\n\n${rand(CONFIRM_MSGS)}`;
     }
 
     if (/^[1-6]$/.test(text))
-      return getMenuText(['شاورما', 'ايطالي', 'ساندويش', 'سلطة', 'مشروبات', 'حلويات'][parseInt(text) - 1]) + '\n\nأرسل *تأكيد* لما تخلص 😊';
+      return getMenuText(['شاورما','ايطالي','ساندويش','سلطة','مشروبات','حلويات'][parseInt(text)-1]) + '\n\nأرسل *تأكيد* لما تخلص 😊';
 
     // كتب اسم قسم وهو في الطلب ← يعرض المنيو بدل "مش فاهم"
     const catQ2 = detectCategoryQuery(text);
@@ -3365,12 +3357,12 @@ async function handleMessage(msg) {
       return `1️⃣ الشاورما  2️⃣ الإيطالي  3️⃣ الساندويشات\n4️⃣ السلطات  5️⃣ المشروبات  6️⃣ الحلويات`;
 
     // سجّل + AI
-    logUnknown(from, rawOriginal, { state: 'ordering', cartItems: session.cart.length });
+    logUnknown(from, rawOriginal, {state:'ordering', cartItems:session.cart.length});
     if (GROQ_KEY) {
       try {
         const aiReply = await tryAIUnderstand(from, rawOriginal, session);
         if (aiReply) return aiReply;
-      } catch (e) { console.log('⚠️ AI error:', e.message); }
+      } catch(e) { console.log('⚠️ AI error:', e.message); }
     }
     return `مش فاهم "${rawOriginal}" 🤔\nقولي اسم الصنف أو *تأكيد* إذا خلصت`;
   }
@@ -3470,10 +3462,11 @@ async function handleMessage(msg) {
     session.state = 'confirm';
     const total = cartTotal(session.cart), grand = total + session.deliveryFee;
     const noteLine = session.note ? `\n📝 ملاحظات: ${session.note}` : '';
-    return `📋 *ملخص طلبك*\n─────────────\n${cartText(session.cart)}\n─────────────\n${session.deliveryType === 'توصيل'
+    return `📋 *ملخص طلبك*\n─────────────\n${cartText(session.cart)}\n─────────────\n${
+      session.deliveryType === 'توصيل'
         ? `التوصيل (${session.address}): ${session.deliveryFee} ₪`
         : `استلام من المطعم 🏪`
-      }\n*المجموع: ${grand} ₪*\n👤 ${session.name}  📞 ${session.phone}${noteLine}\n─────────────\n✅ *تأكيد*  ✏️ *تعديل*  ❌ *إلغاء*`;
+    }\n*المجموع: ${grand} ₪*\n👤 ${session.name}  📞 ${session.phone}${noteLine}\n─────────────\n✅ *تأكيد*  ✏️ *تعديل*  ❌ *إلغاء*`;
   }
 
   if (session.state === 'confirm') {
@@ -3491,7 +3484,7 @@ async function handleMessage(msg) {
       session.state = 'transfer_name';
       // احفظ الطلب كـ pending في الـ customerProfiles
       savePendingOrder(from, {
-        cart: session.cart.map(i => ({ ...i })),
+        cart: session.cart.map(i => ({...i})),
         name: session.name,
         phone: session.phone,
         address: session.address,
@@ -3534,7 +3527,7 @@ async function handleMessage(msg) {
     const noteSection = session.note ? `\n📝 *ملاحظات:* ${session.note}` : '';
 
     const groupMsg =
-      `━━━━━━━━━━━━━━━━━━
+`━━━━━━━━━━━━━━━━━━
 🆕 *طلب جديد #${orderNum}*
 ━━━━━━━━━━━━━━━━━━
 📋 *الأصناف:*
@@ -3567,19 +3560,19 @@ ${deliveryInfo}
     return `شكراً ${customerName}! 😊\n\nتم استلام طلبك رقم *#${orderNum}*\nبعد تأكيد التحويل ستصلك رسالة فوراً ✅\n⏱️ وقت التحضير: ~${t} دقيقة`;
   }
 
-  logUnknown(from, rawOriginal, { state: null, cartItems: 0 });
+  logUnknown(from, rawOriginal, {state:null, cartItems:0});
   // AI fallback
   if (GROQ_KEY) {
     try {
       const aiReply = await tryAIUnderstand(from, rawOriginal, session);
       if (aiReply) return aiReply;
-    } catch (e) { console.log('⚠️ AI error:', e.message); }
+    } catch(e) { console.log('⚠️ AI error:', e.message); }
   }
   // بدون AI — رد أذكى + تسجيل في unknowns
   const unknownReply = buildSmartUnknownReply(from, rawOriginal, session);
   if (!unknownReply) {
     // إذا ما بنى رد → سجّل كـ unknown
-    logUnknown(from, rawOriginal, { state: session?.state || null, cartItems: session?.cart?.length || 0 });
+    logUnknown(from, rawOriginal, {state: session?.state||null, cartItems: session?.cart?.length||0});
   }
   return unknownReply || STATE.settings.defaultReply;
 }
@@ -3612,7 +3605,7 @@ let pairCodeAt = 0;       // وقت توليده
 let pairRequested = false; // منع تكرار الطلب في نفس الجلسة (تجنّب خطأ 429)
 let CURRENT_USER = null; // المستخدم صاحب الطلب الجاري (يُضبط قبل كل handleAPI)
 
-function linkPage() {
+function linkPage(){
   return `<!doctype html><html lang="ar" dir="rtl"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a"><title>ربط واتساب — O2</title>
@@ -3815,7 +3808,7 @@ poll(); setInterval(poll, 3000);
 </div></body></html>`;
 }
 
-function loginPage() {
+function loginPage(){
   return `<!doctype html><html lang="ar" dir="rtl"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0a0e1a"><title>دخول — مطعم O2</title>
@@ -3911,9 +3904,9 @@ const server = http.createServer((req, res) => {
   if (url === '/ping') { res.writeHead(200); res.end('ok'); return; }
   if (url === '/qr-img') {
     if (!currentQR) { res.writeHead(404); res.end(); return; }
-    QRCode.toBuffer(currentQR, { width: 320, margin: 1 }, (err, buf) => {
+    QRCode.toBuffer(currentQR, {width:320, margin:1}, (err, buf) => {
       if (err) { res.writeHead(500); res.end(); return; }
-      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' });
+      res.writeHead(200, {'Content-Type':'image/png','Cache-Control':'no-store'});
       res.end(buf);
     });
     return;
@@ -3921,12 +3914,12 @@ const server = http.createServer((req, res) => {
 
   if (url === '/qr') {
     if (!currentQR) {
-      res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+      res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
       res.end('<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="3"><style>body{font-family:Arial;text-align:center;padding:50px;background:#0a0e1a;color:#fff}</style></head><body><h2>⏳ جاري التحميل...</h2></body></html>');
       return;
     }
-    QRCode.toDataURL(currentQR, { width: 300 }, (err, url2) => {
-      res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+    QRCode.toDataURL(currentQR, {width:300}, (err, url2) => {
+      res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
       res.end(`<html><head><meta charset="utf-8"><meta http-equiv="refresh" content="55"><style>body{font-family:Arial;text-align:center;padding:30px;background:#0a0e1a;color:#fff}img{border:6px solid #25D366;border-radius:12px;margin:20px}h2{color:#25D366}</style></head><body><h2>📱 امسح الكود بواتساب</h2><img src="${url2}" width="280"/><p>واتساب ← الأجهزة المرتبطة ← ربط جهاز</p></body></html>`);
     });
     return;
@@ -3937,7 +3930,7 @@ const server = http.createServer((req, res) => {
   if (imgMatch && method === 'GET') {
     if (!IMG_COL) { res.writeHead(503); res.end(); return; }
     IMG_COL.doc(imgMatch[1]).get().then((snap) => {
-      if (!snap.exists) { res.writeHead(404, { 'Content-Type': 'text/plain' }); res.end('not found'); return; }
+      if (!snap.exists) { res.writeHead(404, {'Content-Type':'text/plain'}); res.end('not found'); return; }
       const d = snap.data();
       const buf = Buffer.from(d.data, 'base64');
       res.writeHead(200, {
@@ -3961,16 +3954,14 @@ const server = http.createServer((req, res) => {
     const root = path.resolve(__dirname, 'public', 'menu');
     if (!full.startsWith(root + path.sep)) { res.writeHead(403); res.end(); return; }
 
-    const TYPES = {
-      '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png',
-      '.webp': 'image/webp', '.gif': 'image/gif', '.ico': 'image/x-icon'
-    };
+    const TYPES = { '.jpg':'image/jpeg', '.jpeg':'image/jpeg', '.png':'image/png',
+                    '.webp':'image/webp', '.gif':'image/gif', '.ico':'image/x-icon' };
     const type = TYPES[path.extname(full).toLowerCase()];
     if (!type) { res.writeHead(404); res.end(); return; }
 
     fs.stat(full, (err, st) => {
       if (err || !st.isFile()) {
-        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.writeHead(404, {'Content-Type':'text/plain; charset=utf-8'});
         res.end('الصورة غير موجودة');
         return;
       }
@@ -3997,14 +3988,18 @@ const server = http.createServer((req, res) => {
       return;
     }
     if (!stateLoaded) {
-      res.writeHead(503, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+      res.writeHead(503, {'Content-Type':'application/json','Access-Control-Allow-Origin':'*'});
       res.end(JSON.stringify({ ok: false, error: 'البيانات غير محمّلة' }));
       return;
     }
 
     // url مقطوع عند '?' في أعلى المعالج — نقرأ المعامل من req.url
     const q = new URL(req.url, 'http://x').searchParams;
-    const branch = q.get('branch') || '';
+    // الفرع في المسار (/api/public/menu/gaza) أولاً — الكاش في Netlify قد يتجاهل
+    // ما بعد '?' فيعطي الفرعين نفس الرد. المسار لا يمكن تجاهله.
+    const pathBranch = (url.match(/^\/api\/public\/menu\/([a-z]+)\/?$/) || [])[1];
+    const branch = (pathBranch && isValidBranch(pathBranch)) ? pathBranch
+      : (isValidBranch(q.get('branch')) ? q.get('branch') : '');
 
     // صنف القسم المخفي في هذا الفرع لا يُرسل — وإلا أعاد الموقع إنشاء
     // القسم من أصنافه
@@ -4027,11 +4022,16 @@ const server = http.createServer((req, res) => {
     res.writeHead(200, {
       'Content-Type': 'application/json; charset=utf-8',
       'Access-Control-Allow-Origin': '*',
-      // 30 ثانية عند الحافة — تغيير الكاشير يظهر بسرعة دون إثقال الخادم
-      'Cache-Control': 'public, max-age=30, stale-while-revalidate=120',
+      // ممنوع أي كاش وسيط: الكاش المشترك كان يعطي فرعاً رد الفرع الآخر
+      'Cache-Control': 'no-store, max-age=0',
+      'CDN-Cache-Control': 'no-store',
+      'Netlify-CDN-Cache-Control': 'no-store',
+      'Netlify-Vary': 'query',
+      'Vary': 'Origin',
     });
     res.end(JSON.stringify({
       ok: true,
+      branch,                       // الموقع يتحقق أن الرد لفرعه قبل عرضه
       updatedAt: new Date().toISOString(),
       // بصمة تتغيّر مع أي تعديل على المنيو — الموقع يقارنها
       // بنسخته المحفوظة ليعرف أنها قديمة دون انتظار
@@ -4047,7 +4047,7 @@ const server = http.createServer((req, res) => {
           for (const b of branchList()) {
             per[b.id] = isCatVisible(c, b.id)
               ? STATE.items.filter(i =>
-                i.cat === c.id && i.active !== false && i.branch === b.id).length
+                  i.cat === c.id && i.active !== false && i.branch === b.id).length
               : 0;
           }
           return {
@@ -4071,7 +4071,7 @@ const server = http.createServer((req, res) => {
   // ─── حالة قاعدة البيانات (متاحة بلا دخول) ────────────────
   if (url === '/api/dbstatus') {
     const why = stateLoaded ? null : explainFirebaseError(loadError);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.writeHead(200, {'Content-Type':'application/json'});
     res.end(JSON.stringify({
       ready: stateLoaded,
       error: loadError || '',
@@ -4084,12 +4084,12 @@ const server = http.createServer((req, res) => {
 
   // ─── صفحة الدخول ─────────────────────────────────────────
   if (url === '/login' && method === 'GET') {
-    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+    res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
     res.end(loginPage());
     return;
   }
   if (url === '/logout') {
-    res.writeHead(302, { 'Location': '/login', 'Set-Cookie': auth.clearCookieHeader() });
+    res.writeHead(302, {'Location':'/login', 'Set-Cookie': auth.clearCookieHeader()});
     res.end();
     return;
   }
@@ -4097,13 +4097,13 @@ const server = http.createServer((req, res) => {
   // ─── صفحة ربط واتساب ──────────────────────────────────────
   if (url === '/link') {
     const linkUser = auth.userFromReq(req);
-    if (!linkUser) { res.writeHead(302, { 'Location': '/login' }); res.end(); return; }
+    if (!linkUser) { res.writeHead(302, {'Location':'/login'}); res.end(); return; }
     if (!auth.can(linkUser, 'bot.manage')) {
-      res.writeHead(403, { 'Content-Type': 'text/html;charset=utf-8' });
+      res.writeHead(403, {'Content-Type':'text/html;charset=utf-8'});
       res.end('<h2 style="font-family:sans-serif;text-align:center;margin-top:60px">🔒 هذه الصفحة للسوبر أدمن فقط</h2>');
       return;
     }
-    res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+    res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
     res.end(linkPage());
     return;
   }
@@ -4111,7 +4111,7 @@ const server = http.createServer((req, res) => {
   // ─── حارس الدخول للداشبورد ────────────────────────────────
   if (url === '/' || url === '/dashboard') {
     if (!auth.userFromReq(req)) {
-      res.writeHead(302, { 'Location': '/login' });
+      res.writeHead(302, {'Location':'/login'});
       res.end();
       return;
     }
@@ -4120,10 +4120,10 @@ const server = http.createServer((req, res) => {
   if (url === '/' || url === '/dashboard') {
     const dashPath = path.join(__dirname, 'dashboard.html');
     if (fs.existsSync(dashPath)) {
-      res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+      res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
       res.end(fs.readFileSync(dashPath));
     } else {
-      res.writeHead(200, { 'Content-Type': 'text/html;charset=utf-8' });
+      res.writeHead(200, {'Content-Type':'text/html;charset=utf-8'});
       res.end(`<html><body style="font-family:Arial;text-align:center;padding:50px;background:#0a0e1a;color:#fff"><h2>${STATE.settings.name} ✅</h2><a href="/qr" style="background:#25D366;color:#000;padding:12px 24px;border-radius:8px;text-decoration:none">عرض QR Code</a></body></html>`);
     }
     return;
@@ -4138,8 +4138,8 @@ const server = http.createServer((req, res) => {
       // 1.5 ميغابايت يكفي لأكبر صورة مسموحة (600 ك.ب + ترميز base64)
       if (body.length > 1.5 * 1024 * 1024) {
         tooBig = true;
-        res.writeHead(413, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'حجم الطلب كبير جداً' }));
+        res.writeHead(413, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'حجم الطلب كبير جداً'}));
         req.destroy();
       }
     });
@@ -4147,9 +4147,9 @@ const server = http.createServer((req, res) => {
       if (tooBig) return;
       let parsed;
       try { parsed = body ? JSON.parse(body) : {}; }
-      catch (e) {
-        res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid JSON: ' + e.message }));
+      catch(e) {
+        res.writeHead(400, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'Invalid JSON: ' + e.message}));
         return;
       }
 
@@ -4158,7 +4158,7 @@ const server = http.createServer((req, res) => {
         // البيانات لم تُحمَّل ⇒ لا حسابات في الذاكرة. رسالة صادقة بدل
         // «كلمة المرور غير صحيحة» التي كانت تُوهم أن الحساب ضاع.
         if (!stateLoaded) {
-          res.writeHead(503, { 'Content-Type': 'application/json' });
+          res.writeHead(503, {'Content-Type':'application/json'});
           res.end(JSON.stringify({
             error: 'النظام لم يُحمّل بياناته بعد من Firebase — انتظر ثوانٍ وأعد المحاولة.',
             dbNotReady: true, detail: loadError || '',
@@ -4167,45 +4167,45 @@ const server = http.createServer((req, res) => {
         }
         const u = auth.login(parsed.username, parsed.password);
         if (!u) {
-          res.writeHead(401, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'اسم المستخدم أو كلمة المرور غير صحيحة' }));
+          res.writeHead(401, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({error:'اسم المستخدم أو كلمة المرور غير صحيحة'}));
           return;
         }
         auth.audit(u, 'auth.login', 'لوحة التحكم', '', 'dashboard');
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': auth.cookieHeader(auth.issue(u)) });
-        res.end(JSON.stringify({ ok: true, user: auth.publicUser(u) }));
+        res.writeHead(200, {'Content-Type':'application/json', 'Set-Cookie': auth.cookieHeader(auth.issue(u))});
+        res.end(JSON.stringify({ok:true, user: auth.publicUser(u)}));
         return;
       }
       if (url === '/api/auth/logout') {
-        res.writeHead(200, { 'Content-Type': 'application/json', 'Set-Cookie': auth.clearCookieHeader() });
-        res.end(JSON.stringify({ ok: true }));
+        res.writeHead(200, {'Content-Type':'application/json', 'Set-Cookie': auth.clearCookieHeader()});
+        res.end(JSON.stringify({ok:true}));
         return;
       }
 
       // ─── التحقق من الهوية والصلاحية ─────────────────────
       const me = auth.userFromReq(req);
       if (url === '/api/auth/me') {
-        res.writeHead(me ? 200 : 401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(me ? { ok: true, user: auth.publicUser(me) } : { error: 'غير مسجّل' }));
+        res.writeHead(me ? 200 : 401, {'Content-Type':'application/json'});
+        res.end(JSON.stringify(me ? {ok:true, user: auth.publicUser(me)} : {error:'غير مسجّل'}));
         return;
       }
       if (!me) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'يجب تسجيل الدخول', login: true }));
+        res.writeHead(401, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'يجب تسجيل الدخول', login:true}));
         return;
       }
       const needed = auth.permFor(url, method, parsed);
       if (needed && !auth.can(me, needed)) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'حسابك لا يملك صلاحية هذا الإجراء' }));
+        res.writeHead(403, {'Content-Type':'application/json'});
+        res.end(JSON.stringify({error:'حسابك لا يملك صلاحية هذا الإجراء'}));
         return;
       }
       CURRENT_USER = me; // يستخدمه handleAPI لتسجيل من قام بالتغيير
 
       handleAPI(url, method, parsed, res).catch(e => {
         if (!res.writableEnded) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: e.message }));
+          res.writeHead(500, {'Content-Type':'application/json'});
+          res.end(JSON.stringify({error: e.message}));
         }
       });
     });
@@ -4238,21 +4238,21 @@ function cleanImageUrl(raw) {
 async function handleAPI(url, method, body, res) {
   const json = (data, code = 200) => {
     if (res.writableEnded) return;
-    res.writeHead(code, { 'Content-Type': 'application/json' });
+    res.writeHead(code, {'Content-Type':'application/json'});
     res.end(JSON.stringify(data));
   };
 
   // ---- READ ----
-  if (url === '/api/state' && method === 'GET') return json(STATE);
+  if (url === '/api/state'  && method === 'GET') return json(STATE);
   if (url === '/api/status' && method === 'GET') return json({
-    dbReady: stateLoaded, dbError: loadError,
+      dbReady: stateLoaded, dbError: loadError,
     waStats: WA_STATS, waRetries,
     fbProject: FB_PROJECT_ID,
     imageBaseUrl: STATE.settings.imageBaseUrl || '',
     botConnected: STATE.botConnected,
     transferMode: STATE.settings.transferMode,
     botActive: STATE.settings.botActive,
-    unknownsCount: (STATE.unknowns || []).filter(u => u.status === 'new').length,
+    unknownsCount: (STATE.unknowns||[]).filter(u=>u.status==='new').length,
     queueCount: STATE.queue.length,
     ordersCount: STATE.orders.length,
     itemsCount: STATE.items.filter(i => i.active).length,
@@ -4261,8 +4261,8 @@ async function handleAPI(url, method, body, res) {
     pendingOrdersCount: Object.keys(STATE.pendingOrders || {}).length,
   });
   if (url === '/api/orders' && method === 'GET') return json(STATE.orders);
-  if (url === '/api/logs' && method === 'GET') return json(STATE.logs);
-  if (url === '/api/queue' && method === 'GET') return json(STATE.queue);
+  if (url === '/api/logs'   && method === 'GET') return json(STATE.logs);
+  if (url === '/api/queue'  && method === 'GET') return json(STATE.queue);
 
   // ---- حسابات استلام الأموال ----
   if (url === '/api/payments' && method === 'GET') {
@@ -4277,8 +4277,8 @@ async function handleAPI(url, method, body, res) {
     const before = { ...STATE.paymentConfig };
     STATE.paymentConfig = {
       onlineEnabled: !!body.onlineEnabled,
-      cashEnabled: !!body.cashEnabled,
-      requireProof: !!body.requireProof,
+      cashEnabled:   !!body.cashEnabled,
+      requireProof:  !!body.requireProof,
     };
     await saveStateNow();
     const ch = Object.keys(STATE.paymentConfig)
@@ -4293,17 +4293,17 @@ async function handleAPI(url, method, body, res) {
 
   if (url === '/api/payments' && method === 'POST') {
     const label = String(body.label || '').trim();
-    if (!label) return json({ error: 'أدخل اسم الوسيلة' }, 400);
+    if (!label) return json({error:'أدخل اسم الوسيلة'}, 400);
     const acc = {
       id: 'pa-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5),
-      type: ['bank', 'wallet', 'gateway', 'other'].includes(body.type) ? body.type : 'bank',
+      type: ['bank','wallet','gateway','other'].includes(body.type) ? body.type : 'bank',
       label,
       holder: String(body.holder || '').trim(),
-      phone: String(body.phone || '').trim(),
-      iban: String(body.iban || '').trim().toUpperCase().replace(/\s+/g, ''),
-      note: String(body.note || '').trim(),
+      phone:  String(body.phone  || '').trim(),
+      iban:   String(body.iban   || '').trim().toUpperCase().replace(/\s+/g, ''),
+      note:   String(body.note   || '').trim(),
       active: body.active !== false,
-      order: (STATE.paymentAccounts || []).reduce((m, a) => Math.max(m, a.order || 0), 0) + 1,
+      order:  (STATE.paymentAccounts || []).reduce((m,a)=>Math.max(m,a.order||0),0) + 1,
       updatedBy: CURRENT_USER ? CURRENT_USER.displayName : 'النظام',
       updatedAt: new Date().toISOString(),
     };
@@ -4319,14 +4319,14 @@ async function handleAPI(url, method, body, res) {
   const payMatch = url.match(/^\/api\/payments\/([\w-]+)$/);
   if (payMatch && method === 'PUT') {
     const acc = (STATE.paymentAccounts || []).find(a => a.id === payMatch[1]);
-    if (!acc) return json({ error: 'not found' }, 404);
+    if (!acc) return json({error:'not found'}, 404);
     const before = { ...acc };
-    for (const f of ['type', 'label', 'holder', 'phone', 'note']) {
+    for (const f of ['type','label','holder','phone','note']) {
       if (body[f] !== undefined) acc[f] = String(body[f]).trim();
     }
-    if (body.iban !== undefined) acc.iban = String(body.iban).trim().toUpperCase().replace(/\s+/g, '');
+    if (body.iban   !== undefined) acc.iban = String(body.iban).trim().toUpperCase().replace(/\s+/g, '');
     if (body.active !== undefined) acc.active = !!body.active;
-    if (body.order !== undefined) acc.order = Number(body.order) || acc.order;
+    if (body.order  !== undefined) acc.order = Number(body.order) || acc.order;
     acc.updatedBy = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     acc.updatedAt = new Date().toISOString();
     await saveStateNow();
@@ -4336,7 +4336,7 @@ async function handleAPI(url, method, body, res) {
         acc.active ? 'تفعيل استقبال الحوالات' : 'إيقاف استقبال الحوالات');
       addLog(`${acc.active ? '✅' : '🚫'} ${acc.label}: ${acc.active ? 'يستقبل' : 'لا يستقبل'} — ${acc.updatedBy}`);
     } else {
-      const ch = ['label', 'holder', 'phone', 'iban', 'type', 'note']
+      const ch = ['label','holder','phone','iban','type','note']
         .filter(f => before[f] !== acc[f])
         .map(f => `${f}: ${before[f] || '—'} ← ${acc[f] || '—'}`);
       auth.audit(CURRENT_USER, 'payment.edit', acc.label, ch.join(' | ') || 'تحديث');
@@ -4347,7 +4347,7 @@ async function handleAPI(url, method, body, res) {
 
   if (payMatch && method === 'DELETE') {
     const idx = (STATE.paymentAccounts || []).findIndex(a => a.id === payMatch[1]);
-    if (idx === -1) return json({ error: 'not found' }, 404);
+    if (idx === -1) return json({error:'not found'}, 404);
     const [rm] = STATE.paymentAccounts.splice(idx, 1);
     await saveStateNow();
     auth.audit(CURRENT_USER, 'payment.delete', rm.label, 'حذف وسيلة الدفع');
@@ -4360,12 +4360,12 @@ async function handleAPI(url, method, body, res) {
 
   if (url === '/api/cats' && method === 'POST') {
     const name = String(body.name || '').trim();
-    if (!name) return json({ error: 'أدخل اسم القسم' }, 400);
+    if (!name) return json({error:'أدخل اسم القسم'}, 400);
     const emoji = String(body.emoji || '🍽️').trim().slice(0, 4);
     // معرّف إنجليزي مستقر — يُستخدم في الروابط والمطابقة
     let id = String(body.id || '').trim().toLowerCase().replace(/[^a-z0-9-]/g, '');
     if (!id) id = 'cat-' + Date.now().toString(36);
-    if (STATE.categories.some(c => c.id === id)) return json({ error: 'معرّف القسم مستخدم بالفعل' }, 400);
+    if (STATE.categories.some(c => c.id === id)) return json({error:'معرّف القسم مستخدم بالفعل'}, 400);
 
     const cat = {
       id, name, emoji,
@@ -4384,10 +4384,10 @@ async function handleAPI(url, method, body, res) {
   const catMatch = url.match(/^\/api\/cats\/([\w-]+)$/);
   if (catMatch && method === 'PUT') {
     const cat = STATE.categories.find(c => c.id === catMatch[1]);
-    if (!cat) return json({ error: 'القسم غير موجود' }, 404);
+    if (!cat) return json({error:'القسم غير موجود'}, 404);
     const before = { ...cat, hiddenIn: [...(cat.hiddenIn || [])] };
-    if (body.name !== undefined) cat.name = String(body.name).trim();
-    if (body.emoji !== undefined) cat.emoji = String(body.emoji).trim().slice(0, 4);
+    if (body.name     !== undefined) cat.name  = String(body.name).trim();
+    if (body.emoji    !== undefined) cat.emoji = String(body.emoji).trim().slice(0, 4);
     // الإظهار/الإخفاء صار لكل فرع لحاله. الحساب المقيّد بفرع يُجبر على فرعه.
     const visBranch = myBranchScope(CURRENT_USER) ||
       (isValidBranch(body.branch) ? body.branch : null);
@@ -4408,12 +4408,12 @@ async function handleAPI(url, method, body, res) {
         return json({ error: 'حدّد الفرع — إخفاء القسم يخص فرعاً واحداً' }, 400);
       }
     }
-    if (body.order !== undefined) cat.order = Number(body.order) || cat.order;
+    if (body.order    !== undefined) cat.order = Number(body.order) || cat.order;
     if (body.byWeight !== undefined) cat.byWeight = !!body.byWeight;
     cat.label = `${cat.emoji || '🍽️'} ${cat.name}`;
     await saveMenuNow();
     if (body.active !== undefined &&
-      (before.active !== cat.active || before.hiddenIn.join() !== (cat.hiddenIn || []).join())) {
+        (before.active !== cat.active || before.hiddenIn.join() !== (cat.hiddenIn || []).join())) {
       const where = visBranch ? ` — ${branchLabel(visBranch)}` : ' — كل الفروع';
       auth.audit(CURRENT_USER, body.active ? 'category.show' : 'category.hide', cat.name,
         (body.active ? 'إظهار القسم للزبائن' : 'إخفاء القسم') + where);
@@ -4425,7 +4425,7 @@ async function handleAPI(url, method, body, res) {
 
   if (catMatch && method === 'DELETE') {
     const cat = STATE.categories.find(c => c.id === catMatch[1]);
-    if (!cat) return json({ error: 'القسم غير موجود' }, 404);
+    if (!cat) return json({error:'القسم غير موجود'}, 404);
     const inside = STATE.items.filter(i => i.cat === cat.id);
     if (inside.length && !body.force) {
       return json({
@@ -4454,13 +4454,13 @@ async function handleAPI(url, method, body, res) {
   const userMatch = url.match(/^\/api\/users\/([\w-]+)$/);
   if (userMatch && method === 'PUT') {
     const target = auth.byId(userMatch[1]);
-    if (!target) return json({ error: 'not found' }, 404);
+    if (!target) return json({error:'not found'}, 404);
     const finalRole = body.role || target.role; // الدور بعد هالتعديل (لو تغيّر)
     if (finalRole === 'dept_head') {
       const finalDeptCategory = body.deptCategory !== undefined ? body.deptCategory : target.deptCategory;
-      const finalDeptBranch = body.deptBranch !== undefined ? body.deptBranch : target.deptBranch;
-      if (!finalDeptCategory) return json({ error: 'حدّد القسم المسؤول عنه' }, 400);
-      if (!finalDeptBranch) return json({ error: 'حدّد الفرع المسؤول عنه — لا يمكن ترك رئيس قسم بلا فرع محدّد' }, 400);
+      const finalDeptBranch   = body.deptBranch   !== undefined ? body.deptBranch   : target.deptBranch;
+      if (!finalDeptCategory) return json({error: 'حدّد القسم المسؤول عنه'}, 400);
+      if (!finalDeptBranch)   return json({error: 'حدّد الفرع المسؤول عنه — لا يمكن ترك رئيس قسم بلا فرع محدّد'}, 400);
     }
     auth.updateUser(target.id, {
       displayName: body.displayName, username: body.username,
@@ -4469,7 +4469,7 @@ async function handleAPI(url, method, body, res) {
     });
     if (body.role && body.role !== target.role) {
       const rr = auth.setRole(target.id, body.role, CURRENT_USER ? CURRENT_USER.id : null);
-      if (rr.error) return json({ error: rr.error }, 400);
+      if (rr.error) return json({error: rr.error}, 400);
       auth.audit(CURRENT_USER, 'user.update', target.displayName,
         `تغيير الدور إلى ${auth.roleLabel(body.role)}`);
     }
@@ -4478,26 +4478,26 @@ async function handleAPI(url, method, body, res) {
       auth.setPassword(target.id, body.password);
       auth.audit(CURRENT_USER, 'user.password', target.displayName, 'تغيير كلمة المرور');
     }
-    return json({ ok: true, user: auth.publicUser(auth.byId(target.id)) });
+    return json({ok:true, user: auth.publicUser(auth.byId(target.id))});
   }
 
   if (url === '/api/users' && method === 'POST') {
-    const r = auth.createUser(body); if (r.error) return json({ error: r.error }, 400);
+    const r = auth.createUser(body);    if (r.error) return json({error: r.error}, 400);
     auth.audit(CURRENT_USER, 'user.create', r.user.displayName,
       `حساب جديد بدور ${auth.roleLabel(r.user.role)}`);
-    return json({ ok: true, user: auth.publicUser(r.user) });
+    return json({ok: true, user: auth.publicUser(r.user)});
   }
 
   if (userMatch && method === 'DELETE') {
     const r = auth.deleteUser(userMatch[1], CURRENT_USER ? CURRENT_USER.id : null);
-    if (r.error) return json({ error: r.error }, 400);
+    if (r.error) return json({error: r.error}, 400);
     auth.audit(CURRENT_USER, 'user.delete', r.displayName, 'حذف الحساب');
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // ---- سجل التغييرات ----
   if (url === '/api/audit' && method === 'GET')
-    return json({ entries: auth.auditList({ limit: 300 }), stats: auth.auditStats() });
+    return json({ entries: auth.auditList({limit:300}), stats: auth.auditStats() });
 
   // ---- تبديل توفّر قسم كامل ----
   const catToggle = url.match(/^\/api\/cats\/toggle$/);
@@ -4537,7 +4537,7 @@ async function handleAPI(url, method, body, res) {
         `${active ? 'تفعيل' : 'إغلاق'} ${affected.length} صنف`);
       addLog(`${active ? '✅' : '🚫'} ${cat}: ${affected.length} صنف — ${stamp}`);
     }
-    return json({ ok: true, affected: affected.length });
+    return json({ok:true, affected: affected.length});
   }
 
   // ---- الرسائل المُهملة ولماذا ----
@@ -4545,25 +4545,25 @@ async function handleAPI(url, method, body, res) {
     return json({
       dropped: DROPPED.slice(0, 25),
       settings: {
-        botActive: STATE.settings.botActive,
+        botActive:      STATE.settings.botActive,
         requireTrigger: STATE.settings.requireTrigger,
-        browseOnly: STATE.settings.browseOnly,
-        triggerWords: STATE.settings.triggerWords || [],
+        browseOnly:     STATE.settings.browseOnly,
+        triggerWords:   STATE.settings.triggerWords || [],
       },
     });
   }
 
   // ---- رفع صورة من الجهاز ----
   if (url === '/api/images' && method === 'POST') {
-    if (!IMG_COL) return json({ error: 'تخزين الصور غير مهيأ' }, 503);
+    if (!IMG_COL) return json({error:'تخزين الصور غير مهيأ'}, 503);
     const raw = String(body.dataUrl || '');
     const m = raw.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/=]+)$/);
-    if (!m) return json({ error: 'صيغة غير مدعومة — استخدم JPG أو PNG أو WebP' }, 400);
+    if (!m) return json({error:'صيغة غير مدعومة — استخدم JPG أو PNG أو WebP'}, 400);
 
     const bytes = Buffer.from(m[2], 'base64');
     const MAX = 600 * 1024;   // مستند Firestore حده 1 ميغابايت، وbase64 يضخّم 33%
     if (bytes.length > MAX) {
-      return json({ error: `الصورة كبيرة (${(bytes.length / 1024).toFixed(0)} ك.ب). الحد ${MAX / 1024} ك.ب` }, 413);
+      return json({error:`الصورة كبيرة (${(bytes.length/1024).toFixed(0)} ك.ب). الحد ${MAX/1024} ك.ب`}, 413);
     }
 
     const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -4578,11 +4578,11 @@ async function handleAPI(url, method, body, res) {
       });
     } catch (e) {
       console.log('⚠️ رفع صورة:', e.message);
-      return json({ error: 'تعذّر الحفظ: ' + e.message }, 500);
+      return json({error:'تعذّر الحفظ: ' + e.message}, 500);
     }
 
-    auth.audit(CURRENT_USER, 'image.upload', body.name || 'صورة', `${(bytes.length / 1024).toFixed(0)} ك.ب`);
-    addLog(`🖼️ رُفعت صورة (${(bytes.length / 1024).toFixed(0)} ك.ب) — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
+    auth.audit(CURRENT_USER, 'image.upload', body.name || 'صورة', `${(bytes.length/1024).toFixed(0)} ك.ب`);
+    addLog(`🖼️ رُفعت صورة (${(bytes.length/1024).toFixed(0)} ك.ب) — ${CURRENT_USER ? CURRENT_USER.displayName : ''}`);
     return json({ ok: true, id, url: '/api/img/' + id, size: bytes.length });
   }
 
@@ -4607,12 +4607,12 @@ async function handleAPI(url, method, body, res) {
 
   if (url === '/api/bot/link' && method === 'POST') {
     const wanted = body.method === 'pair' ? 'pair' : 'qr';
-    const phone = String(body.phone || '').replace(/\D/g, '');
+    const phone  = String(body.phone || '').replace(/\D/g, '');
     if (wanted === 'pair' && phone.length < 8)
-      return json({ error: 'أدخل رقم الواتساب بصيغة دولية بالأرقام فقط، مثل 970567743979' }, 400);
+      return json({error: 'أدخل رقم الواتساب بصيغة دولية بالأرقام فقط، مثل 970567743979'}, 400);
 
     STATE.settings.linkMethod = wanted;
-    STATE.settings.pairPhone = phone;
+    STATE.settings.pairPhone  = phone;
     saveState();
     auth.audit(CURRENT_USER, 'settings.edit', 'ربط واتساب',
       wanted === 'pair' ? `التبديل إلى كود الربط (${phone})` : 'التبديل إلى QR');
@@ -4622,20 +4622,20 @@ async function handleAPI(url, method, body, res) {
     pairCode = ''; currentQR = ''; pairRequested = false;
     STATE.botConnected = false;
     addLog(`🔗 إعادة ربط بطريقة ${wanted === 'pair' ? 'الكود' : 'QR'}${cleared ? ' (مُسحت الجلسة السابقة)' : ''}`);
-    setTimeout(() => { try { startBaileys({ force: true }); } catch (e) { console.log(e.message); } }, 1200);
-    return json({ ok: true, method: wanted, phone, cleared });
+    setTimeout(() => { try { startBaileys({force:true}); } catch(e){ console.log(e.message); } }, 1200);
+    return json({ok: true, method: wanted, phone, cleared});
   }
 
   // فك الربط: مسح الجلسة وإعادة التشغيل
   if (url === '/api/bot/unlink' && method === 'POST') {
-    try { if (waSocket) await waSocket.logout(); } catch (e) { /* غير متصل */ }
+    try { if (waSocket) await waSocket.logout(); } catch(e) { /* غير متصل */ }
     const cleared = await clearAuthFolder();
     pairCode = ''; currentQR = ''; pairRequested = false;
     STATE.botConnected = false;
     auth.audit(CURRENT_USER, 'settings.edit', 'ربط واتساب', 'فك الربط ومسح الجلسة');
     addLog('🔌 فُك الربط ومُسحت الجلسة');
-    setTimeout(() => { try { startBaileys({ force: true }); } catch (e) { console.log(e.message); } }, 1500);
-    return json({ ok: true, cleared });
+    setTimeout(() => { try { startBaileys({force:true}); } catch(e){ console.log(e.message); } }, 1500);
+    return json({ok: true, cleared});
   }
 
   // ---- BOT CONTROL ----
@@ -4643,8 +4643,8 @@ async function handleAPI(url, method, body, res) {
     addLog('🔄 إعادة تشغيل من الداشبورد');
     STATE.botConnected = false;
     // كان يمرّر رقماً لدالة تتوقّع نصاً، فلا يُعاد الاتصال فعلياً
-    setTimeout(() => { try { startBaileys({ force: true }); } catch (e) { console.log(e.message); } }, 800);
-    return json({ ok: true });
+    setTimeout(() => { try { startBaileys({force:true}); } catch(e){ console.log(e.message); } }, 800);
+    return json({ok: true});
   }
   if (url === '/api/bot/disconnect' && method === 'POST') {
     addLog('⏹️ قطع الاتصال من الداشبورد');
@@ -4652,7 +4652,7 @@ async function handleAPI(url, method, body, res) {
     killSocket();
     if (waRetryTimer) { clearTimeout(waRetryTimer); waRetryTimer = null; }
     waConnecting = false;
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // ---- SETTINGS ----
@@ -4669,72 +4669,72 @@ async function handleAPI(url, method, body, res) {
     Object.assign(STATE.settings, body);
     saveState();
     addLog('⚙️ تم تحديث الإعدادات');
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // ---- ORDERS ----
   const orderMatch = url.match(/^\/api\/orders\/(\d+)\/status$/);
   if (orderMatch && method === 'PUT') {
     const order = STATE.orders.find(o => o.id === parseInt(orderMatch[1]));
-    if (!order) return json({ error: 'not found' }, 404);
+    if (!order) return json({error: 'not found'}, 404);
     order.status = body.status;
     saveState();
     addLog(`📦 طلب #${order.id} → ${body.status}`);
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // إرسال رسالة للزبون من الداشبورد
   const orderMsgMatch = url.match(/^\/api\/orders\/(\d+)\/message$/);
   if (orderMsgMatch && method === 'POST') {
     const order = STATE.orders.find(o => o.id === parseInt(orderMsgMatch[1]));
-    if (!order) return json({ error: 'not found' }, 404);
-    if (!waSocket) return json({ error: 'البوت غير متصل بواتساب' }, 503);
+    if (!order) return json({error: 'not found'}, 404);
+    if (!waSocket) return json({error:'البوت غير متصل بواتساب'}, 503);
     waSocket.sendMessage(order.customerPhone, { text: body.text || '' }).then(() => {
-      json({ ok: true });
+      json({ok: true});
     }).catch(e => {
-      json({ error: e.message }, 500);
+      json({error: e.message}, 500);
     });
     return;
   }
 
   // ---- ITEMS ----
   if (url === '/api/items' && method === 'POST') {
-    if (!body.name || !body.cat || body.price === undefined) return json({ error: 'name/cat/price required' }, 400);
+    if (!body.name || !body.cat || body.price === undefined) return json({error: 'name/cat/price required'}, 400);
     // لا أصناف مشتركة بعد اليوم: إمّا فرع محدّد، أو 'all' = نسخة مستقلة لكل فرع
     const scoped = myBranchScope(CURRENT_USER);
     const targets = scoped ? [scoped]
       : body.branch === 'all' ? branchIds()
-        : isValidBranch(body.branch) ? [body.branch] : null;
-    if (!targets) return json({ error: 'حدّد الفرع' }, 400);
+      : isValidBranch(body.branch) ? [body.branch] : null;
+    if (!targets) return json({error: 'حدّد الفرع'}, 400);
     const created = [];
     for (const tb of targets) {
-      const item = {
-        id: STATE.nextId++,
-        name: body.name,
-        cat: body.cat,
-        branch: tb,
-        price: Number(body.price),
-        active: true,
-        keys: [...(body.keys || [body.name.toLowerCase()])],   // نسخة مستقلة لكل فرع
-        desc: String(body.desc || '').trim().slice(0, 300),   // المكونات
-        image: cleanImageUrl(body.image),
-      };
-      item.updatedBy = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
-      item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
-      item.updatedAt = new Date().toISOString();
-      STATE.items.push(item);
-      created.push(item);
-      auth.audit(CURRENT_USER, 'item.create', item.name, `صنف جديد بسعر ${item.price} ₪ — ${branchLabel(tb)}`);
-      addLog(`➕ أُضيف: ${item.name} (${branchLabel(tb)}) — ${item.updatedBy}`);
+    const item = {
+      id: STATE.nextId++,
+      name: body.name,
+      cat: body.cat,
+      branch: tb,
+      price: Number(body.price),
+      active: true,
+      keys: [...(body.keys || [body.name.toLowerCase()])],   // نسخة مستقلة لكل فرع
+      desc: String(body.desc || '').trim().slice(0, 300),   // المكونات
+      image: cleanImageUrl(body.image),
+    };
+    item.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
+    item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
+    item.updatedAt   = new Date().toISOString();
+    STATE.items.push(item);
+    created.push(item);
+    auth.audit(CURRENT_USER, 'item.create', item.name, `صنف جديد بسعر ${item.price} ₪ — ${branchLabel(tb)}`);
+    addLog(`➕ أُضيف: ${item.name} (${branchLabel(tb)}) — ${item.updatedBy}`);
     }
     await saveMenuNow();
-    return json({ ok: true, item: created[0], items: created });
+    return json({ok: true, item: created[0], items: created});
   }
   const itemMatch = url.match(/^\/api\/items\/(\d+)$/);
   if (itemMatch && method === 'PUT') {
     const idx = STATE.items.findIndex(i => i.id === parseInt(itemMatch[1]));
-    if (idx === -1) return json({ error: 'not found' }, 404);
-    const it = STATE.items[idx];
+    if (idx === -1) return json({error: 'not found'}, 404);
+    const it     = STATE.items[idx];
     // فرع "التصرّف" الفعلي: فرع الحساب الثابت (رئيس قسم/كاشير مقيّد) إن وُجد،
     // وإلا فرع العرض الحالي بالداشبورد (viewBranch) — حتى لو سوبر أدمن، إذا
     // كان شغّال على تبويب فرع محدّد وقت الضغط على الزر.
@@ -4744,7 +4744,7 @@ async function handleAPI(url, method, body, res) {
       (isToggleOnly && isValidBranch(body.viewBranch) ? body.viewBranch : null);
     // صنف مشترك متبقٍّ بلا فرع تصرّف = سيُغلق في الفرعين. نرفض بدل ذلك.
     if (isToggleOnly && !it.branch && !actingBranch) {
-      return json({ error: 'هذا الصنف مشترك بين الفرعين — افتح تبويب الفرع (غزة أو الأوسط) ثم أعد المحاولة' }, 400);
+      return json({error: 'هذا الصنف مشترك بين الفرعين — افتح تبويب الفرع (غزة أو الأوسط) ثم أعد المحاولة'}, 400);
     }
     // صنف مشترك (بلا فرع) وفيه فرع تصرّف معروف؟ نحوّله تلقائياً لصنف خاص
     // بهذا الفرع + نسخة لبقية الفروع بنفس حالته الحالية — يصير مستقلاً بكل
@@ -4754,26 +4754,26 @@ async function handleAPI(url, method, body, res) {
       addLog(`🔀 فُصل الصنف المشترك "${it.name}" لكل فرع لحاله — ${CURRENT_USER ? CURRENT_USER.displayName : 'النظام'}`);
     }
     if (!auth.canToggleScope(CURRENT_USER, { branch: it.branch, cat: it.cat })) {
-      return json({ error: 'حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تعدّل هذا الصنف' }, 403);
+      return json({error: 'حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تعدّل هذا الصنف'}, 403);
     }
     const before = { name: it.name, price: it.price, cat: it.cat, active: it.active, desc: it.desc };
     delete body.viewBranch; // سياق عرض فقط — ما ينحفظ كحقل بالصنف
     // الفرع لا يُفرّغ أبداً (التفريغ يعيده صنفاً مشتركاً فتعود المشكلة)،
     // والحساب المقيّد لا ينقل صنفاً لفرع آخر.
     if (body.branch !== undefined &&
-      (!isValidBranch(body.branch) || (myBranchScope(CURRENT_USER) && body.branch !== myBranchScope(CURRENT_USER)))) {
+        (!isValidBranch(body.branch) || (myBranchScope(CURRENT_USER) && body.branch !== myBranchScope(CURRENT_USER)))) {
       delete body.branch;
     }
     delete body.id;
     if (body.price !== undefined) body.price = Number(body.price);
     if (body.image !== undefined) body.image = cleanImageUrl(body.image);
-    if (body.desc !== undefined) body.desc = String(body.desc).trim().slice(0, 300);
+    if (body.desc  !== undefined) body.desc  = String(body.desc).trim().slice(0, 300);
     Object.assign(it, body);
 
     // ختم: من غيّر ومتى — يظهر لكل الحسابات
-    it.updatedBy = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
+    it.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     it.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
-    it.updatedAt = new Date().toISOString();
+    it.updatedAt   = new Date().toISOString();
     // تغيير التوفّر حرج: نحفظ فوراً بدل انتظار مؤقت الثلاث ثوانٍ،
     // فإيقاف الخدمة خلالها كان يبتلع التغيير ويعيد الصنف مُفعّلاً.
     // يكتب الآن مستند المنيو وحده (صغير) بدل STATE كاملة — أسرع بكثير.
@@ -4783,21 +4783,21 @@ async function handleAPI(url, method, body, res) {
       auth.audit(CURRENT_USER, it.active ? 'menu.open' : 'menu.close', it.name,
         it.active ? 'تفعيل الصنف' : 'إغلاق الصنف');
       addLog(`${it.active ? '✅ فُعّل' : '🚫 أُغلق'}: ${it.name} — ${it.updatedBy}`);
-      notifyStaffAvailability(it, it.updatedBy).catch(() => { });
+      notifyStaffAvailability(it, it.updatedBy).catch(()=>{});
     } else {
       const ch = [];
-      if (before.name !== it.name) ch.push(`الاسم: ${before.name} ← ${it.name}`);
+      if (before.name  !== it.name)  ch.push(`الاسم: ${before.name} ← ${it.name}`);
       if (before.price !== it.price) ch.push(`السعر: ${before.price} ← ${it.price} ₪`);
-      if (before.cat !== it.cat) ch.push(`القسم: ${before.cat} ← ${it.cat}`);
-      if (before.desc !== it.desc) ch.push('تعديل المكونات');
+      if (before.cat   !== it.cat)   ch.push(`القسم: ${before.cat} ← ${it.cat}`);
+      if (before.desc  !== it.desc)  ch.push('تعديل المكونات');
       auth.audit(CURRENT_USER, 'item.edit', it.name, ch.join(' | ') || 'تحديث بيانات');
       addLog(`✏️ عُدّل: ${it.name} — ${it.updatedBy}`);
     }
-    return json({ ok: true, item: it });
+    return json({ok: true, item: it});
   }
   if (itemMatch && method === 'DELETE') {
     const item = STATE.items.find(i => i.id === parseInt(itemMatch[1]));
-    if (!item) return json({ error: 'not found' }, 404);
+    if (!item) return json({error: 'not found'}, 404);
     const delId = parseInt(itemMatch[1]);
     STATE.items = STATE.items.filter(i => i.id !== delId);
     if (!Array.isArray(STATE.deletedItemIds)) STATE.deletedItemIds = [];
@@ -4805,37 +4805,37 @@ async function handleAPI(url, method, body, res) {
     await saveMenuNow(); // حفظ فوري — لا ننتظر المؤقت
     auth.audit(CURRENT_USER, 'item.delete', item.name, 'حذف الصنف نهائياً');
     addLog(`🗑️ حُذف: ${item.name}`);
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // ---- REPLIES ----
   if (url === '/api/replies' && method === 'POST') {
-    const reply = { id: STATE.nextId++, ...body, active: true };
+    const reply = {id: STATE.nextId++, ...body, active: true};
     STATE.replies.push(reply);
     saveState();
-    return json({ ok: true, reply });
+    return json({ok: true, reply});
   }
   if (url === '/api/replies' && method === 'POST') {
-    const reply = { id: STATE.nextId++, keys: body.keys || [], text: body.text || '', active: body.active !== false };
+    const reply = { id: STATE.nextId++, keys: body.keys||[], text: body.text||'', active: body.active !== false };
     STATE.replies.push(reply);
-    saveState(); addLog('💬 رد جديد: ' + (body.keys || []).join('، '));
+    saveState(); addLog('💬 رد جديد: ' + (body.keys||[]).join('، '));
     return json({ ok: true, reply });
   }
 
   const replyMatch = url.match(/^\/api\/replies\/(\d+)$/);
   if (replyMatch && method === 'PUT') {
     const idx = STATE.replies.findIndex(r => r.id === parseInt(replyMatch[1]));
-    if (idx === -1) return json({ error: 'not found' }, 404);
+    if (idx === -1) return json({error: 'not found'}, 404);
     Object.assign(STATE.replies[idx], body);
     saveState();
-    return json({ ok: true });
+    return json({ok: true});
   }
   if (replyMatch && method === 'DELETE') {
     const r = STATE.replies.find(r => r.id === parseInt(replyMatch[1]));
-    if (!r) return json({ error: 'not found' }, 404);
+    if (!r) return json({error: 'not found'}, 404);
     STATE.replies = STATE.replies.filter(r => r.id !== parseInt(replyMatch[1]));
     saveState();
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // نقطة /api/categories القديمة حُذفت: كانت Object.assign أعمى
@@ -4845,10 +4845,10 @@ async function handleAPI(url, method, body, res) {
   const delMatch = url.match(/^\/api\/delivery\/(\d+)$/);
   if (delMatch && method === 'PUT') {
     const idx = parseInt(delMatch[1]);
-    if (!STATE.deliveryZones[idx]) return json({ error: 'not found' }, 404);
+    if (!STATE.deliveryZones[idx]) return json({error: 'not found'}, 404);
     Object.assign(STATE.deliveryZones[idx], body);
     saveState();
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // ---- QUEUE ----
@@ -4856,34 +4856,34 @@ async function handleAPI(url, method, body, res) {
   if (qMatch && method === 'DELETE') {
     STATE.queue.splice(parseInt(qMatch[1]), 1);
     saveState();
-    return json({ ok: true });
+    return json({ok: true});
   }
   if (url === '/api/queue' && method === 'DELETE') {
     STATE.queue = [];
     saveState();
-    return json({ ok: true });
+    return json({ok: true});
   }
 
   // رسالة مباشرة من الداشبورد لعميل في القائمة
   const qMsgMatch = url.match(/^\/api\/queue\/(\d+)\/message$/);
   if (qMsgMatch && method === 'POST') {
     const q = STATE.queue[parseInt(qMsgMatch[1])];
-    if (!q) return json({ error: 'not found' }, 404);
-    if (!waSocket) return json({ error: 'البوت غير متصل بواتساب' }, 503);
+    if (!q) return json({error: 'not found'}, 404);
+    if (!waSocket) return json({error:'البوت غير متصل بواتساب'}, 503);
     waSocket.sendMessage(q.phone, { text: body.text || '' }).then(() => {
-      json({ ok: true });
-    }).catch(e => json({ error: e.message }, 500));
+      json({ok: true});
+    }).catch(e => json({error: e.message}, 500));
     return;
   }
 
   // ---- GROUPS ----
   if (url === '/api/groups' && method === 'GET') {
     client.getChats().then(all => {
-      const chats = all.filter(c => c.isGroup).map(g => ({ id: g.id._serialized, name: g.name }));
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      const chats = all.filter(c => c.isGroup).map(g => ({id: g.id._serialized, name: g.name}));
+      res.writeHead(200, {'Content-Type':'application/json'});
       res.end(JSON.stringify(chats));
     }).catch(() => {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.writeHead(200, {'Content-Type':'application/json'});
       res.end('[]');
     });
     return;
@@ -4897,7 +4897,7 @@ async function handleAPI(url, method, body, res) {
       const reply = await handleMessage(simMsg);
       const msgs = Array.isArray(reply) ? reply : (reply ? [reply] : ['...']);
       return json({ replies: msgs });
-    } catch (e) {
+    } catch(e) {
       return json({ replies: ['خطأ: ' + e.message] });
     }
   }
@@ -4912,8 +4912,8 @@ async function handleAPI(url, method, body, res) {
 
   // ---- SEND MESSAGE (debug) ----
   if (url === '/api/send' && method === 'POST') {
-    if (!body.to || !body.text) return json({ error: 'to/text required' }, 400);
-    client.sendMessage(body.to, body.text).then(() => json({ ok: true })).catch(e => json({ error: e.message }, 500));
+    if (!body.to || !body.text) return json({error: 'to/text required'}, 400);
+    client.sendMessage(body.to, body.text).then(() => json({ok: true})).catch(e => json({error: e.message}, 500));
     return;
   }
 
@@ -4921,15 +4921,15 @@ async function handleAPI(url, method, body, res) {
   const addedMatch = url.match(/^\/api\/orders\/(\d+)\/added$/);
   if (addedMatch && method === 'POST') {
     const order = STATE.orders.find(o => o.id === parseInt(addedMatch[1]));
-    if (!order) return json({ error: 'not found' }, 404);
+    if (!order) return json({error:'not found'}, 404);
     order.status = 'added_to_system';
     order.addedAt = new Date().toLocaleString('ar');
     saveState();
     addLog(`✅ طلب #${order.id} — تم الإضافة للنظام`);
     // إرسال رسالة للزبون
     const msg = `✅ تم إضافة طلبك *#${order.id}* للنظام!\nسيتم تحضيره قريباً ⏱️`;
-    client.sendMessage(order.customerPhone, msg).catch(() => { });
-    return json({ ok: true });
+    client.sendMessage(order.customerPhone, msg).catch(()=>{});
+    return json({ok:true});
   }
 
   // ================================================================
@@ -4940,7 +4940,7 @@ async function handleAPI(url, method, body, res) {
     const today = new Date().toLocaleDateString('ar-SA');
     if (STATE.driverDailyDate !== today) {
       STATE.driverDailyDate = today;
-      (STATE.drivers || []).forEach(d => { d.ordersToday = 0; d.currentOrders = []; });
+      (STATE.drivers||[]).forEach(d => { d.ordersToday=0; d.currentOrders=[]; });
       saveState();
     }
     return json(STATE.drivers || []);
@@ -4950,12 +4950,12 @@ async function handleAPI(url, method, body, res) {
     if (!STATE.drivers) STATE.drivers = [];
     const d = {
       id: STATE.nextId++,
-      name: body.name || 'سائق جديد',
-      phone: body.phone || '',
-      shift: body.shift || 'both',
-      zones: body.zones || [],
-      maxActive: Number(body.maxActive) || 3,
-      active: true,
+      name:       body.name  || 'سائق جديد',
+      phone:      body.phone || '',
+      shift:      body.shift || 'both',
+      zones:      body.zones || [],
+      maxActive:  Number(body.maxActive) || 3,
+      active:     true,
       ordersToday: 0,
       currentOrders: [],
     };
@@ -4967,8 +4967,8 @@ async function handleAPI(url, method, body, res) {
 
   const driverMatch = url.match(/^\/api\/drivers\/(\d+)$/);
   if (driverMatch && method === 'PUT') {
-    const d = (STATE.drivers || []).find(d => d.id === parseInt(driverMatch[1]));
-    if (!d) return json({ error: 'not found' }, 404);
+    const d = (STATE.drivers||[]).find(d => d.id === parseInt(driverMatch[1]));
+    if (!d) return json({ error:'not found' }, 404);
     if (body.zones !== undefined) body.zones = Array.isArray(body.zones) ? body.zones : [];
     if (body.maxActive !== undefined) body.maxActive = Number(body.maxActive) || 3;
     Object.assign(d, body);
@@ -4977,8 +4977,8 @@ async function handleAPI(url, method, body, res) {
   }
 
   if (driverMatch && method === 'DELETE') {
-    const d = (STATE.drivers || []).find(d => d.id === parseInt(driverMatch[1]));
-    if (!d) return json({ error: 'not found' }, 404);
+    const d = (STATE.drivers||[]).find(d => d.id === parseInt(driverMatch[1]));
+    if (!d) return json({ error:'not found' }, 404);
     STATE.drivers = STATE.drivers.filter(dr => dr.id !== d.id);
     saveState();
     addLog(`🗑️ حذف سائق: ${d.name}`);
@@ -4987,7 +4987,7 @@ async function handleAPI(url, method, body, res) {
 
   // إعادة ضبط عدادات اليوم
   if (url === '/api/drivers/reset' && method === 'POST') {
-    (STATE.drivers || []).forEach(d => { d.ordersToday = 0; d.currentOrders = []; });
+    (STATE.drivers||[]).forEach(d => { d.ordersToday=0; d.currentOrders=[]; });
     STATE.driverDailyDate = new Date().toLocaleDateString('ar-SA');
     saveState();
     addLog('🔄 reset يدوي لعدادات الديلفري');
@@ -4998,14 +4998,14 @@ async function handleAPI(url, method, body, res) {
   const previewMatch = url.match(/^\/api\/orders\/(\d+)\/assign-preview$/);
   if (previewMatch && method === 'GET') {
     const order = STATE.orders.find(o => o.id === parseInt(previewMatch[1]));
-    if (!order) return json({ error: 'not found' }, 404);
+    if (!order) return json({ error:'not found' }, 404);
     const result = selectDriver(order);
     return json({
       recommended: result.driver ? {
         id: result.driver.id, name: result.driver.name,
         score: result.score, reason: result.reason, warning: result.warning,
       } : null,
-      allScored: (result.scored || []).map(s => ({
+      allScored: (result.scored||[]).map(s => ({
         id: s.driver.id, name: s.driver.name, score: s.score,
         flags: s.flags, active_orders: s.active_orders,
       })),
@@ -5016,24 +5016,24 @@ async function handleAPI(url, method, body, res) {
   const assignMatch = url.match(/^\/api\/orders\/(\d+)\/assign$/);
   if (assignMatch && method === 'POST') {
     const order = STATE.orders.find(o => o.id === parseInt(assignMatch[1]));
-    if (!order) return json({ error: 'not found' }, 404);
+    if (!order) return json({ error:'not found' }, 404);
     if (order.driverId) releaseDriver(order.id);
 
     let driver = null;
     if (body.driverId) {
-      driver = (STATE.drivers || []).find(d => d.id === parseInt(body.driverId));
+      driver = (STATE.drivers||[]).find(d => d.id === parseInt(body.driverId));
     } else {
       const result = selectDriver(order);
       driver = result.driver;
     }
-    if (!driver) return json({ error: 'no driver available' }, 422);
+    if (!driver) return json({ error:'no driver available' }, 422);
 
     applyDriverAssignment(order, driver);
     order.status = 'out_for_delivery';
     if (order.timeline) order.timeline.push({
-      status: 'out_for_delivery', label: `🚗 مع السائق ${driver.name}`,
-      time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString('ar-SA', { month: '2-digit', day: '2-digit' }),
+      status:'out_for_delivery', label:`🚗 مع السائق ${driver.name}`,
+      time: new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+      date: new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),
       timestamp: Date.now(), note: body.note || '',
     });
     saveState();
@@ -5041,32 +5041,32 @@ async function handleAPI(url, method, body, res) {
 
     client.sendMessage(order.customerPhone,
       `🚗 طلبك *#${order.id}* مع السائق *${driver.name}* في الطريق إليك!\n\nاكتب *#${order.id}* لمتابعة طلبك 📍`
-    ).catch(() => { });
+    ).catch(()=>{});
 
-    return json({ ok: true, driverName: driver.name });
+    return json({ ok:true, driverName: driver.name });
   }
 
   // زر "انتهى التجميع" — تعيين تلقائي فوري
   const readyMatch = url.match(/^\/api\/orders\/(\d+)\/ready$/);
   if (readyMatch && method === 'POST') {
     const order = STATE.orders.find(o => o.id === parseInt(readyMatch[1]));
-    if (!order) return json({ error: 'not found' }, 404);
+    if (!order) return json({ error:'not found' }, 404);
 
     if (order.deliveryType !== 'توصيل') {
       // استلام من المطعم
       order.status = 'ready_pickup';
       if (order.timeline) order.timeline.push({
-        status: 'ready_pickup', label: '🔔 جاهز للاستلام',
-        time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-        date: new Date().toLocaleDateString('ar-SA', { month: '2-digit', day: '2-digit' }),
-        timestamp: Date.now(), note: '',
+        status:'ready_pickup', label:'🔔 جاهز للاستلام',
+        time: new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+        date: new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),
+        timestamp: Date.now(), note:'',
       });
       saveState();
       client.sendMessage(order.customerPhone,
         `🔔 طلبك *#${order.id}* جاهز! تفضّل بالاستلام من المطعم 🏪`
-      ).catch(() => { });
+      ).catch(()=>{});
       addLog(`✅ جاهز للاستلام: #${order.id}`);
-      return json({ ok: true, type: 'pickup' });
+      return json({ ok:true, type:'pickup' });
     }
 
     // ── اختيار تلقائي ذكي ──
@@ -5075,22 +5075,22 @@ async function handleAPI(url, method, body, res) {
       // لا يوجد سائق — أشعر الداشبورد يتدخل
       order.status = 'ready'; // جاهز لكن ينتظر
       if (order.timeline) order.timeline.push({
-        status: 'ready', label: '🔔 جاهز — ينتظر سائق',
-        time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-        date: new Date().toLocaleDateString('ar-SA', { month: '2-digit', day: '2-digit' }),
-        timestamp: Date.now(), note: 'لا يوجد سائق متاح',
+        status:'ready', label:'🔔 جاهز — ينتظر سائق',
+        time: new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+        date: new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),
+        timestamp: Date.now(), note:'لا يوجد سائق متاح',
       });
       saveState();
       addLog(`⚠️ طلب #${order.id} جاهز لكن لا سائق متاح`);
-      return json({ ok: true, warning: 'no_driver', needsManual: true, reason: 'لا يوجد سائق متاح' });
+      return json({ ok:true, warning:'no_driver', needsManual:true, reason:'لا يوجد سائق متاح' });
     }
 
     applyDriverAssignment(order, result.driver);
     order.status = 'out_for_delivery';
     if (order.timeline) order.timeline.push({
-      status: 'out_for_delivery', label: `🚗 مع ${result.driver.name}`,
-      time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString('ar-SA', { month: '2-digit', day: '2-digit' }),
+      status:'out_for_delivery', label:`🚗 مع ${result.driver.name}`,
+      time: new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+      date: new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),
       timestamp: Date.now(), note: result.reason,
     });
     saveState();
@@ -5098,13 +5098,13 @@ async function handleAPI(url, method, body, res) {
 
     client.sendMessage(order.customerPhone,
       `🚗 طلبك *#${order.id}* مع السائق *${result.driver.name}* في الطريق!\n📍 اكتب *#${order.id}* لمتابعة طلبك`
-    ).catch(() => { });
+    ).catch(()=>{});
 
     return json({
-      ok: true,
+      ok:true,
       driverName: result.driver.name,
-      reason: result.reason,
-      warning: result.warning || null,
+      reason:     result.reason,
+      warning:    result.warning || null,
     });
   }
 
@@ -5112,114 +5112,110 @@ async function handleAPI(url, method, body, res) {
   const deliveredMatch = url.match(/^\/api\/orders\/(\d+)\/delivered$/);
   if (deliveredMatch && method === 'POST') {
     const order = STATE.orders.find(o => o.id === parseInt(deliveredMatch[1]));
-    if (!order) return json({ error: 'not found' }, 404);
+    if (!order) return json({ error:'not found' }, 404);
     releaseDriver(order.id);
     order.status = 'delivered';
     if (order.timeline) order.timeline.push({
-      status: 'delivered', label: '🎉 تم التوصيل',
-      time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString('ar-SA', { month: '2-digit', day: '2-digit' }),
-      timestamp: Date.now(), note: '',
+      status:'delivered', label:'🎉 تم التوصيل',
+      time: new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+      date: new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),
+      timestamp: Date.now(), note:'',
     });
     saveState();
     addLog(`🎉 تم التوصيل: #${order.id}`);
     client.sendMessage(order.customerPhone,
       `🎉 وصل طلبك *#${order.id}*!\nنتمنى تكون عجبك 😊 شكراً لثقتك بـ${STATE.settings.name} ❤️`
-    ).catch(() => { });
-    return json({ ok: true });
+    ).catch(()=>{});
+    return json({ ok:true });
   }
 
   // ================================================================
   // DRIVER BOARD APIs — pickup + returned + driver-board
   // ================================================================
   const pickupM = url.match(/^\/api\/orders\/(\d+)\/pickup$/);
-  if (pickupM && method === 'POST') {
-    const order = STATE.orders.find(o => o.id === parseInt(pickupM[1]));
-    if (!order) return json({ error: 'not found' }, 404);
+  if (pickupM && method==='POST') {
+    const order = STATE.orders.find(o=>o.id===parseInt(pickupM[1]));
+    if (!order) return json({error:'not found'},404);
     order.pickedUpAt = Date.now(); order.status = 'out_for_delivery';
     if (!order.timeline) order.timeline = [];
-    order.timeline.push({
-      status: 'out_for_delivery', label: `🚗 ${order.driverName} أخذ الطلب`,
-      time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString('ar-SA', { month: '2-digit', day: '2-digit' }), timestamp: Date.now()
-    });
+    order.timeline.push({status:'out_for_delivery',label:`🚗 ${order.driverName} أخذ الطلب`,
+      time:new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+      date:new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),timestamp:Date.now()});
     saveState(); addLog(`🚗 #${order.id} → ${order.driverName} خرج`);
     client.sendMessage(order.customerPhone,
       `🚗 طلبك *#${order.id}* مع السائق *${order.driverName}* في الطريق!\n📍 اكتب *#${order.id}* لمتابعة طلبك`
-    ).catch(() => { });
-    return json({ ok: true, pickedUpAt: order.pickedUpAt });
+    ).catch(()=>{});
+    return json({ok:true,pickedUpAt:order.pickedUpAt});
   }
 
   const returnM = url.match(/^\/api\/orders\/(\d+)\/returned$/);
-  if (returnM && method === 'POST') {
-    const order = STATE.orders.find(o => o.id === parseInt(returnM[1]));
-    if (!order) return json({ error: 'not found' }, 404);
-    const delivered = body.delivered !== false;
-    order.status = delivered ? 'delivered' : 'cancelled'; order.returnedAt = Date.now();
-    if (!order.timeline) order.timeline = [];
-    order.timeline.push({
-      status: order.status, label: delivered ? '🎉 تم التوصيل' : '❌ لم يُسلَّم',
-      time: new Date().toLocaleTimeString('ar', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toLocaleDateString('ar-SA', { month: '2-digit', day: '2-digit' }),
-      timestamp: Date.now(), note: body.note || ''
-    });
-    (STATE.drivers || []).forEach(d => { if (d.currentOrders) d.currentOrders = d.currentOrders.filter(id => id !== order.id); });
-    saveState(); addLog(`${delivered ? '🎉' : '❌'} #${order.id} → ${order.driverName} ${delivered ? 'سلّم' : 'لم يسلّم'}`);
-    const elapsed = order.pickedUpAt ? Math.round((Date.now() - order.pickedUpAt) / 60000) : null;
+  if (returnM && method==='POST') {
+    const order = STATE.orders.find(o=>o.id===parseInt(returnM[1]));
+    if (!order) return json({error:'not found'},404);
+    const delivered = body.delivered!==false;
+    order.status = delivered?'delivered':'cancelled'; order.returnedAt = Date.now();
+    if (!order.timeline) order.timeline=[];
+    order.timeline.push({status:order.status,label:delivered?'🎉 تم التوصيل':'❌ لم يُسلَّم',
+      time:new Date().toLocaleTimeString('ar',{hour:'2-digit',minute:'2-digit'}),
+      date:new Date().toLocaleDateString('ar-SA',{month:'2-digit',day:'2-digit'}),
+      timestamp:Date.now(),note:body.note||''});
+    (STATE.drivers||[]).forEach(d=>{if(d.currentOrders)d.currentOrders=d.currentOrders.filter(id=>id!==order.id);});
+    saveState(); addLog(`${delivered?'🎉':'❌'} #${order.id} → ${order.driverName} ${delivered?'سلّم':'لم يسلّم'}`);
+    const elapsed = order.pickedUpAt?Math.round((Date.now()-order.pickedUpAt)/60000):null;
     if (delivered) client.sendMessage(order.customerPhone,
       `🎉 وصل طلبك *#${order.id}*!\nنتمنى تكون عجبك 😊 شكراً لثقتك بـ${STATE.settings.name} ❤️`
-    ).catch(() => { });
-    return json({ ok: true, elapsed });
+    ).catch(()=>{});
+    return json({ok:true,elapsed});
   }
 
   const dbBM = url.match(/^\/api\/driver-board\/(\d+)$/);
-  if (dbBM && method === 'GET') {
-    const driver = (STATE.drivers || []).find(d => d.id === parseInt(dbBM[1]));
-    if (!driver) return json({ error: 'not found' }, 404);
-    const today = new Date().toLocaleDateString('ar-SA', { year: 'numeric', month: '2-digit', day: '2-digit' });
-    const active = STATE.orders.filter(o => o.driverId === driver.id && ['ready', 'out_for_delivery'].includes(o.status));
-    const done = STATE.orders.filter(o => o.driverId === driver.id && o.status === 'delivered' && o.dateKey === today);
-    return json({ driver, activeOrders: active, todayDelivered: done.length });
+  if (dbBM && method==='GET') {
+    const driver = (STATE.drivers||[]).find(d=>d.id===parseInt(dbBM[1]));
+    if (!driver) return json({error:'not found'},404);
+    const today = new Date().toLocaleDateString('ar-SA',{year:'numeric',month:'2-digit',day:'2-digit'});
+    const active = STATE.orders.filter(o=>o.driverId===driver.id&&['ready','out_for_delivery'].includes(o.status));
+    const done   = STATE.orders.filter(o=>o.driverId===driver.id&&o.status==='delivered'&&o.dateKey===today);
+    return json({driver,activeOrders:active,todayDelivered:done.length});
   }
 
   // ================================================================
   // LEARNING + CHAT ANALYZER APIs
   // ================================================================
   // إحصائيات التعلم
-  if (url === '/api/learning-stats' && method === 'GET') {
+  if (url==='/api/learning-stats'&&method==='GET') {
     const aliases = STATE.learnedAliases || {};
-    const total = Object.keys(aliases).length;
-    const permanent = Object.values(aliases).filter(a => a.permanent).length;
-    const pending = total - permanent;
-    const recent = Object.values(aliases)
-      .sort((a, b) => (b.count || 0) - (a.count || 0))
-      .slice(0, 20)
-      .map(a => ({ raw: a.raw, itemName: a.itemName, count: a.count, permanent: a.permanent }));
+    const total     = Object.keys(aliases).length;
+    const permanent = Object.values(aliases).filter(a=>a.permanent).length;
+    const pending   = total - permanent;
+    const recent    = Object.values(aliases)
+      .sort((a,b) => (b.count||0)-(a.count||0))
+      .slice(0,20)
+      .map(a => ({raw:a.raw, itemName:a.itemName, count:a.count, permanent:a.permanent}));
     return json({ total, permanent, pending, recent, threshold: CONFIRM_THRESHOLD });
   }
 
-  if (url === '/api/unknowns' && method === 'GET')
-    return json((STATE.unknowns || []).filter(u => u.status === 'new').sort((a, b) => (b.count || 1) - (a.count || 1)).slice(0, 50));
+  if (url==='/api/unknowns'&&method==='GET')
+    return json((STATE.unknowns||[]).filter(u=>u.status==='new').sort((a,b)=>(b.count||1)-(a.count||1)).slice(0,50));
 
-  if (url === '/api/unknowns/apply' && method === 'POST') {
-    const item = STATE.items.find(i => i.id === parseInt(body.targetId));
-    if (item && body.alias && !item.keys.includes(body.alias)) item.keys.push(body.alias);
-    const entry = (STATE.unknowns || []).find(u => u.raw === body.raw);
-    if (entry) entry.status = 'added';
-    saveState(); addLog(`📚 تعلّم: "${body.alias || body.raw}" → ${item?.name || '؟'}`);
-    return json({ ok: true });
+  if (url==='/api/unknowns/apply'&&method==='POST') {
+    const item = STATE.items.find(i=>i.id===parseInt(body.targetId));
+    if (item&&body.alias&&!item.keys.includes(body.alias)) item.keys.push(body.alias);
+    const entry = (STATE.unknowns||[]).find(u=>u.raw===body.raw);
+    if (entry) entry.status='added';
+    saveState(); addLog(`📚 تعلّم: "${body.alias||body.raw}" → ${item?.name||'؟'}`);
+    return json({ok:true});
   }
 
-  if (url === '/api/unknowns/dismiss' && method === 'POST') {
-    const entry = (STATE.unknowns || []).find(u => u.raw === body.raw);
-    if (entry) entry.status = 'dismissed';
-    saveState(); return json({ ok: true });
+  if (url==='/api/unknowns/dismiss'&&method==='POST') {
+    const entry=(STATE.unknowns||[]).find(u=>u.raw===body.raw);
+    if(entry)entry.status='dismissed';
+    saveState(); return json({ok:true});
   }
 
   // ── حذف alias مُتعلَّم ──────────────────────────────────
-  if (url === '/api/learn/remove' && method === 'POST') {
+  if (url==='/api/learn/remove'&&method==='POST') {
     const { raw, itemName, type } = body;
-    const rawNorm = normalize(raw || '');
+    const rawNorm = normalize(raw||'');
 
     if (type === 'alias' && itemName) {
       // أزل من item.keys
@@ -5230,7 +5226,7 @@ async function handleAPI(url, method, body, res) {
       // أزل من runtimeAliases
       if (STATE.runtimeAliases?.[rawNorm]) delete STATE.runtimeAliases[rawNorm];
       // أزل من learnedAliases
-      const lKey = rawNorm + '→' + normalize(itemName || '');
+      const lKey = rawNorm + '→' + normalize(itemName||'');
       if (STATE.learnedAliases?.[lKey]) delete STATE.learnedAliases[lKey];
     }
 
@@ -5256,10 +5252,10 @@ async function handleAPI(url, method, body, res) {
     return json({ ok: true });
   }
 
-  if (url === '/api/unknowns/alias' && method === 'POST') {
-    const aliasFrom = (body.from || '').trim();
-    const aliasTo = (body.to || '').trim();
-    if (!aliasFrom || !aliasTo) return json({ error: 'missing params' }, 400);
+  if (url==='/api/unknowns/alias'&&method==='POST') {
+    const aliasFrom = (body.from||'').trim();
+    const aliasTo   = (body.to||'').trim();
+    if (!aliasFrom || !aliasTo) return json({error:'missing params'},400);
 
     // تحقق: الـ "to" يجب أن يكون اسم صنف موجود في القائمة
     const targetItem = STATE.items.find(i =>
@@ -5287,31 +5283,31 @@ async function handleAPI(url, method, body, res) {
     return json({ ok: true });
   }
 
-  if (url === '/api/analyze-chat' && method === 'POST') {
-    if (!body.text) return json({ error: 'no text' }, 400);
+  if (url==='/api/analyze-chat'&&method==='POST') {
+    if(!body.text)return json({error:'no text'},400);
     return json(analyzeChatExport(body.text));
   }
 
-  if (url === '/api/analyze-chat/apply' && method === 'POST') {
-    let appliedAliases = 0, addedItems = 0;
-    for (const a of (body.aliases || [])) {
-      const item = STATE.items.find(i => i.id === a.itemId);
-      if (item && a.alias && !item.keys.some(k => normalize(k) === normalize(a.alias))) {
+  if (url==='/api/analyze-chat/apply'&&method==='POST') {
+    let appliedAliases=0, addedItems=0;
+    for(const a of (body.aliases||[])) {
+      const item=STATE.items.find(i=>i.id===a.itemId);
+      if(item&&a.alias&&!item.keys.some(k=>normalize(k)===normalize(a.alias))){
         item.keys.push(a.alias);
         // أضف للـ runtimeAliases كمان
-        if (!STATE.runtimeAliases) STATE.runtimeAliases = {};
-        STATE.runtimeAliases[normalize(a.alias)] = item.name;
+        if(!STATE.runtimeAliases)STATE.runtimeAliases={};
+        STATE.runtimeAliases[normalize(a.alias)]=item.name;
         appliedAliases++;
       }
     }
-    for (const ni of (body.newItems || [])) {
-      if (!ni.name || !ni.cat || !ni.price) continue;
-      const keys = [ni.name, ...(ni.aliases || [])];
-      STATE.items.push({ id: STATE.nextId++, name: ni.name, cat: ni.cat, price: Number(ni.price) || 0, active: false, keys });
+    for(const ni of (body.newItems||[])) {
+      if(!ni.name||!ni.cat||!ni.price)continue;
+      const keys=[ni.name,...(ni.aliases||[])];
+      STATE.items.push({id:STATE.nextId++,name:ni.name,cat:ni.cat,price:Number(ni.price)||0,active:false,keys});
       addedItems++;
     }
     saveMenu(); addLog(`📚 تحليل محادثات: ${appliedAliases} alias + ${addedItems} صنف جديد`);
-    return json({ ok: true, appliedAliases, addedItems });
+    return json({ok:true,appliedAliases,addedItems});
   }
 
   // ---- CUSTOMER PROFILES ----
@@ -5326,7 +5322,7 @@ async function handleAPI(url, method, body, res) {
     return json({ ok: true });
   }
 
-  json({ error: 'not found' }, 404);
+  json({error: 'not found'}, 404);
 }
 
 const PORT = process.env.PORT || 3000;
@@ -5345,9 +5341,9 @@ const client = {
       addLog('⚠️ رسالة لم تُرسل (البوت غير متصل)');
       return false;
     }
-    const jid = to.includes('@') ? to : to.replace(/\D/g, '') + '@s.whatsapp.net';
+    const jid = to.includes('@') ? to : to.replace(/\D/g,'') + '@s.whatsapp.net';
     try { await waSocket.sendMessage(jid, { text }); return true; }
-    catch (e) {
+    catch(e) {
       console.log('⚠️ فشل إرسال إلى ' + jid + ': ' + e.message);
       addLog('⚠️ فشل إرسال رسالة: ' + e.message);
       return false;
@@ -5370,7 +5366,7 @@ function setPhase(name, label) {
   console.log(`   ⏱️  ${label}`);
 }
 
-let waConnecting = false;   // محاولة اتصال جارية
+let waConnecting   = false;   // محاولة اتصال جارية
 let waConnectingAt = 0;       // متى رُفع الحارس — لكشف العلوق
 const WA_CONNECT_TIMEOUT = 75000;   // بعدها نعتبر المحاولة ميتة
 
@@ -5384,8 +5380,8 @@ function guardStuck() {
   return true;
 }
 setInterval(() => { if (guardStuck()) startBaileys(); }, 30000).unref?.();
-let waRetries = 0;       // عدّاد المحاولات المتتالية
-let waRetryTimer = null;    // مؤقّت إعادة المحاولة المعلّق
+let waRetries      = 0;       // عدّاد المحاولات المتتالية
+let waRetryTimer   = null;    // مؤقّت إعادة المحاولة المعلّق
 const WA_STATS = {
   disconnects: 0, reconnects: 0,
   lastCode: null, lastAt: null, lastReason: '',
@@ -5504,9 +5500,9 @@ function paymentMessage() {
   const blocks = accs.map((a) => {
     const lines = [`${PAY_ICON[a.type] || '💰'} *${a.label}*`];
     if (a.holder) lines.push(`الاسم: ${a.holder}`);
-    if (a.phone) lines.push(`جوال: ${a.phone}`);
-    if (a.iban) lines.push(`IBAN: ${a.iban}`);
-    if (a.note) lines.push(`_${a.note}_`);
+    if (a.phone)  lines.push(`جوال: ${a.phone}`);
+    if (a.iban)   lines.push(`IBAN: ${a.iban}`);
+    if (a.note)   lines.push(`_${a.note}_`);
     return lines.join('\n');
   });
 
@@ -5519,7 +5515,7 @@ function paymentMessage() {
 /** مؤشر الكتابة — يُطلق ولا يُنتظَر، وفشله لا يعني شيئاً */
 function presence(jid, state) {
   if (!waSocket) return;
-  try { waSocket.sendPresenceUpdate(state, jid).catch(() => { }); } catch { /* تجاهل */ }
+  try { waSocket.sendPresenceUpdate(state, jid).catch(() => {}); } catch { /* تجاهل */ }
 }
 
 /** إرسال رسالة مع محاولة ثانية — لا يضيع رد بسبب تعثّر لحظي */
@@ -5572,18 +5568,18 @@ async function startBaileys(opts = {}) {
 
     waSocket = makeWASocket({
       version,
-      auth: authState,
-      logger: pino({ level: 'silent' }),
-      browser: Browsers.ubuntu('Chrome'),
-      printQRInTerminal: false,
-      connectTimeoutMs: 60000,
-      keepAliveIntervalMs: 25000,
-      retryRequestDelayMs: 1000,
+      auth:                  authState,
+      logger:                pino({ level: 'silent' }),
+      browser:               Browsers.ubuntu('Chrome'),
+      printQRInTerminal:     false,
+      connectTimeoutMs:      60000,
+      keepAliveIntervalMs:   25000,
+      retryRequestDelayMs:   1000,
       // بلا مهلة على الاستعلامات — المهلة القصيرة أشيع سبب لأخطاء 408
       defaultQueryTimeoutMs: undefined,
-      markOnlineOnConnect: false,  // لا تسحب كل إشعارات عدم الاتصال دفعة واحدة
-      syncFullHistory: false,  // لا نحتاج تاريخ المحادثات — يوفّر ذاكرة ووقتاً
-      emitOwnEvents: false,
+      markOnlineOnConnect:   false,  // لا تسحب كل إشعارات عدم الاتصال دفعة واحدة
+      syncFullHistory:       false,  // لا نحتاج تاريخ المحادثات — يوفّر ذاكرة ووقتاً
+      emitOwnEvents:         false,
     });
 
     // حفظ بيانات الجلسة عند كل تحديث
@@ -5607,9 +5603,9 @@ async function startBaileys(opts = {}) {
           pairRequested = true;
           try {
             const code = await waSocket.requestPairingCode(phone);
-            pairCode = String(code || '').replace(/\W/g, '');
+            pairCode   = String(code || '').replace(/\W/g, '');
             pairCodeAt = Date.now();
-            currentQR = '';
+            currentQR  = '';
             setPhase('code', 'كود الربط جاهز');
             const pretty = pairCode.match(/.{1,4}/g)?.join('-') || pairCode;
             const issued = pairCode;
@@ -5666,7 +5662,7 @@ async function startBaileys(opts = {}) {
       if (connection === 'close') {
         STATE.botConnected = false;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
-        const loggedOut = statusCode === DisconnectReason.loggedOut;
+        const loggedOut  = statusCode === DisconnectReason.loggedOut;
         waConnecting = false;
         const REASONS = {
           408: 'انتهت مهلة الاتصال',
@@ -5740,8 +5736,8 @@ async function startBaileys(opts = {}) {
 
           // بناء msgObj متوافق مع handleMessage
           const msgObj = {
-            from: jid,
-            body: body,
+            from:  jid,
+            body:  body,
             reply: (text) => sendText(jid, text),
           };
 
@@ -5762,13 +5758,13 @@ async function startBaileys(opts = {}) {
           } else {
             await sendText(jid, reply);
           }
-        } catch (err) {
+        } catch(err) {
           console.error('خطأ رسالة:', err.message, err.stack ? err.stack.split('\n')[1] : '');
         }
       }
     });
 
-  } catch (err) {
+  } catch(err) {
     waConnecting = false;
     console.error('❌ Baileys startError:', err.message);
     scheduleReconnect('فشل بدء الاتصال: ' + err.message);
@@ -5835,7 +5831,7 @@ ${batchText}
       saveState();
     }
     console.log('🤖 AutoLearn: ' + learned + ' learned, ' + batch.filter(b => b.status === 'dismissed').length + ' dismissed');
-  } catch (e) {
+  } catch(e) {
     console.log('⚠️ AutoLearn error:', e.message);
   }
 }
@@ -5880,13 +5876,13 @@ console.log('⏰ نداء ذاتي كل 12 دقيقة: ' + SELF_URL);
 async function shutdown() {
   console.log('\n🛑 إيقاف...');
   await saveAllNow();
-  try { waSocket?.end(undefined, true); } catch (e) { }
+  try { waSocket?.end(undefined, true); } catch(e) {}
   process.exit(0);
 }
-process.on('SIGINT', shutdown);
+process.on('SIGINT',  shutdown);
 process.on('SIGTERM', shutdown);
-process.on('unhandledRejection', r => console.log('⚠️ unhandled:', r?.message || r));
-process.on('uncaughtException', e => console.log('⚠️ uncaught:', e.message));
+process.on('unhandledRejection', r  => console.log('⚠️ unhandled:', r?.message || r));
+process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message));
 
 // ============================================================
 // START — تحميل Firebase ثم بدء Baileys
