@@ -1072,8 +1072,7 @@ img,canvas,svg{max-width:100%;height:auto}
         <select id="mi-branch">
           <option value="gaza">فرع غزة</option>
           <option value="middle">الفرع الأوسط</option>
-          <option value="nuseirat">فرع النصيرات</option>
-          <option value="">كل الفروع معاً</option>
+          <option value="all">الفرعين (نسخة مستقلة لكل فرع)</option>
         </select></div>
     </div>
     <div class="form-group">
@@ -1229,7 +1228,6 @@ img,canvas,svg{max-width:100%;height:auto}
           <option value="">كل الفروع (بدون تقييد)</option>
           <option value="gaza">فرع غزة</option>
           <option value="middle">الفرع الأوسط</option>
-          <option value="nuseirat">فرع النصيرات</option>
         </select></div>
     </div>
     <div class="form-row" id="mu-dept-row" style="display:none">
@@ -1240,7 +1238,6 @@ img,canvas,svg{max-width:100%;height:auto}
           <option value="">اختر الفرع…</option>
           <option value="gaza">فرع غزة</option>
           <option value="middle">الفرع الأوسط</option>
-          <option value="nuseirat">فرع النصيرات</option>
         </select></div>
     </div>
     <div class="form-group"><label>رقم واتساب للأوامر السريعة (اختياري)</label>
@@ -1511,7 +1508,14 @@ async function loadMenu(silent) {
 }
 
 var activeBranch = '';   // '' = كل الفروع
-var BRANCHES = [{id:'gaza',label:'فرع غزة'},{id:'middle',label:'الفرع الأوسط'},{id:'nuseirat',label:'فرع النصيرات'}];
+var BRANCHES = [{id:'gaza',label:'فرع غزة'},{id:'middle',label:'الفرع الأوسط'}];
+
+/** هل القسم ظاهر للزبائن في الفرع المعروض؟ (بلا فرع = الإظهار العام) */
+function catVisibleHere(c){
+  if(!c || c.active===false) return false;
+  var b = activeBranch || (myScope()||{}).branch || '';
+  return !(b && Array.isArray(c.hiddenIn) && c.hiddenIn.indexOf(b) !== -1);
+}
 
 /**
  * نطاق العرض الإجباري لهذا الحساب — رئيس قسم يُقفل على قسمه (وفرعه إن حُدّد)،
@@ -1577,7 +1581,7 @@ function renderMenuCatTabs() {
   const scope = myScope();
   const ids = scope && scope.cat
     ? [scope.cat] // رئيس قسم: قسمه بس، بدون "الكل" وبدون بقية الأقسام
-    : (S.categories||[]).filter(c=>c.active).map(c=>c.id);
+    : (S.categories||[]).filter(c=>c.active!==false).map(c=>c.id);
   const cats = scope && scope.cat ? ids : ['الكل', ...ids];
   document.getElementById('menu-cat-tabs').innerHTML = cats.map(function(c){
     const n = c==='الكل' ? pool.length : pool.filter(i=>i.cat===c).length;
@@ -1606,15 +1610,15 @@ function renderCats(){
   const cats = (S.categories||[]).slice().sort(function(a,b){return (a.order||0)-(b.order||0)});
   document.getElementById('cats-list').innerHTML = cats.map(function(c){
     const n = (S.items||[]).filter(function(i){return i.cat===c.id}).length;
-    return '<div class="catrow'+(c.active===false?' off':'')+'">'
+    return '<div class="catrow'+(catVisibleHere(c)?'':' off')+'">'
       + '<span class="catemoji">'+escH(c.emoji||'🍽️')+'</span>'
       + '<div class="catinfo">'
       +   '<input class="catname" value="'+escH(c.name||c.label||'')+'" data-id="'+c.id+'"'
       +     ' onchange="renameCat(\''+c.id+'\',this.value)">'
       +   '<div class="catmeta">'+escH(c.id)+' · '+n+' صنف'+(c.byWeight?' · بالكيلو':'')+'</div>'
       + '</div>'
-      + '<label class="sw" title="'+(c.active===false?'إظهار':'إخفاء')+' للزبائن">'
-      +   '<input type="checkbox" '+(c.active===false?'':'checked')+' onchange="toggleCat(\''+c.id+'\',this.checked)"><i></i>'
+      + '<label class="sw" title="'+(catVisibleHere(c)?'إخفاء':'إظهار')+' للزبائن'+(activeBranch?' — '+branchName(activeBranch):' — كل الفروع')+'">'
+      +   '<input type="checkbox" '+(catVisibleHere(c)?'checked':'')+' onchange="toggleCat(\''+c.id+'\',this.checked)"><i></i>'
       + '</label>'
       + '<button class="btn btn-sm btn-red" onclick="removeCat(\''+c.id+'\')" title="حذف">🗑️</button>'
       + '</div>';
@@ -1639,11 +1643,25 @@ async function createCat(){
 }
 
 async function toggleCat(id, active){
-  const r = await apiPut('/cats/'+id, {active});
+  const body = {active};
+  const scope = myScope();
+  const b = activeBranch || (scope && scope.branch) || '';
+  if(b){
+    body.branch = b;
+  } else {
+    // تبويب «كل الفروع»: لا نخفي من الفرعين بصمت
+    if(!confirm((active?'إظهار':'إخفاء')+' هذا القسم في كل الفروع؟\n\nلإخفائه من فرع واحد فقط: اضغط «إلغاء» واختر تبويب الفرع أولاً.')){
+      renderCats(); if(typeof loadCats==='function' && document.getElementById('cats-body')) loadCats();
+      return;
+    }
+    body.allBranches = true;
+  }
+  const r = await apiPut('/cats/'+id, body);
   if(r && r.error){ toast(r.error, true); return; }
   const c = (S.categories||[]).find(function(x){return x.id===id});
-  if(c) c.active = active;
-  toast(active ? 'القسم ظاهر للزبائن' : 'القسم مخفي');
+  if(c && r && r.category){ c.active = r.category.active; c.hiddenIn = r.category.hiddenIn || []; }
+  const where = b ? ' — '+branchName(b) : ' — كل الفروع';
+  toast((active ? 'القسم ظاهر للزبائن' : 'القسم مخفي') + where);
   renderCats(); renderMenuCatTabs(); renderMenuTable();
 }
 
@@ -2121,7 +2139,9 @@ function fillCatSelect(selected){
 function openAddItem() {
   editItemId = null;
   fillCatSelect(activeCat !== 'الكل' ? activeCat : '');
-  document.getElementById('mi-branch').value = activeBranch || 'gaza';
+  { const b=document.getElementById('mi-branch'); const all=b.querySelector('option[value="all"]');
+    if(all) all.disabled = false;
+    b.value = activeBranch || 'gaza'; b.disabled = !!(myScope()||{}).branch; }
   document.getElementById('mi-desc-add').value = '';
   { const m=document.getElementById('mi-upmsg'); if(m) m.textContent=''; }
   setDesc('');
@@ -2146,7 +2166,9 @@ function openEditItem(id) {
   document.getElementById('mi-desc-add').value = '';
   { const m=document.getElementById('mi-upmsg'); if(m) m.textContent=''; }
   setDesc(item.desc || '');
-  { const b=document.getElementById('mi-branch'); if(b) b.value = item.branch || ''; }
+  { const b=document.getElementById('mi-branch'); if(b){
+      const all=b.querySelector('option[value="all"]'); if(all) all.disabled = true; // التعديل يخص نسخة فرع واحد
+      b.value = item.branch || activeBranch || 'gaza'; b.disabled = !!(myScope()||{}).branch; } }
   { const el=document.getElementById('mi-image'); if(el) el.value=(item.image||''); }
   previewItemImage();
   document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}"${c.id===item.cat?' selected':''}>${c.label}</option>`).join('');
@@ -2163,7 +2185,8 @@ async function saveItem() {
   if(editItemId) {
     const branch = document.getElementById('mi-branch').value;
     const desc = document.getElementById('mi-desc').value;
-    await apiPut('/items/'+editItemId, {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
+    const r = await apiPut('/items/'+editItemId, {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
+    if(r && r.error){ toast(r.error, true); return; }
     const idx=S.items.findIndex(i=>i.id===editItemId);
     if(idx>=0) Object.assign(S.items[idx],{name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
     toast('تم التعديل ✅');
@@ -2171,8 +2194,9 @@ async function saveItem() {
     const branch = document.getElementById('mi-branch').value;
     const desc = document.getElementById('mi-desc').value;
     const res = await apiPost('/items', {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
-    if(res.item) S.items.push(res.item);
-    toast('تمت الإضافة ✅');
+    if(res && res.error){ toast(res.error, true); return; }
+    if(res && res.items) S.items.push.apply(S.items, res.items); else if(res && res.item) S.items.push(res.item);
+    toast(branch==='all' ? 'تمت الإضافة للفرعين ✅ (كل نسخة مستقلة)' : 'تمت الإضافة ✅');
   }
   closeModal('modal-item');
   await loadMenu();
@@ -2195,7 +2219,7 @@ async function loadCats() {
         </div>
       </div>
       <label class="toggle" style="margin:0">
-        <input type="checkbox" ${c.active?'checked':''} onchange="toggleCat('${c.id}',this.checked)">
+        <input type="checkbox" ${catVisibleHere(c)?'checked':''} onchange="toggleCat('${c.id}',this.checked)">
         <div class="toggle-track"></div><div class="toggle-thumb"></div>
       </label>
     </div>

@@ -283,7 +283,8 @@ const nuseiratMenu = {
 const BRANCHES = [
   { id: 'gaza', label: 'فرع غزة' },
   { id: 'middle', label: 'الفرع الأوسط' },
-  { id: 'nuseirat', label: 'فرع النصيرات' },
+  // «النصيرات» ليس فرعاً مستقلاً — هو نفسه الفرع الأوسط (شارع أبو صرار).
+  // وجوده كفرع ثالث كان يولّد نسخاً وهمية لكل صنف عند الفصل.
 ];
 
 const branchMenuData = { gaza: gazaMenu, middle: middleMenu, nuseirat: nuseiratMenu };
