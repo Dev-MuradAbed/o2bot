@@ -476,6 +476,25 @@ async function loadState() {
 
     // ══ فصل الأصناف المشتركة بين الفروع + إزالة النصيرات ══
     if (normalizeBranchData()) migrationPending = true;
+    // مرة واحدة: قبل هذا التحديث كان «الإغلاق» يُخفي الصنف من الموقع كلياً.
+    // نحوّل الأصناف المغلقة حالياً إلى «مخفي» حتى لا تظهر فجأة للزبائن
+    // بعلامة «غير متوفر». من الآن: غير متوفر = ظاهر، مخفي = لا يظهر.
+    STATE.settings = STATE.settings || {};
+    {
+      // أصناف عُدّل سعرها ولم يتحدث سعر الكيلو، أو أُضيفت لقسم بالكيلو بلا سعر كيلو
+      let n = 0;
+      for (const i of STATE.items) if (syncWeightPrice(i)) n++;
+      if (n) { migrationPending = true; console.log(`⚖️ صُحّح سعر الكيلو لـ ${n} صنف`); }
+    }
+    if (!STATE.settings.hiddenStateV1) {
+      let n = 0;
+      for (const i of STATE.items) {
+        if (i.active === false && i.hidden === undefined) { i.hidden = true; n++; }
+      }
+      STATE.settings.hiddenStateV1 = true;
+      migrationPending = true;
+      console.log(`🙈 ${n} صنف مغلق حُوّل إلى «مخفي» (مرة واحدة)`);
+    }
 
     console.log('✅ Firebase: state محمّل (' + STATE.orders.length + ' طلب)');
     stateLoaded = true;
@@ -2476,6 +2495,24 @@ function branchList() {
   return menuBuild.BRANCHES;
 }
 
+/**
+ * سعر الكيلو مصدره الوحيد هو «السعر» الذي يُعدّل من الداشبورد.
+ * سابقاً كان التعديل يغيّر price فقط بينما الموقع والبوت يعرضان pricePerKg
+ * القديم — فيبدو أن السعر «لا يتحدث». وأصناف القسم الجديد بالكيلو لم
+ * يكن لها pricePerKg أصلاً فلا يعمل اختيار الوزن.
+ * يرجع true إن غيّر شيئاً.
+ */
+function syncWeightPrice(it) {
+  if (!it || (it.variants && it.variants.length)) return false;
+  const cat = STATE.categories.find(c => c.id === it.cat);
+  const byWeight = !!(cat && cat.byWeight);
+  if (!byWeight && it.pricePerKg === undefined) return false;
+  const p = Number(it.price);
+  if (!(p > 0) || it.pricePerKg === p) return false;
+  it.pricePerKg = p;
+  return true;
+}
+
 /** نسخة مستقلة من صنف — المصفوفات (keys/variants) لا تُشارك بين النسخ */
 function cloneItem(item, extra) {
   const c = { ...item, ...extra };
@@ -2786,7 +2823,8 @@ async function handleStaffCommand(from, raw) {
         i.cat === cat.id && i.branch === cmdBranch &&
         auth.canToggleScope(user, { branch: i.branch, cat: i.cat }));
       if (!inScope.length) return `🔒 حسابك مسؤول عن فرع/قسم آخر — ما فيه صنف بهذا القسم تقدر تتحكم فيه.`;
-      const affected = inScope.filter(i => i.active !== opening);
+      // فتح القسم لا يُظهر الأصناف المخفية عمداً
+      const affected = inScope.filter(i => i.active !== opening && !(opening && i.hidden));
       for (const it of affected) {
         it.active = opening; it.updatedBy = user.displayName;
         it.updatedRole = user.role; it.updatedAt = now;
@@ -2810,6 +2848,7 @@ async function handleStaffCommand(from, raw) {
     }
     if (item.active === opening) return `ℹ️ *${item.name}* أصلاً ${opening ? 'مفعّل' : 'مغلق'}.`;
     item.active = opening;
+    if (opening) item.hidden = false;   // «تفعيل» صنف مخفي يُظهره ويجعله متوفراً
     item.updatedBy = user.displayName;
     item.updatedRole = user.role;
     item.updatedAt = now;
@@ -4005,6 +4044,7 @@ const server = http.createServer((req, res) => {
     // القسم من أصنافه
     const items = STATE.items
       .filter(i => !branch || i.branch === branch)
+      .filter(i => !i.hidden)                       // المخفي لا يصل للموقع إطلاقاً
       .filter(i => isCatVisible(i.cat, branch || i.branch))
       .map(i => ({
         id: i.id,
@@ -4036,7 +4076,7 @@ const server = http.createServer((req, res) => {
       // بصمة تتغيّر مع أي تعديل على المنيو — الموقع يقارنها
       // بنسخته المحفوظة ليعرف أنها قديمة دون انتظار
       rev: STATE.items.reduce((a, i) =>
-        a + i.id + (i.active ? 1 : 0) + Number(i.price || 0), 0) + STATE.categories.length,
+        a + i.id + (i.active ? 1 : 0) + (i.hidden ? 2 : 0) + Number(i.price || 0) + Number(i.pricePerKg || 0), 0) + STATE.categories.length,
       counts: { total: items.length, active: items.filter(i => i.active).length },
       categories: STATE.categories
         .filter(c => isCatVisible(c, branch || null))
@@ -4047,7 +4087,7 @@ const server = http.createServer((req, res) => {
           for (const b of branchList()) {
             per[b.id] = isCatVisible(c, b.id)
               ? STATE.items.filter(i =>
-                  i.cat === c.id && i.active !== false && i.branch === b.id).length
+                  i.cat === c.id && i.active !== false && !i.hidden && i.branch === b.id).length
               : 0;
           }
           return {
@@ -4409,7 +4449,16 @@ async function handleAPI(url, method, body, res) {
       }
     }
     if (body.order    !== undefined) cat.order = Number(body.order) || cat.order;
-    if (body.byWeight !== undefined) cat.byWeight = !!body.byWeight;
+    if (body.byWeight !== undefined && !!body.byWeight !== !!cat.byWeight) {
+      cat.byWeight = !!body.byWeight;
+      for (const it of STATE.items.filter(i => i.cat === cat.id)) {
+        if (cat.byWeight) syncWeightPrice(it);
+        else if (it.pricePerKg !== undefined) {          // صار بالقطعة
+          it.price = Number(it.price) || Number(it.pricePerKg);
+          delete it.pricePerKg;
+        }
+      }
+    }
     cat.label = `${cat.emoji || '🍽️'} ${cat.name}`;
     await saveMenuNow();
     if (body.active !== undefined &&
@@ -4522,6 +4571,7 @@ async function handleAPI(url, method, body, res) {
     // مش كل صنف بهالقسم بكل الفروع — إلا لو سوبر أدمن.
     const affected = STATE.items.filter(i =>
       i.cat === cat && i.active !== active &&
+      !(active && i.hidden) &&            // فتح القسم لا يُظهر المخفي عمداً
       i.branch === actingBranch &&
       auth.canToggleScope(CURRENT_USER, { branch: i.branch, cat: i.cat }));
     const stamp = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
@@ -4719,6 +4769,7 @@ async function handleAPI(url, method, body, res) {
       desc: String(body.desc || '').trim().slice(0, 300),   // المكونات
       image: cleanImageUrl(body.image),
     };
+    syncWeightPrice(item);   // صنف بقسم بالكيلو ← سعره للكيلو
     item.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
     item.updatedAt   = new Date().toISOString();
@@ -4739,7 +4790,7 @@ async function handleAPI(url, method, body, res) {
     // وإلا فرع العرض الحالي بالداشبورد (viewBranch) — حتى لو سوبر أدمن، إذا
     // كان شغّال على تبويب فرع محدّد وقت الضغط على الزر.
     const isToggleOnly = Object.keys(body).length > 0 &&
-      Object.keys(body).every(k => k === 'active' || k === 'id' || k === 'viewBranch');
+      Object.keys(body).every(k => k === 'active' || k === 'hidden' || k === 'id' || k === 'viewBranch');
     const actingBranch = myBranchScope(CURRENT_USER) ||
       (isToggleOnly && isValidBranch(body.viewBranch) ? body.viewBranch : null);
     // صنف مشترك متبقٍّ بلا فرع تصرّف = سيُغلق في الفرعين. نرفض بدل ذلك.
@@ -4756,7 +4807,16 @@ async function handleAPI(url, method, body, res) {
     if (!auth.canToggleScope(CURRENT_USER, { branch: it.branch, cat: it.cat })) {
       return json({error: 'حسابك مسؤول عن فرع/قسم آخر — ما بتقدر تعدّل هذا الصنف'}, 403);
     }
-    const before = { name: it.name, price: it.price, cat: it.cat, active: it.active, desc: it.desc };
+    const before = { name: it.name, price: it.price, cat: it.cat, active: it.active, desc: it.desc, hidden: !!it.hidden };
+    // ── ثلاث حالات للصنف ──
+    //   متوفر        active:true              يظهر ويُطلب
+    //   غير متوفر    active:false             يظهر بعلامة «غير متوفر» ولا يُطلب
+    //   مخفي         hidden:true (active:false) لا يظهر إطلاقاً
+    // المخفي دائماً غير متوفر، فيبقى بوت واتساب وأي منطق قديم صحيحاً.
+    if (body.hidden !== undefined) body.hidden = !!body.hidden;
+    if (body.active !== undefined) body.active = !!body.active;
+    if (body.hidden === true) body.active = false;              // إخفاء ⇒ غير متوفر
+    else if (body.active === true) body.hidden = false;         // «متوفر» يُظهر المخفي أيضاً
     delete body.viewBranch; // سياق عرض فقط — ما ينحفظ كحقل بالصنف
     // الفرع لا يُفرّغ أبداً (التفريغ يعيده صنفاً مشتركاً فتعود المشكلة)،
     // والحساب المقيّد لا ينقل صنفاً لفرع آخر.
@@ -4768,7 +4828,10 @@ async function handleAPI(url, method, body, res) {
     if (body.price !== undefined) body.price = Number(body.price);
     if (body.image !== undefined) body.image = cleanImageUrl(body.image);
     if (body.desc  !== undefined) body.desc  = String(body.desc).trim().slice(0, 300);
+    if (body.pricePerKg !== undefined) body.pricePerKg = Number(body.pricePerKg);
+    if (body.pricePerKg > 0 && body.price === undefined) body.price = body.pricePerKg;
     Object.assign(it, body);
+    syncWeightPrice(it);     // تعديل السعر أو نقل الصنف لقسم بالكيلو
 
     // ختم: من غيّر ومتى — يظهر لكل الحسابات
     it.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
@@ -4779,7 +4842,12 @@ async function handleAPI(url, method, body, res) {
     // يكتب الآن مستند المنيو وحده (صغير) بدل STATE كاملة — أسرع بكثير.
     await saveMenuNow();
 
-    if (before.active !== it.active) {
+    if (before.hidden !== !!it.hidden) {
+      auth.audit(CURRENT_USER, it.hidden ? 'menu.hide' : 'menu.unhide', it.name,
+        it.hidden ? 'إخفاء الصنف من المنيو' : 'إظهار الصنف في المنيو');
+      addLog(`${it.hidden ? '🙈 أُخفي' : (it.active ? '✅ فُعّل' : '👁️ أُظهر (غير متوفر)')}: ${it.name} — ${it.updatedBy}`);
+      if (before.active !== it.active) notifyStaffAvailability(it, it.updatedBy).catch(()=>{});
+    } else if (before.active !== it.active) {
       auth.audit(CURRENT_USER, it.active ? 'menu.open' : 'menu.close', it.name,
         it.active ? 'تفعيل الصنف' : 'إغلاق الصنف');
       addLog(`${it.active ? '✅ فُعّل' : '🚫 أُغلق'}: ${it.name} — ${it.updatedBy}`);

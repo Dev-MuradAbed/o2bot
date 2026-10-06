@@ -288,6 +288,11 @@ img,canvas,svg{max-width:100%;height:auto}
 .mtoggle{flex:1;min-height:38px;font-family:inherit;font-size:12.5px;font-weight:700;cursor:pointer;
   border-radius:9px;border:1px solid #5b1f2455;background:#3b141833;color:#ff8a80}
 .mtoggle.on{border-color:#0f5c3f;background:#0f2f2233;color:var(--green)}
+.mhide{min-height:38px;padding:0 10px;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;
+  border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted)}
+.mhide.on{border-color:#3b82f680;color:#93c5fd}
+.mcard.hid{border-style:dashed}
+.mcard.hid .mstate{background:#475569;color:#fff}
 .mtoggle:active{transform:scale(.97)}
 .mact .btn.btn-sm{min-height:38px;padding:0 10px}
 
@@ -1067,7 +1072,7 @@ img,canvas,svg{max-width:100%;height:auto}
       <div class="form-group"><label>القسم</label><select id="mi-cat"></select></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>السعر (₪)</label><input id="mi-price" type="number" min="0"></div>
+      <div class="form-group"><label id="mi-price-lbl">السعر (₪)</label><input id="mi-price" type="number" min="0" step="0.5"></div>
       <div class="form-group"><label>الفرع</label>
         <select id="mi-branch">
           <option value="gaza">فرع غزة</option>
@@ -1485,7 +1490,7 @@ async function loadDashboard() {
 // بصمة تُقارَن لكشف تغيّر المنيو من جهاز آخر
 function menuSignature(items){
   return (items||[]).map(function(i){
-    return i.id+':'+i.active+':'+i.price+':'+i.name+':'+(i.image||'');
+    return i.id+':'+i.active+':'+(i.hidden?1:0)+':'+i.price+':'+i.name+':'+(i.image||'');
   }).join('|');
 }
 
@@ -1811,12 +1816,15 @@ function renderMenuTable() {
   const wrap = document.getElementById('menu-table-wrap');
   if(!items.length){wrap.innerHTML='<div class="empty"><div class="ico">🍽️</div>لا توجد أصناف</div>';return;}
 
-  const closed = items.filter(i=>!i.active).length;
+  const hiddenN = items.filter(i=>i.hidden).length;
+  const closed  = items.filter(i=>!i.active && !i.hidden).length;
   const canEdit = hasPerm('menu.edit');
 
   wrap.innerHTML =
     imageBanner()
-    + '<div class="mcount">'+items.length+' صنف'+(closed?' · <b style="color:var(--red)">'+closed+' مغلق</b>':'')+'</div>'
+    + '<div class="mcount">'+items.length+' صنف'
+      +(closed?' · <b style="color:var(--red)">'+closed+' غير متوفر</b>':'')
+      +(hiddenN?' · <b style="color:#94a3b8">'+hiddenN+' مخفي</b>':'')+'</div>'
     + '<div class="mgrid">' + items.map(function(i){
       const art = catArt(i.cat);
       const src = imageUrl(i);
@@ -1824,11 +1832,12 @@ function renderMenuTable() {
         ? '<img src="'+escH(src)+'" alt="" loading="lazy" onerror="this.style.display=\'none\';this.nextElementSibling.style.display=\'flex\'">'
           + '<div class="mfallback" style="display:none;background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>'
         : '<div class="mfallback" style="background:'+art[1]+'22;color:'+art[1]+'">'+art[0]+'</div>';
-      return '<div class="mcard'+(i.active?'':' off')+'" id="mcard-'+i.id+'">'
+      const st = i.hidden ? 'hidden' : (i.active ? 'on' : 'off');
+      return '<div class="mcard'+(st==='on'?'':' off')+(st==='hidden'?' hid':'')+'" id="mcard-'+i.id+'">'
         + '<div class="mthumb'+(canEdit?' editable':'')+'"'
         +   (canEdit?' onclick="openImageModal('+i.id+')" title="اضغط لتغيير الصورة"':'')+'>'
         +   thumb
-        +   '<span class="mstate">'+(i.active?'متوفر':'مغلق')+'</span>'
+        +   '<span class="mstate">'+(st==='hidden'?'🙈 مخفي':(st==='on'?'متوفر':'غير متوفر'))+'</span>'
         +   (canEdit?'<span class="mcam">'+(i.image?'🖼️ تغيير':'📷 أضف صورة')+'</span>':'')
         + '</div>'
         + '<div class="mbody">'
@@ -1840,8 +1849,14 @@ function renderMenuTable() {
         +   (i.updatedBy ? '<div class="mby">آخر تغيير: <b>'+escH(i.updatedBy)+'</b> '+itemAgo(i.updatedAt)+'</div>' : '')
         + '</div>'
         + '<div class="mact">'
-        +   '<button class="mtoggle'+(i.active?'':' on')+'" onclick="toggleItem('+i.id+','+(!i.active)+')">'
-        +     (i.active?'🚫 إلغاء التفعيل':'✅ تفعيل')+'</button>'
+        // زر التوفّر: الصنف يبقى ظاهراً في المنيو لكن لا يُطلب
+        +   (st==='on'
+              ? '<button class="mtoggle" onclick="setItemState('+i.id+',\'off\')" title="يبقى ظاهراً بعلامة «غير متوفر» ولا يمكن طلبه">🚫 غير متوفر</button>'
+              : '<button class="mtoggle on" onclick="setItemState('+i.id+',\'on\')">✅ متوفر</button>')
+        // زر الإخفاء: يشيل الصنف من المنيو كلياً
+        +   (st==='hidden'
+              ? '<button class="mhide on" onclick="setItemState('+i.id+',\'show\')" title="يرجع للمنيو بعلامة «غير متوفر»">👁️ إظهار</button>'
+              : '<button class="mhide" onclick="setItemState('+i.id+',\'hide\')" title="يختفي من المنيو الإلكتروني كلياً">🙈 إخفاء</button>')
         +   (canEdit
               ? '<button class="btn btn-sm" title="تعديل" onclick="openEditItem('+i.id+')">✏️</button>'
                 + '<button class="btn btn-sm btn-red" title="حذف" onclick="deleteItem('+i.id+')">🗑️</button>'
@@ -2056,6 +2071,39 @@ document.addEventListener('click', function(e){
   }
 });
 
+/**
+ * حالات الصنف:
+ *   on   متوفر              ← {active:true}  (يُظهر المخفي أيضاً)
+ *   off  غير متوفر، ظاهر    ← {active:false}
+ *   hide مخفي من المنيو     ← {hidden:true}
+ *   show إظهار كغير متوفر   ← {hidden:false}
+ */
+async function setItemState(id, action) {
+  const card = document.getElementById('mcard-'+id);
+  if(card) card.classList.add('busy');
+  const body = action==='on'   ? {active:true}
+             : action==='off'  ? {active:false}
+             : action==='hide' ? {hidden:true}
+             :                   {hidden:false};
+  if(activeBranch) body.viewBranch = activeBranch;
+  try{
+    const res = await apiPut('/items/'+id, body);
+    if(res && res.error){ toast(res.error, true); if(card) card.classList.remove('busy'); return; }
+    const item = S.items.find(i=>i.id===id);
+    if(item && res && res.item){
+      item.active = res.item.active; item.hidden = !!res.item.hidden;
+      item.updatedBy = res.item.updatedBy; item.updatedAt = res.item.updatedAt;
+    }
+    toast({on:'✅ الصنف متوفر', off:'🚫 غير متوفر — يظهر للزبون ولا يمكن طلبه',
+           hide:'🙈 أُخفي من المنيو', show:'👁️ ظاهر الآن كغير متوفر'}[action]);
+    renderMenuTable();
+    loadDashboard();
+  }catch(e){
+    toast('تعذّر الحفظ — لم يتغيّر شيء', true);
+    if(card) card.classList.remove('busy');
+  }
+}
+
 async function toggleItem(id, val) {
   const card = document.getElementById('mcard-'+id);
   if(card) card.classList.add('busy');
@@ -2152,7 +2200,7 @@ function openAddItem() {
   { const el=document.getElementById('mi-image'); if(el) el.value=''; }
   previewItemImage();
   document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}">${c.label}</option>`).join('');
-  document.getElementById('modal-item').classList.add('open');
+  document.getElementById('modal-item').classList.add('open'); syncPriceLabel();
 }
 
 function openEditItem(id) {
@@ -2160,7 +2208,7 @@ function openEditItem(id) {
   editItemId = id;
   document.getElementById('mi-title').textContent='تعديل صنف';
   document.getElementById('mi-name').value=item.name;
-  document.getElementById('mi-price').value=item.price;
+  document.getElementById('mi-price').value=(item.pricePerKg!=null?item.pricePerKg:item.price);
   document.getElementById('mi-keys').value=(item.keys||[]).join(', ');
   fillCatSelect(item.cat);
   document.getElementById('mi-desc-add').value = '';
@@ -2172,13 +2220,13 @@ function openEditItem(id) {
   { const el=document.getElementById('mi-image'); if(el) el.value=(item.image||''); }
   previewItemImage();
   document.getElementById('mi-cat').innerHTML=(S.categories||[]).map(c=>`<option value="${c.id}"${c.id===item.cat?' selected':''}>${c.label}</option>`).join('');
-  document.getElementById('modal-item').classList.add('open');
+  document.getElementById('modal-item').classList.add('open'); syncPriceLabel();
 }
 
 async function saveItem() {
   const name=document.getElementById('mi-name').value.trim();
   const cat=document.getElementById('mi-cat').value;
-  const price=parseInt(document.getElementById('mi-price').value)||0;
+  const price=parseFloat(document.getElementById('mi-price').value)||0;   // سعر الكيلو قد يكون كسرياً
   const keys=document.getElementById('mi-keys').value.split(',').map(k=>k.trim()).filter(Boolean);
   const image=(document.getElementById('mi-image')||{value:''}).value.trim();
   if(!name){toast('أدخل اسم الصنف',true);return;}
@@ -3616,7 +3664,7 @@ async function addAliasManual(){
 // إضافة صنف جديد من التاب
 async function addNewItem(){
   const name=document.getElementById('ni-name').value.trim();
-  const price=parseInt(document.getElementById('ni-price').value)||0;
+  const price=parseFloat(document.getElementById('ni-price').value)||0;
   const cat=document.getElementById('ni-cat').value;
   const keys=document.getElementById('ni-keys').value.split('،').map(k=>k.trim()).filter(Boolean);
   const active=document.getElementById('ni-active').checked;
@@ -3728,6 +3776,16 @@ function switchTab(tab) {
   });
   if (tab === 'learned') loadLearnedAliases();
 }
+
+/* عنوان حقل السعر: «سعر الكيلو» في أقسام الوزن */
+function syncPriceLabel(){
+  var sel=document.getElementById('mi-cat'), lbl=document.getElementById('mi-price-lbl');
+  if(!sel||!lbl) return;
+  var c=(S.categories||[]).find(function(x){return x.id===sel.value});
+  lbl.textContent = (c&&c.byWeight) ? 'سعر الكيلو (₪/كغم)' : 'السعر (₪)';
+}
+document.addEventListener('change',function(e){ if(e.target&&e.target.id==='mi-cat') syncPriceLabel(); });
+document.addEventListener('focusin',function(e){ if(e.target&&e.target.id==='mi-price') syncPriceLabel(); });
 </script>
   <!-- DRIVER MODAL -->
   <div class="modal-overlay" id="modal-driver">
