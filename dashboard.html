@@ -292,7 +292,9 @@ img,canvas,svg{max-width:100%;height:auto}
   border-radius:10px;border:1px solid var(--border);background:transparent;color:var(--muted)}
 .mhide.on{border-color:#3b82f680;color:#93c5fd}
 .mcard.hid{border-style:dashed}
-.mcard.hid .mstate{background:#475569;color:#fff}
+.mcard.hid .mstate{background:var(--red);color:#fff}
+.mcard.off:not(.hid) .mstate{background:#f59e0b;color:#111}
+.mhide.on{border-color:#0f5c3f;background:#0f2f2233;color:var(--green)}
 .mtoggle:active{transform:scale(.97)}
 .mact .btn.btn-sm{min-height:38px;padding:0 10px}
 
@@ -1823,8 +1825,9 @@ function renderMenuTable() {
   wrap.innerHTML =
     imageBanner()
     + '<div class="mcount">'+items.length+' صنف'
-      +(closed?' · <b style="color:var(--red)">'+closed+' غير متوفر</b>':'')
-      +(hiddenN?' · <b style="color:#94a3b8">'+hiddenN+' مخفي</b>':'')+'</div>'
+      +(closed?' · <b style="color:#f59e0b">'+closed+' غير متوفر حالياً</b>':'')
+      +(hiddenN?' · <b style="color:var(--red)">'+hiddenN+' غير متوفر</b>'
+         +' <button class="mhide" style="min-height:28px;margin-inline-start:6px" onclick="showAllHidden()" title="يرجعها للمنيو بعلامة «غير متوفر حالياً»">👁️ إظهار الكل كغير متوفر</button>':'')+'</div>'
     + '<div class="mgrid">' + items.map(function(i){
       const art = catArt(i.cat);
       const src = imageUrl(i);
@@ -1837,7 +1840,7 @@ function renderMenuTable() {
         + '<div class="mthumb'+(canEdit?' editable':'')+'"'
         +   (canEdit?' onclick="openImageModal('+i.id+')" title="اضغط لتغيير الصورة"':'')+'>'
         +   thumb
-        +   '<span class="mstate">'+(st==='hidden'?'🙈 مخفي':(st==='on'?'متوفر':'غير متوفر'))+'</span>'
+        +   '<span class="mstate">'+(st==='hidden'?'🚫 غير متوفر':(st==='on'?'متوفر':'⏸️ غير متوفر حالياً'))+'</span>'
         +   (canEdit?'<span class="mcam">'+(i.image?'🖼️ تغيير':'📷 أضف صورة')+'</span>':'')
         + '</div>'
         + '<div class="mbody">'
@@ -1849,14 +1852,16 @@ function renderMenuTable() {
         +   (i.updatedBy ? '<div class="mby">آخر تغيير: <b>'+escH(i.updatedBy)+'</b> '+itemAgo(i.updatedAt)+'</div>' : '')
         + '</div>'
         + '<div class="mact">'
-        // زر التوفّر: الصنف يبقى ظاهراً في المنيو لكن لا يُطلب
-        +   (st==='on'
-              ? '<button class="mtoggle" onclick="setItemState('+i.id+',\'off\')" title="يبقى ظاهراً بعلامة «غير متوفر» ولا يمكن طلبه">🚫 غير متوفر</button>'
-              : '<button class="mtoggle on" onclick="setItemState('+i.id+',\'on\')">✅ متوفر</button>')
-        // زر الإخفاء: يشيل الصنف من المنيو كلياً
+        // زرّان دائماً — كلٌّ يختار ما يناسبه:
+        //  🚫 غير متوفر         ← يشيل الصنف من المنيو الإلكتروني (السلوك القديم)
+        //  ⏸️ غير متوفر حالياً  ← يبقى ظاهراً بعلامة «غير متوفر حالياً» ولا يُطلب
+        //  وأي حالة غير «متوفر» يظهر بدل زرّها ✅ متوفر
         +   (st==='hidden'
-              ? '<button class="mhide on" onclick="setItemState('+i.id+',\'show\')" title="يرجع للمنيو بعلامة «غير متوفر»">👁️ إظهار</button>'
-              : '<button class="mhide" onclick="setItemState('+i.id+',\'hide\')" title="يختفي من المنيو الإلكتروني كلياً">🙈 إخفاء</button>')
+              ? '<button class="mtoggle on" onclick="setItemState('+i.id+',\'on\')">✅ متوفر</button>'
+              : '<button class="mtoggle" onclick="setItemState('+i.id+',\'hide\')" title="يختفي من المنيو الإلكتروني">🚫 غير متوفر</button>')
+        +   (st==='off'
+              ? '<button class="mhide on" onclick="setItemState('+i.id+',\'on\')">✅ متوفر</button>'
+              : '<button class="mhide" onclick="setItemState('+i.id+',\'off\')" title="يبقى ظاهراً في المنيو بعلامة «غير متوفر حالياً» ولا يمكن طلبه">⏸️ غير متوفر حالياً</button>')
         +   (canEdit
               ? '<button class="btn btn-sm" title="تعديل" onclick="openEditItem('+i.id+')">✏️</button>'
                 + '<button class="btn btn-sm btn-red" title="حذف" onclick="deleteItem('+i.id+')">🗑️</button>'
@@ -2078,11 +2083,28 @@ document.addEventListener('click', function(e){
  *   hide مخفي من المنيو     ← {hidden:true}
  *   show إظهار كغير متوفر   ← {hidden:false}
  */
+/** يرجع كل الأصناف المخفية (في التبويب الحالي) للمنيو بحالة «غير متوفر» */
+async function showAllHidden(){
+  const list = itemsOfBranch().filter(i=>i.hidden);
+  if(!list.length) return;
+  if(!confirm('إظهار '+list.length+' صنف مخفي في المنيو بعلامة «غير متوفر حالياً»؟')) return;
+  let ok=0;
+  for(const it of list){
+    try{
+      const body={hidden:false}; if(activeBranch) body.viewBranch=activeBranch;
+      const res=await apiPut('/items/'+it.id, body);
+      if(res && res.item){ it.hidden=!!res.item.hidden; it.active=res.item.active; ok++; }
+    }catch(e){}
+  }
+  toast('👁️ أُظهر '+ok+' صنف كغير متوفر');
+  renderMenuTable(); loadDashboard();
+}
+
 async function setItemState(id, action) {
   const card = document.getElementById('mcard-'+id);
   if(card) card.classList.add('busy');
   const body = action==='on'   ? {active:true}
-             : action==='off'  ? {active:false}
+             : action==='off'  ? {active:false, hidden:false}   // من «غير متوفر» إلى «غير متوفر حالياً» مباشرة
              : action==='hide' ? {hidden:true}
              :                   {hidden:false};
   if(activeBranch) body.viewBranch = activeBranch;
@@ -2094,8 +2116,8 @@ async function setItemState(id, action) {
       item.active = res.item.active; item.hidden = !!res.item.hidden;
       item.updatedBy = res.item.updatedBy; item.updatedAt = res.item.updatedAt;
     }
-    toast({on:'✅ الصنف متوفر', off:'🚫 غير متوفر — يظهر للزبون ولا يمكن طلبه',
-           hide:'🙈 أُخفي من المنيو', show:'👁️ ظاهر الآن كغير متوفر'}[action]);
+    toast({on:'✅ الصنف متوفر', off:'⏸️ غير متوفر حالياً — ظاهر للزبون ولا يمكن طلبه',
+           hide:'🚫 غير متوفر — شُيل من المنيو', show:'⏸️ ظاهر الآن كغير متوفر حالياً'}[action]);
     renderMenuTable();
     loadDashboard();
   }catch(e){

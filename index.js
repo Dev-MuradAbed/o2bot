@@ -2848,7 +2848,8 @@ async function handleStaffCommand(from, raw) {
     }
     if (item.active === opening) return `ℹ️ *${item.name}* أصلاً ${opening ? 'مفعّل' : 'مغلق'}.`;
     item.active = opening;
-    if (opening) item.hidden = false;   // «تفعيل» صنف مخفي يُظهره ويجعله متوفراً
+    // #تفعيل ← متوفر | #اغلاق ← «غير متوفر» = يُشال من المنيو الإلكتروني (كالزر)
+    item.hidden = !opening;
     item.updatedBy = user.displayName;
     item.updatedRole = user.role;
     item.updatedAt = now;
