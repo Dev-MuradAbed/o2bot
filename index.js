@@ -213,6 +213,8 @@ if (process.env.O2_TEST_MODE === 'failread') {
   console.log(`   المشروع: ${sa.project_id}`);
   initializeApp({ credential: cert(sa) });
   const _db = getFirestore();
+  // أي حقل undefined في العمق (صنف بلا وصف مثلاً) لا يُفشل الحفظ كله بعد اليوم
+  _db.settings({ ignoreUndefinedProperties: true });
   STATE_DOC = _db.collection('o2bot').doc('state');
   MENU_DOC  = _db.collection('o2bot').doc('menu');   // أقسام/أصناف — حفظ منفصل وأسرع
   AUTH_DOC  = _db.collection('o2bot').doc('waAuth');  // جلسة واتساب — بديل القرص المحلي
@@ -323,13 +325,58 @@ const MENU_FIELDS = ['categories', 'items', 'deletedItemIds', 'menuVersion', 'it
 function menuSlice() {
   const out = {};
   for (const k of MENU_FIELDS) out[k] = STATE[k];
+  // العدّاد يُحفظ هنا أيضاً: إضافة صنف تحفظ مستند المنيو فوراً، بينما مستند
+  // العمليات مؤجَّل — فلو أُعيد التشغيل بينهما رجع العدّاد للخلف وأخذ الصنف
+  // الجديد رقم صنف موجود (تعديله/حذفه يصيب الصنف الآخر أو الاثنين).
+  out.nextId = STATE.nextId;
+  for (const k of Object.keys(out)) if (out[k] === undefined) out[k] = null;
+  // النسخة الاحتياطية القديمة تضاعف حجم المستند بلا فائدة يومية
+  if (out.itemsBackup && Array.isArray(out.itemsBackup.items) && out.itemsBackup.items.length > 400) {
+    out.itemsBackup = { ...out.itemsBackup, items: out.itemsBackup.items.slice(0, 400), trimmed: true };
+  }
   return out;
 }
+
+// حد Firestore للمستند 1 ميغابايت — نبقى تحته بهامش
+const DOC_SOFT_LIMIT = 900 * 1024;
+const docSize = (o) => Buffer.byteLength(JSON.stringify(o), 'utf8');
 
 function opsSlice() {
   const out = { ...STATE };
   for (const k of MENU_FIELDS) delete out[k];
+  for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+  // مستند العمليات يكبر مع الوقت (طلبات، ملفات زبائن، سجلات). لو تجاوز
+  // الحد يرفض Firestore الحفظ كلياً — وتضيع كل إضافة بعدها عند أول تحديث.
+  // نقصّ الأقدم تدريجياً قبل أن نصل لذلك.
+  if (docSize(out) > DOC_SOFT_LIMIT) {
+    const trimmed = [];
+    const steps = [
+      () => { if ((out.logs || []).length > 50)     { out.logs = out.logs.slice(-50); trimmed.push('السجلات'); } },
+      () => { if ((out.unknowns || []).length > 100) { out.unknowns = out.unknowns.slice(-100); trimmed.push('الرسائل غير المفهومة'); } },
+      () => { if ((out.audit || []).length > 300)    { out.audit = out.audit.slice(0, 300); trimmed.push('سجل التدقيق'); } },
+      () => { if ((out.orders || []).length > 200)   { out.orders = out.orders.slice(0, 200); trimmed.push('الطلبات القديمة'); } },
+      () => {
+        const ent = Object.entries(out.customerProfiles || {});
+        if (ent.length > 1000) { out.customerProfiles = Object.fromEntries(ent.slice(-1000)); trimmed.push('ملفات الزبائن القديمة'); }
+      },
+      () => { if ((out.orders || []).length > 80)    { out.orders = out.orders.slice(0, 80); trimmed.push('الطلبات'); } },
+    ];
+    for (const step of steps) { if (docSize(out) <= DOC_SOFT_LIMIT) break; step(); }
+    // ننقل القصّ للذاكرة أيضاً حتى لا يكبر من جديد
+    for (const k of ['logs','unknowns','audit','orders','customerProfiles']) STATE[k] = out[k];
+    if (trimmed.length) console.log(`✂️ مستند العمليات قارب حد Firestore — قُصّ: ${trimmed.join('، ')}`);
+  }
   return out;
+}
+
+// ══ صحة الحفظ — تظهر في الداشبورد كتنبيه أحمر ══
+// سابقاً كان فشل الحفظ يُكتب في السجل فقط والداشبورد يقول «تم»،
+// فيبدو كل شيء سليماً حتى أول تحديث للسيرفر فتضيع التعديلات.
+const SAVE_HEALTH = { ok: true, lastOkAt: null, error: '', doc: '', at: null };
+function markSave(doc, ok, err) {
+  if (ok) { SAVE_HEALTH.ok = true; SAVE_HEALTH.lastOkAt = new Date().toISOString(); SAVE_HEALTH.error = ''; SAVE_HEALTH.doc = ''; return; }
+  SAVE_HEALTH.ok = false; SAVE_HEALTH.error = String(err && err.message || err || ''); SAVE_HEALTH.doc = doc;
+  SAVE_HEALTH.at = new Date().toISOString();
 }
 
 function saveState() {
@@ -337,16 +384,16 @@ function saveState() {
   if (saveTimer) return;
   saveTimer = setTimeout(async () => {
     saveTimer = null;
-    try { await STATE_DOC.set(opsSlice()); }
-    catch(e) { console.log('⚠️ Firebase save:', e.message); }
+    try { await STATE_DOC.set(opsSlice()); markSave('ops', true); }
+    catch(e) { console.log('⚠️ Firebase save:', e.message); markSave('ops', false, e); }
   }, 3000);
 }
 
 async function saveStateNow() {
   if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return false; }
   if (saveTimer) { clearTimeout(saveTimer); saveTimer = null; }
-  try { await STATE_DOC.set(opsSlice()); return true; }
-  catch(e) { console.log('⚠️ Firebase saveNow:', e.message); return false; }
+  try { await STATE_DOC.set(opsSlice()); markSave('ops', true); return true; }
+  catch(e) { console.log('⚠️ Firebase saveNow:', e.message); markSave('ops', false, e); return false; }
 }
 
 // نفس الفكرة، بمؤقّت منفصل، خاص بمستند المنيو وحده
@@ -357,16 +404,16 @@ function saveMenu() {
   if (saveMenuTimer) return;
   saveMenuTimer = setTimeout(async () => {
     saveMenuTimer = null;
-    try { await MENU_DOC.set(menuSlice()); }
-    catch(e) { console.log('⚠️ Firebase save (menu):', e.message); }
+    try { await MENU_DOC.set(menuSlice()); markSave('menu', true); }
+    catch(e) { console.log('⚠️ Firebase save (menu):', e.message); markSave('menu', false, e); }
   }, 3000);
 }
 
 async function saveMenuNow() {
   if (!stateLoaded) { console.log('⛔ حفظ مرفوض: البيانات لم تُحمَّل بعد'); return false; }
   if (saveMenuTimer) { clearTimeout(saveMenuTimer); saveMenuTimer = null; }
-  try { await MENU_DOC.set(menuSlice()); return true; }
-  catch(e) { console.log('⚠️ Firebase saveNow (menu):', e.message); return false; }
+  try { await MENU_DOC.set(menuSlice()); markSave('menu', true); return true; }
+  catch(e) { console.log('⚠️ Firebase saveNow (menu):', e.message); markSave('menu', false, e); return false; }
 }
 
 /** يحفظ كل شي فوراً — أول تشغيل أو عند الإغلاق */
@@ -429,6 +476,13 @@ async function loadState() {
     // ترمي القائمة كاملة بمجرد حذف صنف واحد، فتعود كل الأصناف
     // مُفعّلة وتضيع كل حالات الإغلاق.
     STATE.deletedItemIds = Array.isArray(saved.deletedItemIds) ? saved.deletedItemIds : [];
+    // ⚠️ السبب الجذري لضياع الأقسام والأصناف بعد كل تحديث:
+    // menuVersion لم يكن يُقرأ من Firebase، فيبقى undefined في الذاكرة.
+    // Firestore يرفض أي مستند فيه undefined، فكل حفظ للمنيو بعد أول
+    // إعادة تشغيل كان يفشل بصمت — والتعديلات تعيش في الذاكرة فقط
+    // حتى أول تحديث للكود.
+    STATE.menuVersion = saved.menuVersion || null;
+    STATE.itemsBackup = saved.itemsBackup || null;
     if (saved.items && saved.items.length) {
       const codeItems = STATE.items;                 // النسخة الافتراضية من الكود
       STATE.items = saved.items;                     // المحفوظ يفوز
@@ -476,6 +530,28 @@ async function loadState() {
 
     // ══ فصل الأصناف المشتركة بين الفروع + إزالة النصيرات ══
     if (normalizeBranchData()) migrationPending = true;
+    {
+      // العدّاد لا يرجع للخلف أبداً: أكبر رقم مستخدم + 1
+      let maxId = 0;
+      for (const arr of [STATE.items, STATE.replies, STATE.deliveryZones, STATE.paymentAccounts, STATE.categories]) {
+        for (const x of (Array.isArray(arr) ? arr : [])) {
+          const n = Number(x && x.id);
+          if (Number.isFinite(n) && n > maxId) maxId = n;
+        }
+      }
+      if (!(STATE.nextId > maxId)) {
+        console.log(`🔢 عدّاد المعرّفات كان متأخراً (${STATE.nextId}) — صُحّح إلى ${maxId + 1}`);
+        STATE.nextId = maxId + 1;
+        migrationPending = true;
+      }
+      // أرقام مكررة من قبل؟ نعطي المكرر رقماً جديداً بدل أن يُعدَّل/يُحذف بالخطأ
+      const seen = new Set(); let dup = 0;
+      for (const it of STATE.items) {
+        if (seen.has(it.id)) { it.id = STATE.nextId++; dup++; }
+        seen.add(it.id);
+      }
+      if (dup) { migrationPending = true; console.log(`🔢 ${dup} صنف كان برقم مكرر — أُعطي رقماً جديداً`); }
+    }
     // مرة واحدة: قبل هذا التحديث كان «الإغلاق» يُخفي الصنف من الموقع كلياً.
     // نحوّل الأصناف المغلقة حالياً إلى «مخفي» حتى لا تظهر فجأة للزبائن
     // بعلامة «غير متوفر». من الآن: غير متوفر = ظاهر، مخفي = لا يظهر.
@@ -4284,6 +4360,13 @@ async function handleAPI(url, method, body, res) {
   };
 
   // ---- READ ----
+  if (url === '/api/save-health' && method === 'GET') {
+    return json({
+      ...SAVE_HEALTH,
+      testMode: !!process.env.O2_TEST_MODE,      // البيانات في الذاكرة فقط!
+      loaded: stateLoaded,
+    });
+  }
   if (url === '/api/state'  && method === 'GET') return json(STATE);
   if (url === '/api/status' && method === 'GET') return json({
       dbReady: stateLoaded, dbError: loadError,
@@ -5990,10 +6073,16 @@ process.on('uncaughtException',  e  => console.log('⚠️ uncaught:', e.message
   // البوت يبدأ فوراً؛ كتابة الترحيل تجري في الخلفية حتى لا تؤخّر ظهور QR
   startBaileys();
 
-  if (migrationPending) {
-    saveAllNow().then(() => {
+  // حفظ فحص عند كل تشغيل: يكشف فوراً إن كان Firebase يرفض الحفظ
+  // (حجم، صلاحيات، حصة) بدل أن نكتشفه بعد ضياع التعديلات
+  if (stateLoaded) {
+    saveAllNow().then((ok) => {
       migrationPending = false;
-      console.log('💾 حُفظ المنيو الجديد (في الخلفية)');
+      console.log(ok ? '💾 فحص الحفظ: Firebase يحفظ بنجاح'
+                     : '❌ فحص الحفظ فشل: ' + SAVE_HEALTH.error + ' — التعديلات لن تبقى بعد التحديث!');
     });
+  }
+  if (process.env.O2_TEST_MODE) {
+    console.log('⚠️⚠️ O2_TEST_MODE مفعّل — كل البيانات في الذاكرة وتضيع مع أي تحديث. احذفه من Render.');
   }
 })();

@@ -4244,5 +4244,23 @@ function renderAudit(){
   }).join('') : '<tr><td data-l="" colspan="5" style="text-align:center;color:var(--muted);padding:26px">لا توجد سجلات</td></tr>';
 }
 </script>
+<div id="save-alert" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;
+  background:#b91c1c;color:#fff;padding:10px 14px;font-weight:700;font-size:13px;text-align:center;line-height:1.6"></div>
+<script>
+/* تنبيه إن كانت التعديلات لا تُحفظ فعلاً على Firebase */
+(function(){
+  async function check(){
+    try{
+      var r = await fetch('/api/save-health',{credentials:'same-origin'});
+      if(!r.ok) return;
+      var h = await r.json(), el = document.getElementById('save-alert'), msg = '';
+      if(h.testMode) msg = '⚠️ وضع الاختبار مفعّل (O2_TEST_MODE) — كل التعديلات تضيع مع أي تحديث للسيرفر. احذف هذا المتغير من Render.';
+      else if(!h.ok) msg = '⚠️ التعديلات لا تُحفظ على Firebase ('+(h.doc==='menu'?'المنيو':'البيانات')+'): '+(h.error||'خطأ غير معروف')+' — لا ترفع تحديثاً قبل حل هذا وإلا تضيع.';
+      el.textContent = msg; el.style.display = msg ? 'block' : 'none';
+    }catch(e){}
+  }
+  check(); setInterval(check, 60000);
+})();
+</script>
 </body>
 </html>
