@@ -2550,7 +2550,11 @@ function nextStepMessage(branch) {
 
 /** نص سعر الصنف: بالوزن، أو بأحجام، أو سعر مفرد */
 function priceText(item) {
-  if (item.pricePerKg) return `${item.pricePerKg} ₪/كغم`;
+  if (item.pricePerKg) {
+    const m = item.minKg;
+    const minTxt = m ? ` (أقل طلب ${m < 1 ? Math.round(m * 1000) + ' غ' : m + ' كغ'})` : '';
+    return `${item.pricePerKg} ₪/كغم${minTxt}`;
+  }
   if (Array.isArray(item.variants) && item.variants.length)
     return item.variants.map(v => `${v.name} ${v.price}`).join(' · ') + ' ₪';
   return `${item.price} ₪`;
@@ -2578,6 +2582,15 @@ function branchList() {
  * يكن لها pricePerKg أصلاً فلا يعمل اختيار الوزن.
  * يرجع true إن غيّر شيئاً.
  */
+/**
+ * الحد الأدنى للطلب بالكيلو (minKg): 0.25 = ربع كيلو. 0 أو فارغ = بلا حد.
+ * يخص الأصناف بالكيلو فقط، ويُحذف إن صار الصنف بالقطعة.
+ */
+function normMinKg(v) {
+  const n = Math.round(Number(v) * 1000) / 1000;
+  return Number.isFinite(n) && n > 0 ? Math.min(n, 50) : 0;
+}
+
 function syncWeightPrice(it) {
   if (!it || (it.variants && it.variants.length)) return false;
   const cat = STATE.categories.find(c => c.id === it.cat);
@@ -2589,6 +2602,7 @@ function syncWeightPrice(it) {
     if (it.pricePerKg === undefined) return false;
     it.price = Number(it.price) || Number(it.pricePerKg);   // أُلغي «بالكيلو» ← بالقطعة
     delete it.pricePerKg;
+    delete it.minKg;
     return true;
   }
   const p = Number(it.price);
@@ -4141,6 +4155,7 @@ const server = http.createServer((req, res) => {
         desc: i.desc || '',
         image: i.image || '',
         ...(i.pricePerKg ? { pricePerKg: i.pricePerKg } : {}),
+        ...(i.pricePerKg && i.minKg ? { minKg: i.minKg } : {}),
         ...(i.variants ? { variants: i.variants } : {}),
       }));
 
@@ -4161,7 +4176,7 @@ const server = http.createServer((req, res) => {
       // بصمة تتغيّر مع أي تعديل على المنيو — الموقع يقارنها
       // بنسخته المحفوظة ليعرف أنها قديمة دون انتظار
       rev: STATE.items.reduce((a, i) =>
-        a + i.id + (i.active ? 1 : 0) + (i.hidden ? 2 : 0) + Number(i.price || 0) + Number(i.pricePerKg || 0), 0) + STATE.categories.length,
+        a + i.id + (i.active ? 1 : 0) + (i.hidden ? 2 : 0) + Number(i.price || 0) + Number(i.pricePerKg || 0) + Number(i.minKg || 0) * 7, 0) + STATE.categories.length,
       counts: { total: items.length, active: items.filter(i => i.active).length },
       categories: STATE.categories
         .filter(c => isCatVisible(c, branch || null))
@@ -4862,6 +4877,7 @@ async function handleAPI(url, method, body, res) {
       image: cleanImageUrl(body.image),
     };
     if (body.byWeight === true) item.byWeight = true;
+    if (normMinKg(body.minKg)) item.minKg = normMinKg(body.minKg);
     syncWeightPrice(item);   // صنف بقسم بالكيلو ← سعره للكيلو
     item.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
@@ -4922,9 +4938,15 @@ async function handleAPI(url, method, body, res) {
     if (body.image !== undefined) body.image = cleanImageUrl(body.image);
     if (body.desc  !== undefined) body.desc  = String(body.desc).trim().slice(0, 300);
     if (body.byWeight !== undefined) body.byWeight = !!body.byWeight;
+    const minKgIn = body.minKg;
+    delete body.minKg;
     if (body.pricePerKg !== undefined) body.pricePerKg = Number(body.pricePerKg);
     if (body.pricePerKg > 0 && body.price === undefined) body.price = body.pricePerKg;
     Object.assign(it, body);
+    if (minKgIn !== undefined) {
+      const m = normMinKg(minKgIn);
+      if (m) it.minKg = m; else delete it.minKg;
+    }
     syncWeightPrice(it);     // تعديل السعر أو نقل الصنف لقسم بالكيلو
 
     // ختم: من غيّر ومتى — يظهر لكل الحسابات

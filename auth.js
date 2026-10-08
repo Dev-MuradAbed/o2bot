@@ -354,7 +354,8 @@ function permFor(url, method, body) {
   // بالداشبورد وقت الضغط، لتفعيل فصل الصنف المشترك تلقائياً — مو تعديل فعلي)
   if (/^\/api\/items\/\d+$/.test(url) && method === 'PUT') {
     const keys = Object.keys(body || {});
-    const onlyActive = keys.length > 0 && keys.every(k => k === 'active' || k === 'id' || k === 'viewBranch');
+    // hidden = زر «🚫 غير متوفر» (يشيل الصنف من المنيو) — تبديل توفّر مثل active
+    const onlyActive = keys.length > 0 && keys.every(k => k === 'active' || k === 'hidden' || k === 'id' || k === 'viewBranch');
     return onlyActive ? 'menu.toggle' : 'menu.edit';
   }
   if (url === '/api/images' && method === 'POST')          return 'menu.edit';
