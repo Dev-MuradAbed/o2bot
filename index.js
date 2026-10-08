@@ -2581,8 +2581,16 @@ function branchList() {
 function syncWeightPrice(it) {
   if (!it || (it.variants && it.variants.length)) return false;
   const cat = STATE.categories.find(c => c.id === it.cat);
-  const byWeight = !!(cat && cat.byWeight);
-  if (!byWeight && it.pricePerKg === undefined) return false;
+  const catKg = !!(cat && cat.byWeight);
+  // صنف بالكيلو: قسمه بالكيلو، أو عُلِّم «يُباع بالكيلو» من الداشبورد
+  // (وجبة بالكيلو داخل قسم عادي)، أو عنده سعر كيلو من قبل
+  const byWeight = catKg || it.byWeight === true || (it.byWeight !== false && it.pricePerKg !== undefined);
+  if (!byWeight) {
+    if (it.pricePerKg === undefined) return false;
+    it.price = Number(it.price) || Number(it.pricePerKg);   // أُلغي «بالكيلو» ← بالقطعة
+    delete it.pricePerKg;
+    return true;
+  }
   const p = Number(it.price);
   if (!(p > 0) || it.pricePerKg === p) return false;
   it.pricePerKg = p;
@@ -4853,6 +4861,7 @@ async function handleAPI(url, method, body, res) {
       desc: String(body.desc || '').trim().slice(0, 300),   // المكونات
       image: cleanImageUrl(body.image),
     };
+    if (body.byWeight === true) item.byWeight = true;
     syncWeightPrice(item);   // صنف بقسم بالكيلو ← سعره للكيلو
     item.updatedBy   = CURRENT_USER ? CURRENT_USER.displayName : 'النظام';
     item.updatedRole = CURRENT_USER ? CURRENT_USER.role : 'system';
@@ -4912,6 +4921,7 @@ async function handleAPI(url, method, body, res) {
     if (body.price !== undefined) body.price = Number(body.price);
     if (body.image !== undefined) body.image = cleanImageUrl(body.image);
     if (body.desc  !== undefined) body.desc  = String(body.desc).trim().slice(0, 300);
+    if (body.byWeight !== undefined) body.byWeight = !!body.byWeight;
     if (body.pricePerKg !== undefined) body.pricePerKg = Number(body.pricePerKg);
     if (body.pricePerKg > 0 && body.price === undefined) body.price = body.pricePerKg;
     Object.assign(it, body);

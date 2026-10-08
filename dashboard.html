@@ -1075,6 +1075,9 @@ img,canvas,svg{max-width:100%;height:auto}
     </div>
     <div class="form-row">
       <div class="form-group"><label id="mi-price-lbl">السعر (₪)</label><input id="mi-price" type="number" min="0" step="0.5"></div>
+      <div class="form-group"><label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="mi-kg" onchange="syncPriceLabel()"> ⚖️ يُباع بالكيلو (الزبون يختار ربع/نص/كيلو أو مبلغاً)
+      </label></div>
       <div class="form-group"><label>الفرع</label>
         <select id="mi-branch">
           <option value="gaza">فرع غزة</option>
@@ -2218,6 +2221,7 @@ function openAddItem() {
   document.getElementById('mi-title').textContent='إضافة صنف جديد';
   document.getElementById('mi-name').value='';
   document.getElementById('mi-price').value='';
+  { const kg=document.getElementById('mi-kg'); if(kg){ kg.checked=false; kg.disabled=false; } }
   document.getElementById('mi-keys').value='';
   { const el=document.getElementById('mi-image'); if(el) el.value=''; }
   previewItemImage();
@@ -2231,6 +2235,7 @@ function openEditItem(id) {
   document.getElementById('mi-title').textContent='تعديل صنف';
   document.getElementById('mi-name').value=item.name;
   document.getElementById('mi-price').value=(item.pricePerKg!=null?item.pricePerKg:item.price);
+  { const kg=document.getElementById('mi-kg'); if(kg){ kg.checked = item.pricePerKg!=null; kg.disabled=false; } }
   document.getElementById('mi-keys').value=(item.keys||[]).join(', ');
   fillCatSelect(item.cat);
   document.getElementById('mi-desc-add').value = '';
@@ -2255,15 +2260,17 @@ async function saveItem() {
   if(editItemId) {
     const branch = document.getElementById('mi-branch').value;
     const desc = document.getElementById('mi-desc').value;
-    const r = await apiPut('/items/'+editItemId, {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
+    const byWeight = !!(document.getElementById('mi-kg')||{}).checked;
+    const r = await apiPut('/items/'+editItemId, {name,cat,branch,price,desc,image,byWeight,keys:keys.length?keys:[name]});
     if(r && r.error){ toast(r.error, true); return; }
     const idx=S.items.findIndex(i=>i.id===editItemId);
-    if(idx>=0) Object.assign(S.items[idx],{name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
+    if(idx>=0) Object.assign(S.items[idx], (r && r.item) ? r.item : {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
     toast('تم التعديل ✅');
   } else {
     const branch = document.getElementById('mi-branch').value;
     const desc = document.getElementById('mi-desc').value;
-    const res = await apiPost('/items', {name,cat,branch,price,desc,image,keys:keys.length?keys:[name]});
+    const byWeight = !!(document.getElementById('mi-kg')||{}).checked;
+    const res = await apiPost('/items', {name,cat,branch,price,desc,image,byWeight,keys:keys.length?keys:[name]});
     if(res && res.error){ toast(res.error, true); return; }
     if(res && res.items) S.items.push.apply(S.items, res.items); else if(res && res.item) S.items.push(res.item);
     toast(branch==='all' ? 'تمت الإضافة للفرعين ✅ (كل نسخة مستقلة)' : 'تمت الإضافة ✅');
@@ -3804,7 +3811,10 @@ function syncPriceLabel(){
   var sel=document.getElementById('mi-cat'), lbl=document.getElementById('mi-price-lbl');
   if(!sel||!lbl) return;
   var c=(S.categories||[]).find(function(x){return x.id===sel.value});
-  lbl.textContent = (c&&c.byWeight) ? 'سعر الكيلو (₪/كغم)' : 'السعر (₪)';
+  var kg=document.getElementById('mi-kg');
+  // قسم بالكيلو ⇒ كل أصنافه بالكيلو (المربع مُعلَّم ومقفول)
+  if(kg){ if(c&&c.byWeight){ kg.checked=true; kg.disabled=true; } else kg.disabled=false; }
+  lbl.textContent = ((c&&c.byWeight)||(kg&&kg.checked)) ? 'سعر الكيلو (₪/كغم)' : 'السعر (₪)';
 }
 document.addEventListener('change',function(e){ if(e.target&&e.target.id==='mi-cat') syncPriceLabel(); });
 document.addEventListener('focusin',function(e){ if(e.target&&e.target.id==='mi-price') syncPriceLabel(); });
