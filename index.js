@@ -2597,7 +2597,11 @@ function syncWeightPrice(it) {
   const catKg = !!(cat && cat.byWeight);
   // صنف بالكيلو: قسمه بالكيلو، أو عُلِّم «يُباع بالكيلو» من الداشبورد
   // (وجبة بالكيلو داخل قسم عادي)، أو عنده سعر كيلو من قبل
-  const byWeight = catKg || it.byWeight === true || (it.byWeight !== false && it.pricePerKg !== undefined);
+  // اختيار الصنف نفسه يغلب القسم: وجبة بالقطعة داخل قسم بالكيلو مسموحة
+  // (byWeight:false)، وصنف بالكيلو داخل قسم عادي مسموح (byWeight:true).
+  // بلا اختيار صريح ← يتبع القسم أو سعر الكيلو الموجود.
+  const byWeight = it.byWeight === true ||
+    (it.byWeight !== false && (catKg || it.pricePerKg !== undefined));
   if (!byWeight) {
     if (it.pricePerKg === undefined) return false;
     it.price = Number(it.price) || Number(it.pricePerKg);   // أُلغي «بالكيلو» ← بالقطعة
@@ -4560,7 +4564,7 @@ async function handleAPI(url, method, body, res) {
       cat.byWeight = !!body.byWeight;
       for (const it of STATE.items.filter(i => i.cat === cat.id)) {
         if (cat.byWeight) syncWeightPrice(it);
-        else if (it.pricePerKg !== undefined) {          // صار بالقطعة
+        else if (it.pricePerKg !== undefined && it.byWeight !== true) {   // صار بالقطعة (إلا المعلَّم بالكيلو بنفسه)
           it.price = Number(it.price) || Number(it.pricePerKg);
           delete it.pricePerKg;
         }

@@ -2233,6 +2233,7 @@ function openAddItem() {
   document.getElementById('mi-name').value='';
   document.getElementById('mi-price').value='';
   { const kg=document.getElementById('mi-kg'); if(kg){ kg.checked=false; kg.disabled=false; } }
+  { const sc=document.getElementById('mi-cat'); if(sc) delete sc.dataset.lastCat; }
   { const mk=document.getElementById('mi-minkg'); if(mk) mk.value='0'; }
   document.getElementById('mi-keys').value='';
   { const el=document.getElementById('mi-image'); if(el) el.value=''; }
@@ -2248,6 +2249,7 @@ function openEditItem(id) {
   document.getElementById('mi-name').value=item.name;
   document.getElementById('mi-price').value=(item.pricePerKg!=null?item.pricePerKg:item.price);
   { const kg=document.getElementById('mi-kg'); if(kg){ kg.checked = item.pricePerKg!=null; kg.disabled=false; } }
+  { const sc=document.getElementById('mi-cat'); if(sc) delete sc.dataset.lastCat; }
   { const mk=document.getElementById('mi-minkg'); if(mk){
       const v=String(item.minKg||0);
       if(![...mk.options].some(o=>o.value===v)) mk.add(new Option((item.minKg<1?Math.round(item.minKg*1000)+' غ':item.minKg+' كغ'), v));
@@ -3830,9 +3832,16 @@ function syncPriceLabel(){
   if(!sel||!lbl) return;
   var c=(S.categories||[]).find(function(x){return x.id===sel.value});
   var kg=document.getElementById('mi-kg');
-  // قسم بالكيلو ⇒ كل أصنافه بالكيلو (المربع مُعلَّم ومقفول)
-  if(kg){ if(c&&c.byWeight){ kg.checked=true; kg.disabled=true; } else kg.disabled=false; }
-  var isKg = (c&&c.byWeight)||(kg&&kg.checked);
+  // المربع قرار الصنف نفسه — يمكن إلغاؤه حتى داخل قسم بالكيلو (وجبة بالقطعة).
+  // عند الإضافة أو تغيير القسم يُقترح تلقائياً حسب القسم.
+  if(kg){
+    kg.disabled=false;
+    if(sel.dataset.lastCat!==sel.value){
+      if(sel.dataset.lastCat!==undefined || !editItemId) kg.checked = !!(c&&c.byWeight);
+      sel.dataset.lastCat=sel.value;
+    }
+  }
+  var isKg = !!(kg&&kg.checked);
   lbl.textContent = isKg ? 'سعر الكيلو (₪/كغم)' : 'السعر (₪)';
   var mw=document.getElementById('mi-minkg-wrap'); if(mw) mw.style.display = isKg ? '' : 'none';
 }
