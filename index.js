@@ -234,10 +234,45 @@ function parseServiceAccount(raw) {
     process.exit(1);
   };
 
+  // ══ مصادر المفتاح بالترتيب ══
+  // cPanel/LiteSpeed يمرّر المتغيرات عبر `export` في الشِل بلا اقتباس،
+  // فتُحذف علامات " من قيمة JSON ويصل المفتاح تالفاً. لذلك:
+  //   1) المتغيّر إن كان JSON صالحاً
+  //   2) FIREBASE_SERVICE_ACCOUNT_B64 (base64 — لا يتأثر بالشِل)
+  //   3) ملف: FIREBASE_KEY_FILE أو firebase-key.json أو *firebase-adminsdk*.json
+  const isJson = (t) => { try { JSON.parse(String(t || '').trim()); return true; } catch { return false; } };
+  if (!isJson(raw) && process.env.FIREBASE_SERVICE_ACCOUNT_B64) {
+    try {
+      const dec = Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_B64.trim(), 'base64').toString('utf8');
+      if (isJson(dec)) { raw = dec; console.log('🔑 مفتاح Firebase قُرئ من FIREBASE_SERVICE_ACCOUNT_B64'); }
+    } catch { /* يكمل */ }
+  }
+  if (!isJson(raw)) {
+    const candidates = [];
+    if (process.env.FIREBASE_KEY_FILE) candidates.push(process.env.FIREBASE_KEY_FILE);
+    candidates.push(path.join(__dirname, 'firebase-key.json'));
+    try {
+      for (const f of fs.readdirSync(__dirname)) {
+        if (/firebase-adminsdk.*\.json$/i.test(f)) candidates.push(path.join(__dirname, f));
+      }
+    } catch { /* يكمل */ }
+    for (const f of candidates) {
+      try {
+        if (!fs.existsSync(f)) continue;
+        const txt = fs.readFileSync(f, 'utf8');
+        if (isJson(txt)) {
+          if (raw && raw.trim()) console.log('ℹ️  متغيّر FIREBASE_SERVICE_ACCOUNT تالف (غالباً حذفت لوحة الاستضافة علامات الاقتباس) — استُخدم الملف بدلاً منه');
+          raw = txt;
+          console.log('🔑 مفتاح Firebase قُرئ من الملف: ' + path.basename(f));
+          break;
+        }
+      } catch { /* الملف التالي */ }
+    }
+  }
   if (!raw || !raw.trim()) {
-    die('متغيّر FIREBASE_SERVICE_ACCOUNT غير موجود',
-        'Render ← Environment ← أضف FIREBASE_SERVICE_ACCOUNT',
-        'قيمته: محتوى ملف JSON الذي نزّلته من Firebase كاملاً');
+    die('مفتاح Firebase غير موجود',
+        'ضع ملف المفتاح باسم firebase-key.json داخل مجلد البوت',
+        'أو اضبط FIREBASE_SERVICE_ACCOUNT (JSON) أو FIREBASE_SERVICE_ACCOUNT_B64');
   }
 
   let sa;
